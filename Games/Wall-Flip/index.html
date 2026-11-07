@@ -232,7 +232,7 @@ const STR = {
     boardTitle: (cn) => `排行榜 · ${cn}`, colRank: '名次', colScore: '總分', colRolls: '翻滾', colDate: '日期', boardEmpty: '暫無紀錄', boardClose: '—— 點擊或按 L / SPACE 關閉 ——',
     boardBtn: '排行榜', langBtn: 'EN',
     ghostBtn: '幽靈', ghostOn: 'ON', ghostOff: 'OFF', ghostSaved: '幽靈已更新！', ghostLabel: '幽靈',
-    padStick: '吸附', padDescend:'快降', padLeft: '左', padRight: '右', padBrake: '煞降', padGo: '油門',
+    padStick: '吸附', padDescend:'快降', padLeft: '左', padRight: '右', padBrake: '噴射', padGo: '油門',
     ach_land: '初著地', ach_roll1: '初翻滾', ach_roll2: '兩圈', ach_roll3: '三圈', ach_soft30: '滿柔軟', ach_legend: '傳說', ach_far100: '百米', ach_eco: '省氣王',
     // online leaderboard
     tabOnline: '世界排行', tabLocal: '本機紀錄', onlineMark: '世界排行',
@@ -308,7 +308,7 @@ const STR = {
     boardTitle: (cn) => `LEADERBOARD · ${cn}`, colRank: '#', colScore: 'SCORE', colRolls: 'ROLLS', colDate: 'DATE', boardEmpty: 'No records yet', boardClose: '—— Click or press L / SPACE to close ——',
     boardBtn: 'RANKING', langBtn: '中文',
     ghostBtn: 'GHOST', ghostOn: 'ON', ghostOff: 'OFF', ghostSaved: 'Ghost updated!', ghostLabel: 'GHOST',
-    padStick: 'STICK', padDescend:'DESCEND', padLeft: '←', padRight: '→', padBrake: 'BRAKE', padGo: 'GO',
+    padStick: 'STICK', padDescend:'DESCEND', padLeft: '←', padRight: '→', padBrake: 'BOOST', padGo: 'GO',
     ach_land: 'First Land', ach_roll1: 'First Flip', ach_roll2: 'Double', ach_roll3: 'Triple', ach_soft30: 'Butter', ach_legend: 'Legend', ach_far100: '100m+', ach_eco: 'Eco',
     // online leaderboard
     tabOnline: 'WORLD', tabLocal: 'LOCAL', onlineMark: 'WORLD',
@@ -1486,7 +1486,7 @@ function stepRoad(dt) {
   const canSuck = inp.stick && car.air > 0;
   if (canSuck) car.air = Math.max(0, car.air - AIR_SUCK * dt);
   const A = canSuck ? SUCK : 0;
-  const braking=LANDING_ASSIST&&(inp.brake||(inp.left&&inp.right));
+  const braking=LANDING_ASSIST&&inp.stick&&(inp.brake||(inp.left&&inp.right));
   const jetL = !braking&&(inp.left||inp.brake)&&car.air>0, jetR = !braking&&(inp.right||inp.brake)&&car.air>0;
   car.left=jetL;car.right=jetR;
   const Z = (jetL ? 1 : 0) + (jetR ? 1 : 0);

@@ -4,10 +4,12 @@ const filter=(process.env.CI_GAME_FILTER || '').trim();
 const included=!filter||filter==='*'||filter.toLowerCase()==='full'||filter.split(/[\s,]+/).includes('Wall-Flip');
 test.beforeEach(()=>test.skip(!included,'selective CI'));
 
-for(const mode of ['2d','3d']) {
-  test(`wall-flip polish: ${mode} launches above the fold and B activates both jets`,async({page,isMobile},testInfo)=>{
+for(const vehicle of ['roadster','mars'])for(const mode of ['2d','3d']) {
+  test(`wall-flip polish: ${mode} ${vehicle} launches above the fold and B activates both jets`,async({page,isMobile},testInfo)=>{
     const errors=[];page.on('pageerror',e=>errors.push(e.message));
-    await page.addInitScript(mode=>localStorage.setItem('wallflip.viewMode',mode),mode);
+    await page.addInitScript(({mode,vehicle})=>{
+      localStorage.setItem('wallflip.viewMode',mode);localStorage.setItem('wallflip.vehicle.v1',vehicle);
+    },{mode,vehicle});
     await page.goto('./Games/Wall-Flip/'+(mode==='3d'?'index-3d.html':''));
     const start=page.locator(mode==='3d'?'#startBtn':'#launchStart');
     await expect(start).toBeVisible({timeout:15000});
@@ -30,8 +32,10 @@ for(const mode of ['2d','3d']) {
       await expect(page.locator('#attitudeBadge')).not.toContainText('倒掛');
       await page.locator('#telemetryBtn').click();
       if(isMobile) await expect(page.locator('#pad [data-act="brake"]')).toBeVisible();
+      await page.locator('#mutebtn').click();
       await page.keyboard.down('b');
       await expect.poll(()=>page.evaluate(()=>window.__sim.state.left&&window.__sim.state.right)).toBe(true);
+      await expect.poll(()=>page.evaluate(()=>window.__sim.state.vy>0&&window.__sim.state.y>.66)).toBe(true);
       await page.locator('[data-flight-toggle]').focus();
       await page.keyboard.up('b');
       await expect.poll(()=>page.evaluate(()=>window.__sim.state.left||window.__sim.state.right)).toBe(false);

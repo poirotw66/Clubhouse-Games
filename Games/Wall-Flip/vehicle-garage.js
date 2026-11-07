@@ -46,8 +46,8 @@
       canopy:[[-1.13,.55,.15,.22],[-.72,.69,.15,.46],[.38,.68,.15,.49],[.95,.48,.14,.21]],
       roof:[[-.92,.51,.475,.495],[-.72,.72,.5,.53],[.39,.71,.5,.535],[.72,.48,.48,.5]],
       handling:{motor:1,rotation:1.15,damping:1.35,thrust:1.5,airUse:.12,landingAssist:true},
-      tc:{title:'尊榮火星車',role:'輕鬆著陸・超長續航',tip:'六輪尊榮座艙。單側噴射做特技，X／↓ 快降，B／雙鍵穩降；近地面自動減速，耗氣僅原版的 12%。',trade:'輔助仍會消耗空氣；太貼近地面才放開翻滾，仍可能來不及救回。'},
-      en:{title:'Royal Mars rover',role:'Easy landing · Long endurance',tip:'Six wheels and a panoramic cabin. Hold one jet for stunts. X / down descends fast; B / both jets descend gently. Jets use 12% of the original air.',trade:'Assistance still spends air. Releasing a roll too close to the ground can leave too little time to recover.'},
+      tc:{title:'尊榮火星車',role:'輕鬆著陸・超長續航',tip:'六輪尊榮座艙。單側翻滾，B／雙鍵向車頂噴射；放開自動回正著陸，X／↓ 快降並在近地面減速，耗氣僅原版的 12%。',trade:'輔助仍會消耗空氣；太貼近地面才放開翻滾，仍可能來不及救回。'},
+      en:{title:'Royal Mars rover',role:'Easy landing · Long endurance',tip:'Six wheels and a panoramic cabin. One jet rolls; B / both jets push toward the roof. Release for assisted landing. X / down descends faster with braking near the ground. Jets use 12% of the original air.',trade:'Assistance still spends air. Releasing a roll too close to the ground can leave too little time to recover.'},
       parts:[[4.2,.38,1.8,0,-.06,0,'body'],[2.08,.36,1.38,-.08,.32,0,'glass'],[.66,.025,1.13,-1.48,.255,0,'dark']],
     },
   ].map(v => Object.freeze({ ...v, finish:Object.freeze(v.finish), handling: Object.freeze(v.handling), hull:Object.freeze(v.hull.map(Object.freeze)), canopy:v.canopy?Object.freeze(v.canopy.map(Object.freeze)):null, roof:v.roof?Object.freeze(v.roof.map(Object.freeze)):null, parts: Object.freeze(v.parts.map(Object.freeze)) }));
@@ -65,12 +65,12 @@
     return tuned;
   }
   function airControl({angle,pitch=0,spin,y,vy,air,clear},input,{damping,thrust,gravity}) {
-    if(input.left!==input.right||air<=0)return input;
+    if(input.left!==input.right||air<=0||(input.left&&input.right&&!input.suck))return input;
     if(!clear)return {left:false,right:false};
     const turn=Math.PI*2,target=Math.round(angle/turn)*turn;
     const error=target-angle-spin/damping;
     if(Math.abs(error)>.025)return {left:error>0,right:error<0};
-    // Brake for the remaining stopping distance, never merely because B is held.
+    // Released jets and descent input brake for the remaining stopping distance.
     const braking=Math.max(1,2*thrust*Math.cos(angle)*Math.cos(pitch)-gravity)*.65;
     const height=Math.max(0,y-.66-.35);
     const safeSpeed=Math.sqrt(1.2**2+2*braking*height);

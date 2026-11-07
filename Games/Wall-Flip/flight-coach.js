@@ -117,8 +117,8 @@
         text($('[data-flight-stage]'),w.stages[a.stage]);text($('[data-flight-action]'),w.actions[a.action] || w.actions.tilt);
         text($('[data-flight-keys]'),w.keys[a.action] || '');
         if(garage?.active.handling.landingAssist&&state.mode==='air'&&a.action!=='empty') {
-          text($('[data-flight-action]'),language()==='en'?'Release roll to level out. Hold X / ↓ for fast descent, or B / both jets for a gentle descent. Braking slows you near the ground.':'放開翻滾先回正；按 X／↓ 快降，B／雙鍵穩降，近地面會自動減速。');
-          text($('[data-flight-keys]'),language()==='en'?'X / ↓ descend · B land':'X / ↓ 快降 · B 穩降');
+          text($('[data-flight-action]'),language()==='en'?'B / both jets push toward the roof. Release for assisted landing. Hold X / ↓ for faster descent with braking near the ground.':'B／雙鍵向車頂噴射；放開自動回正著陸。X／↓ 快降，近地面會自動減速。');
+          text($('[data-flight-keys]'),language()==='en'?'B boost · release to land · X / ↓ descend':'B 噴射 · 放開著陸 · X／↓ 快降');
         }
         const airborne=state.mode==='air'; root.classList.toggle('airborne',airborne);
         const values=[['tilt',a.tilt*180/Math.PI,25,'°',a.aligned],['descent',a.descent*3.6,18,' km/h',a.slow],['spin',a.spin,2.5,' rad/s',a.settled]];

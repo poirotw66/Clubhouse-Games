@@ -971,7 +971,7 @@
             <span class="ico">🔄</span>
             <div>
               <h4 id="lblM2Title">2. 空中翻滾姿態修正</h4>
-              <p id="lblM2Desc">離地後用 <kbd>A</kbd>/<kbd>D</kbd> 快速空翻累積連擊；接近地面時同時按住左右噴射鍵（雙鍵推力）觸發逆向減速煞車，將俯仰與滾轉拉平回正。</p>
+              <p id="lblM2Desc">用 A／D 或 ←／→ 控制翻滾。先將輪胎轉向地面，再用 B／雙鍵噴射減緩下墜；持續按住會向上加速。倒掛噴射會往地面推，請先用單側噴射扶正。</p>
             </div>
           </div>
           <div class="wf-manual-step">
@@ -1139,7 +1139,7 @@ const STR = {
     shareText: (n, dist, s, l, total, rank, cn) => `牆上翻滾 Wall Flip（${cn}）：翻滾 ${n} 回 · 飛行 ${dist} m · SOFT ${s}/30 · LEVEL ${l}/20 → TOTAL ${total} 分 ${rank}！`,
     boardTitle: '排行榜', colRank: '名次', colScore: '總分', colRolls: '翻滾', colDate: '日期', boardEmpty: '暫無紀錄', boardClose: '—— 點擊或按 L / SPACE 關閉 ——',
     backLink: '← 返回總覽 Back',
-    padStick: '吸附', padDescend:'快降', padLeft: '左', padRight: '右', padBrake: '煞降', padGo: '油門',
+    padStick: '吸附', padDescend:'快降', padLeft: '左', padRight: '右', padBrake: '噴射', padGo: '油門',
     langBtn: 'EN',
     // extra keys for strings that only exist in this 3D build
     muteTitle: '靜音 (M)',
@@ -1206,7 +1206,7 @@ const STR = {
     m1Title: '1. 蹬牆反彈角度力學',
     m1Desc: '起跑線全力按住 SPACE / W 衝刺突破 110 km/h！在 165° 反翹弧牆頂部利用強大慣性與切線角離唇騰空，避免過早鬆開油門導致引擎剎車拖速。',
     m2Title: '2. 空中翻滾姿態修正',
-    m2Desc: '離地後用 A/D 快速空翻累積連擊；接近地面時同時按住左右噴射鍵（雙鍵推力）觸發逆向減速煞車，將俯仰與滾轉拉平回正。',
+    m2Desc: '用 A／D 或 ←／→ 控制翻滾。先將輪胎轉向地面，再用 B／雙鍵噴射減緩下墜；持續按住會向上加速。倒掛噴射會往地面推，請先用單側噴射扶正。',
     m3Title: '3. 安全著陸開傘對策',
     m3Desc: '著地瞬間保持車身處於 ±25° 翠綠安全錐內，垂直下墜速度壓制在 18 km/h 以下，以輪胎柔和接地觸發 SOFT+LEVEL 滿分！',
     keyDrive: '推進',
@@ -1255,7 +1255,7 @@ const STR = {
     shareText: (n, dist, s, l, total, rank, cn) => `Wall Flip (${cn}): ${n} roll(s), ${dist} m flight, SOFT ${s}/30 · LEVEL ${l}/20 → TOTAL ${total} pts ${rank}!`,
     boardTitle: 'LEADERBOARD', colRank: '#', colScore: 'SCORE', colRolls: 'ROLLS', colDate: 'DATE', boardEmpty: 'No records yet', boardClose: '—— Click or press L / SPACE to close ——',
     backLink: '← 返回總覽 Back',
-    padStick: 'STICK', padDescend:'DESCEND', padLeft: '←', padRight: '→', padBrake: 'BRAKE', padGo: 'GO',
+    padStick: 'STICK', padDescend:'DESCEND', padLeft: '←', padRight: '→', padBrake: 'BOOST', padGo: 'GO',
     langBtn: '中文',
     // extra keys for strings that only exist in this 3D build
     muteTitle: 'Mute (M)',
@@ -1322,7 +1322,7 @@ const STR = {
     m1Title: '1. Wall Launch Dynamics',
     m1Desc: 'Sprint down the runway holding SPACE/W to break 110 km/h! Carry full momentum over the 165° lip without releasing throttle prematurely.',
     m2Title: '2. In-Flight Attitude Correction',
-    m2Desc: 'Use A/D in mid-air to build flip combos; when closing with the ground, hold both thrusters for retrograde braking and level pitch.',
+    m2Desc: 'Use A/D or arrows to roll. Turn the tires toward the ground before holding B or both jets to slow descent or gain height. Inverted jets push toward the ground. Use one jet to level first.',
     m3Title: '3. Soft Touchdown Protocol',
     m3Desc: 'Lock attitude within the ±25° green safe cone and damp descent below 18 km/h to land squarely on wheels for maximum score!',
     keyDrive: 'THRUST',
@@ -1664,7 +1664,7 @@ function createSim(hooks = {}, consts = null) {
     const sucking = inp.suck && s.air > 0;
     if (sucking) s.air = Math.max(0, s.air - I.AIR_SUCK * dt);
     const A2 = sucking ? I.SUCK : 0;
-    const braking=I.LANDING_ASSIST&&inp.left&&inp.right;
+    const braking=I.LANDING_ASSIST&&inp.suck&&inp.left&&inp.right;
     const jL = !braking&&inp.left&&s.air>0, jR = !braking&&inp.right&&s.air>0;
     const Z = (jL ? 1 : 0) + (jR ? 1 : 0);
     if (Z) s.air = Math.max(0, s.air - I.AIR_JET * Z * dt);
@@ -2915,7 +2915,7 @@ function toggleMute() {
   if (!muted) ensureAudio();
   if (AC && aMaster) aMaster.gain.setTargetAtTime(muted ? 0 : .55, AC.currentTime, .02);
 }
-el.mutebtn.addEventListener('click', () => { ensureAudio(); toggleMute(); });
+el.mutebtn.addEventListener('click', () => { ensureAudio(); toggleMute(); el.mutebtn.blur(); });
 function beep(freq, dur, type, vol, slide, delay = 0) {
   if (!AC || muted) return;
   try {

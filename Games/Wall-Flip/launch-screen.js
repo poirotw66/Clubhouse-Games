@@ -76,8 +76,8 @@ window.WallFlipLaunch = {
         launch.querySelector('#launchHeadline').textContent=copy.headline;
         launch.querySelectorAll('[data-copy]').forEach(el => { if (copy[el.dataset.copy]) el.textContent=copy[el.dataset.copy]; });
         if(garage?.active.handling.landingAssist) {
-          launch.querySelector('[data-copy="description"]').textContent=en?'Use throttle and suction up the wall, then one jet for stunts. Release to level out. X / ↓ descends faster; B lands gently.':'油門與吸附一起上牆，單側噴射做特技。放開先回正，X／↓ 快降，B 穩降，近地面自動減速。';
-          launch.querySelector('[data-copy="keyHint"]').textContent=en?'W throttle · X suction / air descent · ← → stunt · B land':'W 油門 · X 吸附／空中快降 · ← → 特技 · B 穩降';
+          launch.querySelector('[data-copy="description"]').textContent=en?'Use throttle and suction up the wall. One jet rolls; B / both jets boost. Release for assisted landing. X / ↓ descends faster.':'油門與吸附一起上牆。單側翻滾，B／雙鍵噴射；放開自動回正著陸，X／↓ 快降，近地面自動減速。';
+          launch.querySelector('[data-copy="keyHint"]').textContent=en?'W throttle · ← → roll · B boost · X / ↓ descend':'W 油門 · ← → 翻滾 · B 噴射 · X／↓ 快降';
         }
         start.textContent=copy.start;
         launch.querySelector('.wf-launch-caption strong').textContent=garage ? garage.active.name+' / '+garage.active[en?'en':'tc'].title : copy.mission;
@@ -92,7 +92,7 @@ window.WallFlipLaunch = {
           ctx.restore();
         }
         launch.querySelector('.wf-launch-lang').textContent=en ? '中文' : 'EN';
-        const descentGuide=en?'Release roll to level out. X / down descends fast; B / both jets descend gently, with automatic braking near the ground.':'放開翻滾先回正。X／↓ 快降，B／雙鍵穩降，近地面會自動減速。';
+        const descentGuide=en?'B / both jets push toward the roof; inverted jets push down. Release for assisted landing. X / down descends faster with braking near the ground.':'B／雙鍵向車頂噴射，倒掛時會往地面推。放開自動回正著陸；X／↓ 快降，近地面會自動減速。';
         if(mode==='3d')guide.querySelector('#s3b').textContent=garage?.active.handling.landingAssist?descentGuide:(en?'One jet rolls you; both push toward the roof. Inverted jets push you toward the ground.':'單側噴射翻滾，雙鍵向車頂方向推；倒掛時雙鍵會往地面推。');
         if (mode === '2d') {
           launch.querySelector('.wf-launch-course span').textContent=(en ? 'COURSE / ' : '賽道 / ') + course;
