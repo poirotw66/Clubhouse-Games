@@ -1541,15 +1541,16 @@ function localPoint(pt) {
 function stepAir(dt) {
   car.airTime += dt;
   const manual={left:inp.left||inp.brake,right:inp.right||inp.brake,suck:inp.stick};
-  const control=LANDING_ASSIST?window.WallFlipGarage.airControl({angle:car.phi,spin:car.rw,y:car.y,vy:car.vy,air:car.air,clear:car.clear},manual,{damping:ROLL_DAMP,thrust:THRUST,gravity:G*AIR_G}):manual;
+  const control=LANDING_ASSIST?window.WallFlipGarage.airControl({angle:car.phi,spin:car.rw,y:car.y,vy:car.vy,air:car.air,clear:car.clear},manual,{thrust:THRUST,gravity:G*AIR_G}):manual;
   const jL = control.left && car.air > 0, jR = control.right && car.air > 0;
   const Z = (jL ? 1 : 0) + (jR ? 1 : 0);
   if (Z) car.air = Math.max(0, car.air - AIR_JET * Z * dt);
   const rx = -sin(car.phi), ry = cos(car.phi); // roof direction
-  car.vx += rx * THRUST * Z * dt;
-  car.vy += (ry * THRUST * Z - G * AIR_G) * dt;
+  const manualThrust = control.verticalThrust === undefined ? THRUST * Z : 0;
+  car.vx += rx * manualThrust * dt;
+  car.vy += ((control.verticalThrust ?? ry * manualThrust) - G * AIR_G) * dt;
   const damp = (jL !== jR) ? SPIN_DAMP : ROLL_DAMP;
-  car.rw += (((jL ? 1 : 0) - (jR ? 1 : 0)) * ANG - car.rw * damp) * dt;
+  car.rw += (control.rollAccel ?? (((jL ? 1 : 0) - (jR ? 1 : 0)) * ANG - car.rw * damp)) * dt;
   const dPhi = car.rw * dt;
   car.x += car.vx * dt; car.y += car.vy * dt;
   car.phi += dPhi;
@@ -1649,7 +1650,7 @@ function stepAir(dt) {
   const fall = -(car.vy + car.rw * offX);
   if (low.pt[2] !== 1 || tilt > LAND_TILT) { doCrash('tilt'); return; }
   if (fall > LAND_SPEED || Math.abs(car.rw) > LAND_SPIN) { doCrash('hard'); return; }
-  if (car.lifted && car.x <= 0) { // soft re-touch after a ground hop
+  if (!LANDING_ASSIST && car.lifted && car.x <= 0) { // soft re-touch after a ground hop
     car.mode = 'road'; car.u = Math.max(-RUNUP, car.x); car.v = car.vx; car.rw = 0;
     car.spinTotal = 0; car.rollsAccum = 0; car.spinRight = 0; car.spinLeft = 0;
     car.hasSwitchedDir = false; car.phase = 'upright';

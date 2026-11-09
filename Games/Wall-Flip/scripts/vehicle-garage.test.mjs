@@ -77,16 +77,15 @@ test('Mars fast descent stays on the runway even with twin jets held',()=>{
 });
 
 test('Mars fast descent falls faster than normal assistance at altitude',()=>{
-  const normal=airborne('mars',idle,0,-25);
-  const fast=airborne('mars',{...idle,suck:true},0,-25);
+  const normal=airborne('mars',idle,0,-55);
+  const fast=airborne('mars',{...idle,suck:true},0,-55);
   assert.ok(fast.y<normal.y,'X must provide a faster return from altitude');
   assert.ok(fast.vy<normal.vy,'Fast descent must not fight gravity with continuous lift');
   assert.ok(fast.air>=normal.air,'Fast descent saves braking air at altitude');
 });
 
-test('Mars release after a twin-jet boost lands with air remaining',()=>{
+test('Mars takes off from the runway and completes an assisted landing',()=>{
   const sim=createSim({},tune(BASE,'mars'));
-  Object.assign(sim.state,{mode:'air',x:-100,y:40,vy:0,roll:0,pitch:0,yaw:0,rw:0,clear:true});
   for(let i=0;i<120;i++)sim.step(BASE.STEP,{...idle,left:true,right:true});
   assert.ok(sim.state.vy>0,'Holding twin jets must create an ascent');
   let peak=sim.state.y;
@@ -96,13 +95,13 @@ test('Mars release after a twin-jet boost lands with air remaining',()=>{
     peak=Math.max(peak,sim.state.y);
   }
   assert.equal(sim.state.mode,'landed','Releasing boost must bring an ascending rover back to the ground');
-  assert.ok(peak<70,'Assistance must not add height after boost is released');
+  assert.ok(peak<20,'The released boost should coast to its apex');
   assert.ok(sim.state.land.fall<=BASE.LAND_SPEED);
   assert.ok(sim.state.air>90,'Braking must not require exhausting the air tank');
 });
 
 test('Mars rover lands after the driver releases either stunt jet',()=>{
-  for(const duration of [0,.4,1,1.8])for(const side of ['left','right']) {
+  for(const duration of [0,.4,1,1.2,1.6,1.8,2])for(const side of ['left','right']) {
     const sim=createSim({},tune(BASE,'mars'));
     let stuntTime=0,launched=false;
     for(let i=0;i<12000;i++) {
@@ -167,7 +166,7 @@ test('2D uses the same vehicle modifiers and every shell can land on both course
     +block('// ---------- physics: attached','// ---------- physics: landed rollout');
   const noop=()=>{};
   for(const vehicle of vehicles) {
-    const cases=[0,1].flatMap(course=>(vehicle.id==='mars'?['boost','coast','brake','descend']:['boost','manual']).map(profile=>({course,profile})));
+    const cases=[0,1].flatMap(course=>(vehicle.id==='mars'?['boost','high-boost','coast','brake','descend','stunt-release']:['boost','manual']).map(profile=>({course,profile})));
     for(const {course,profile} of cases) {
       // Only audiovisual side effects are stubbed. Track, jets, collisions and scores are actual game code.
       const context={localStorage:{getItem:()=>null},vehicle,
@@ -179,24 +178,35 @@ test('2D uses the same vehicle modifiers and every shell can land on both course
         buildCourse(${course}); car.x=-RUNUP; car.y=CAR.H;
         ({car,stats,damping:ROLL_DAMP,step(input){Object.assign(inp,input);car.time+=STEP;if(car.mode==='road')stepRoad(STEP);else if(car.mode==='air')stepAir(STEP);}});
       `,context);
-      if(profile==='boost') {
-        for(let i=0;i<120;i++)api.step({drive:false,stick:false,left:true,right:true});
+      if(profile==='boost'||profile==='high-boost') {
+        const steps=profile==='high-boost'?480:120;
+        for(let i=0;i<steps;i++)api.step({drive:false,stick:false,left:true,right:true});
         assert.equal(api.car.mode,'air',vehicle.id+' 2D twin jets launch the car');
         assert.ok(api.car.vy>0,vehicle.id+' 2D twin jets create upward velocity');
         assert.ok(api.car.y>.66,vehicle.id+' 2D twin jets gain altitude');
+        if(vehicle.id==='mars') {
+          const maxSteps=profile==='high-boost'?16*240:5*240;
+          for(let i=0;i<maxSteps&&api.car.mode==='air';i++)api.step({drive:false,stick:false,left:false,right:false});
+          assert.equal(api.car.mode,'landed',profile+' must finish with an assisted landing in 2D');
+          assert.equal(api.stats.win,true);
+        }
         continue;
       }
       if(profile==='brake') {
         for(let i=0;i<120;i++)api.step({drive:false,stick:true,left:true,right:true});
         assert.equal(api.car.mode,'road','Mars braking must not lift off in 2D');
       }
-      let target=null;
+      let target=null, stuntSteps=0;
       for(let i=0;i<16000;i++) {
         const s=api.car;
         if(s.mode==='landed'||s.mode==='crash')break;
         const input={drive:s.mode==='road',stick:s.mode==='road'&&s.u>0,left:false,right:false};
         if(s.mode==='air'&&profile==='brake'){input.left=input.right=true;input.stick=true;}
         if(s.mode==='air'&&profile==='descend')input.stick=true;
+        if(s.mode==='air'&&s.clear&&profile==='stunt-release'&&stuntSteps<432) {
+          input.left=true;
+          stuntSteps++;
+        }
         if(s.mode==='air'&&vehicle.id!=='mars') {
           target ??= Math.ceil((s.phi-1e-6)/(Math.PI*2))*Math.PI*2;
           const error=s.phi+s.rw/api.damping-target;
@@ -208,6 +218,7 @@ test('2D uses the same vehicle modifiers and every shell can land on both course
       }
       assert.equal(api.car.mode,'landed',vehicle.id+' 2D course '+course+' '+profile+' lands');
       assert.equal(api.stats.win,true);
+      if(profile==='stunt-release')assert.equal(stuntSteps,432);
     }
   }
 });

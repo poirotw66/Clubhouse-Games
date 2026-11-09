@@ -6,6 +6,7 @@ test.beforeEach(()=>test.skip(!included,'selective CI'));
 
 for(const vehicle of ['roadster','mars'])for(const mode of ['2d','3d']) {
   test(`wall-flip polish: ${mode} ${vehicle} launches above the fold and B activates both jets`,async({page,isMobile},testInfo)=>{
+    if(vehicle==='mars')test.setTimeout(45000);
     const errors=[];page.on('pageerror',e=>errors.push(e.message));
     await page.addInitScript(({mode,vehicle})=>{
       localStorage.setItem('wallflip.viewMode',mode);localStorage.setItem('wallflip.vehicle.v1',vehicle);
@@ -22,7 +23,7 @@ for(const vehicle of ['roadster','mars'])for(const mode of ['2d','3d']) {
     expect((await coach.boundingBox()).height).toBeLessThan(page.viewportSize().height*.3);
     if(isMobile) {
       await expect(page.locator('#pad [data-act="brake"]')).toBeVisible();
-      await page.locator('#pad [data-act="brake"]').tap();
+      if(vehicle==='roadster')await page.locator('#pad [data-act="brake"]').tap();
     }
     await page.screenshot({path:testInfo.outputPath('polished-gameplay-'+mode+'.png')});
     if(mode==='3d') {
@@ -44,6 +45,11 @@ for(const vehicle of ['roadster','mars'])for(const mode of ['2d','3d']) {
       await page.evaluate(()=>window.__wfStep(.5));
       await expect(coach).toHaveAttribute('data-flight-stage','climb');
       await page.keyboard.up('b');
+    }
+    if(vehicle==='mars') {
+      if(mode==='2d')await page.evaluate(()=>window.__wfStep(8));
+      await expect.poll(()=>page.evaluate(mode=>mode==='3d'?window.__sim.state.mode==='landed':window.__stats.win,mode),{timeout:20000}).toBe(true);
+      await expect(page.getByTestId('flight-review')).toBeVisible({timeout:10000});
     }
     expect(errors).toEqual([]);
   });

@@ -64,19 +64,19 @@
     if(h.landingAssist)tuned.LANDING_ASSIST=true;
     return tuned;
   }
-  function airControl({angle,pitch=0,spin,y,vy,air,clear},input,{damping,thrust,gravity}) {
+  function airControl({angle,spin,y,vy,air,clear},input,{thrust,gravity}) {
     if(input.left!==input.right||air<=0||(input.left&&input.right&&!input.suck))return input;
     if(!clear)return {left:false,right:false};
-    const turn=Math.PI*2,target=Math.round(angle/turn)*turn;
-    const error=target-angle-spin/damping;
-    if(Math.abs(error)>.025)return {left:error>0,right:error<0};
-    // Released jets and descent input brake for the remaining stopping distance.
-    const braking=Math.max(1,2*thrust*Math.cos(angle)*Math.cos(pitch)-gravity)*.65;
+    // The landing controller can stabilize roll while directing braking thrust upward.
+    const levelRate=12, turn=Math.PI*2;
+    const target=Math.round((angle+spin/(2*levelRate))/turn)*turn;
+    const correction=Math.max(-240,Math.min(240,levelRate**2*(target-angle)-2*levelRate*spin));
+    const rollAccel=Math.abs(correction)>.1?correction:0;
+    const available=2*thrust-gravity;
     const height=Math.max(0,y-.66-.35);
-    const safeSpeed=Math.sqrt(1.2**2+2*braking*height);
-    const targetSpeed=input.suck?safeSpeed:Math.min(18,safeSpeed);
-    const brake=vy < -targetSpeed;
-    return {left:brake,right:brake};
+    const braking=available*(input.suck ? .65 : .4);
+    const brake=available>0&&vy < -Math.sqrt(1.2**2+2*braking*height);
+    return {left:brake||rollAccel>0,right:brake||rollAccel<0,verticalThrust:brake?2*thrust:0,rollAccel};
   }
   function recordKey(base, id) {
     const vehicle = get(id);

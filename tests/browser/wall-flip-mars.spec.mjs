@@ -32,14 +32,14 @@ for(const mode of ['2d','3d'])test(`wall-flip Mars rover: ${mode} selects and la
       let duration=0;
       for(let i=0;i<2400;i++) {
         const s=sim.state;
-        if(s.mode==='landed'||s.mode==='crash'||duration>=.7)break;
+        if(s.mode==='landed'||s.mode==='crash'||duration>=1.6)break;
         const input={drive:s.mode==='road',suck:s.mode==='road'&&s.u>0,left:false,right:false};
         if(s.mode==='air'&&s.clear){input.left=true;duration+=1/240;}
         sim.step(1/240,input);
       }
       return {mode:sim.state.mode,duration};
     });
-    expect(stunt.mode).toBe('air');expect(stunt.duration).toBeGreaterThanOrEqual(.7);
+    expect(stunt.mode).toBe('air');expect(stunt.duration).toBeGreaterThanOrEqual(1.6);
     await expect(page.locator('[data-flight-keys]')).toContainText('快降');
     if(isMobile)await expect(page.locator('#pad [data-act="suck"] span')).toHaveText('快降');
     const result=await page.evaluate(()=>{

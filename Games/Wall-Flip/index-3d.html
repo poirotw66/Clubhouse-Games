@@ -1700,17 +1700,18 @@ function createSim(hooks = {}, consts = null) {
   // air mode (original b)
   const stepAir = (dt, inp) => {
     s.airTime += dt;
-    const control=I.LANDING_ASSIST?window.WallFlipGarage.airControl({angle:s.roll,pitch:s.pitch,spin:s.rw,y:s.y,vy:s.vy,air:s.air,clear:s.clear},inp,{damping:I.ROLL_DAMP,thrust:I.THRUST,gravity:G0*I.AIR_G}):inp;
+    const control=I.LANDING_ASSIST?window.WallFlipGarage.airControl({angle:s.roll,spin:s.rw,y:s.y,vy:s.vy,air:s.air,clear:s.clear},inp,{thrust:I.THRUST,gravity:G0*I.AIR_G}):inp;
     const jL = control.left && s.air > 0, jR = control.right && s.air > 0;
     const Z = (jL ? 1 : 0) + (jR ? 1 : 0);
     if (Z) s.air = Math.max(0, s.air - I.AIR_JET * Z * dt);
     const roof = localToWorld(s.roll, s.pitch, 0, 1, 0, s.yaw);
-    s.vx += roof[0] * I.THRUST * Z * dt;
-    s.vy += (roof[1] * I.THRUST * Z - G0 * I.AIR_G) * dt;
-    s.vz += roof[2] * I.THRUST * Z * dt;
+    const manualThrust = control.verticalThrust === undefined ? I.THRUST * Z : 0;
+    s.vx += roof[0] * manualThrust * dt;
+    s.vy += ((control.verticalThrust ?? roof[1] * manualThrust) - G0 * I.AIR_G) * dt;
+    s.vz += roof[2] * manualThrust * dt;
     s.vz *= 1 - Math.min(1, dt * 2.8);
     const damp = jL !== jR ? I.SPIN_DAMP : I.ROLL_DAMP;
-    s.rw += (((jL ? 1 : 0) - (jR ? 1 : 0)) * I.ANG - s.rw * damp) * dt;
+    s.rw += (control.rollAccel ?? (((jL ? 1 : 0) - (jR ? 1 : 0)) * I.ANG - s.rw * damp)) * dt;
     const dRoll = s.rw * dt;
     s.x += s.vx * dt; s.y += s.vy * dt; s.z += s.vz * dt; s.roll += dRoll;
     const absDRoll = Math.abs(dRoll);
@@ -1773,7 +1774,7 @@ function createSim(hooks = {}, consts = null) {
     s.land = { x: s.x, z: s.z, fall, tilt, spin: Math.abs(s.rw), rolls: completedRolls, vx: s.vx };
     if (low.pt[3] !== 'wheel' || tilt > I.LAND_TILT) { doCrash('tilt', low.w[0], 0); return; }
     if (fall > I.LAND_SPEED || Math.abs(s.rw) > I.LAND_SPIN) { doCrash('hard', low.w[0], 0); return; }
-    if (s.lifted && s.x <= 0 && Math.abs(s.z) < ROAD_W / 2) {
+    if (!I.LANDING_ASSIST && s.lifted && s.x <= 0 && Math.abs(s.z) < ROAD_W / 2) {
       s.land = null; s.mode = 'road';
       s.u = Math.max(-I.RUNUP, s.x); s.v = s.vx * tcos(s.yaw);
       s.z = 0; s.vz = 0; s.rw = 0;
@@ -3997,15 +3998,14 @@ function processEvents() {
   const st = sim.state;
   for (const ev of st.events) {
     if (ev.type === 'launch' || ev.type === 'detach' || ev.type === 'lift') {
+      launchX = ev.x;
       game.rolls = 0;
       if (el.stuntBanner) el.stuntBanner.hidden = true;
     }
     if (ev.type === 'launch') {
-      launchX = ev.x;
       popAt(ev.x, ev.y + 2.5, 0, pick(t('popLaunch')), 'hsl(200 90% 55%)');
       sfx.whoosh();
     } else if (ev.type === 'detach') {
-      launchX = ev.x;
       popAt(ev.x - 1, ev.y + 1.5, 0, pick(t('popPeel')), 'hsl(0 85% 55%)');
       sfx.drop();
     } else if (ev.type === 'crash') {
