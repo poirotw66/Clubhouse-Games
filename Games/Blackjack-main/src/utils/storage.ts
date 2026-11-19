@@ -49,8 +49,10 @@ export interface BlackjackSettings {
 export const STATS_KEY = 'clubhouse-blackjack-stats:v1';
 export const SETTINGS_KEY = 'clubhouse-blackjack-settings:v1';
 export const BALANCE_STORAGE_KEY = 'clubhouse-blackjack-balance';
-/** Max free recoveries before requiring a hard reset of progression. */
+/** Max free standard recoveries before transitioning to emergency reloads. */
 export const MAX_RECOVERIES = 5;
+/** Emergency reload stake granted infinitely once standard recoveries are exhausted. */
+export const EMERGENCY_RECOVERY_STAKE = 200;
 
 export const DEFAULT_RULES: GameRulesConfig = {
   dealerRule: 'H17',
@@ -225,8 +227,23 @@ export function recordHandResult(
 export function applyRecovery(stats: BlackjackStats, tableId: string): {
   stats: BlackjackStats;
   balance: number;
-} | null {
-  if (stats.recoveriesUsed >= MAX_RECOVERIES) return null;
+} {
+  // Beyond standard recoveries, provide an emergency reload preserving all career history.
+  if (stats.recoveriesUsed >= MAX_RECOVERIES) {
+    const loungeTable = TABLES[0];
+    return {
+      balance: EMERGENCY_RECOVERY_STAKE,
+      stats: {
+        ...stats,
+        recoveriesUsed: stats.recoveriesUsed + 1,
+        bustOuts: stats.bustOuts + 1,
+        streak: 0,
+        tableId: loungeTable.id,
+        peakBankroll: Math.max(stats.peakBankroll, EMERGENCY_RECOVERY_STAKE),
+      },
+    };
+  }
+
   const table = getTable(tableId);
   // Drop to the lounge after recovery if current table min exceeds recovery stake.
   const safeTableId =

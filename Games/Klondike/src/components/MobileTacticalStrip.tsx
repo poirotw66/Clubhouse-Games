@@ -201,10 +201,11 @@ export const MobileTacticalStrip: React.FC<MobileTacticalStripProps> = ({
             onClick={onShowHint}
             disabled={isBusy || isGameWon}
             className="min-h-[36px] px-2.5 py-1 rounded-lg border border-white/10 bg-black/30 hover:bg-white/10 text-white/80 text-[11px] flex items-center gap-1 touch-manipulation disabled:opacity-50"
-            title="查看提示"
+            title="查看錦囊"
+            aria-label="查看錦囊"
           >
             <Lightbulb size={12} />
-            <span className="hidden xs:inline">提示</span>
+            <span className="hidden xs:inline">錦囊</span>
           </button>
 
           {/* Drawer opener */}

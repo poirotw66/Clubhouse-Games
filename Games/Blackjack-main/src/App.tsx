@@ -1181,7 +1181,11 @@ export default function App() {
     setSideBet(0);
     setBetHistory([]);
     setSessionStartBalance(result.balance);
-    setMessage(`破產救濟：獲得 $${result.balance}（剩餘 ${MAX_RECOVERIES - result.stats.recoveriesUsed} 次）`);
+    if (result.stats.recoveriesUsed > MAX_RECOVERIES) {
+      setMessage(`緊急救濟：獲得 $${result.balance}（休閒桌 · 生涯戰績完全保留）`);
+    } else {
+      setMessage(`破產救濟：獲得 $${result.balance}（剩餘標準額度 ${MAX_RECOVERIES - result.stats.recoveriesUsed} 次）`);
+    }
   };
 
   const doHardReset = () => {
@@ -1650,26 +1654,28 @@ export default function App() {
                 {tableMode === 'career' ? (
                   <>
                     <p className="text-white/50 text-xs text-center">
-                      {table.name}下限 ${table.minBet}。已用救濟 {stats.recoveriesUsed}/{MAX_RECOVERIES}{' '}
-                      次。
+                      {table.name}下限 ${table.minBet}。已用救濟 {stats.recoveriesUsed} 次
+                      {stats.recoveriesUsed < MAX_RECOVERIES
+                        ? `（剩餘標準額度 ${MAX_RECOVERIES - stats.recoveriesUsed} 次）`
+                        : '（已啟用緊急無上限救濟，生涯戰績完全保留）'}
+                      。
                     </p>
-                    {stats.recoveriesUsed < MAX_RECOVERIES ? (
-                      <button
-                        type="button"
-                        onClick={tryRecovery}
-                        className="px-6 py-3 min-h-[44px] rounded-xl bg-amber-500 hover:bg-amber-400 text-amber-950 font-black text-base tracking-widest shadow-lg transition-all flex items-center gap-2 touch-manipulation"
-                      >
-                        <Coins className="w-5 h-5" />
-                        領取救濟籌碼
-                      </button>
-                    ) : (
+                    <button
+                      type="button"
+                      onClick={tryRecovery}
+                      className="px-6 py-3 min-h-[44px] rounded-xl bg-amber-500 hover:bg-amber-400 text-amber-950 font-black text-base tracking-widest shadow-lg transition-all flex items-center gap-2 touch-manipulation"
+                    >
+                      <Coins className="w-5 h-5" />
+                      {stats.recoveriesUsed < MAX_RECOVERIES ? '領取救濟籌碼' : '領取應急籌碼（$200）'}
+                    </button>
+                    {stats.recoveriesUsed >= MAX_RECOVERIES && (
                       <button
                         type="button"
                         onClick={doHardReset}
-                        className="px-6 py-3 min-h-[44px] rounded-xl bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black text-base tracking-widest shadow-lg transition-all flex items-center gap-2 touch-manipulation"
+                        className="px-4 py-2 min-h-[36px] rounded-lg bg-white/10 hover:bg-white/20 text-white/70 text-xs font-semibold tracking-wider transition-all flex items-center gap-1.5 touch-manipulation"
                       >
-                        <RotateCcw className="w-5 h-5" />
-                        重置進度（${DEFAULT_BALANCE}）
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        手動重置生涯進度（可選）
                       </button>
                     )}
                   </>
@@ -1732,6 +1738,7 @@ export default function App() {
                     <button
                       key={amount}
                       type="button"
+                      aria-label={`$${amount}`}
                       onClick={() => placeBet(amount)}
                       disabled={
                         currentBet + sideBet + amount > balance ||
@@ -1741,7 +1748,7 @@ export default function App() {
                     >
                       ${amount}
                       {idx < 5 && (
-                        <span className="absolute -top-1 -right-1 text-[9px] px-1 bg-black/70 rounded-full font-mono text-amber-300 border border-white/10 hidden sm:inline">
+                        <span aria-hidden="true" className="absolute -top-1 -right-1 text-[9px] px-1 bg-black/70 rounded-full font-mono text-amber-300 border border-white/10 hidden sm:inline">
                           {idx + 1}
                         </span>
                       )}
@@ -1780,14 +1787,14 @@ export default function App() {
                     className="flex-1 py-2.5 min-h-[44px] rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 font-bold text-sm tracking-wider transition-colors flex items-center justify-center gap-1.5 touch-manipulation"
                   >
                     <RotateCcw className="w-4 h-4" />
-                    清除 <kbd className="text-[10px] opacity-60 font-mono hidden sm:inline">C</kbd>
+                    清除 <kbd aria-hidden="true" className="text-[10px] opacity-60 font-mono hidden sm:inline">C</kbd>
                   </button>
                   <button
                     type="button"
                     onClick={setMinBet}
                     className="flex-1 py-2.5 min-h-[44px] rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 font-bold text-sm tracking-wider transition-colors touch-manipulation"
                   >
-                    下限 <kbd className="text-[10px] opacity-60 font-mono hidden sm:inline">M</kbd>
+                    下限 <kbd aria-hidden="true" className="text-[10px] opacity-60 font-mono hidden sm:inline">M</kbd>
                   </button>
                   <button
                     type="button"
@@ -1798,7 +1805,7 @@ export default function App() {
                     className="flex-[2] py-2.5 min-h-[44px] rounded-lg bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black text-base tracking-widest shadow-lg disabled:opacity-50 transition-all flex items-center justify-center gap-1.5 touch-manipulation"
                   >
                     <Play className="w-5 h-5 fill-current" />
-                    發牌 <kbd className="ml-1 text-[10px] opacity-75 font-mono hidden sm:inline">Space</kbd>
+                    發牌 <kbd aria-hidden="true" className="ml-1 text-[10px] opacity-75 font-mono hidden sm:inline">Space</kbd>
                   </button>
                 </div>
               </div>
@@ -1809,14 +1816,14 @@ export default function App() {
                   onClick={takeEvenMoney}
                   className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation ${hintLabel === '均分 1:1' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}
                 >
-                  均分 1:1 <kbd className="ml-1 text-[11px] opacity-75 font-mono hidden sm:inline">Y</kbd>
+                  均分 1:1 <kbd aria-hidden="true" className="ml-1 text-[11px] opacity-75 font-mono hidden sm:inline">Y</kbd>
                 </button>
                 <button
                   type="button"
                   onClick={declineEvenMoney}
                   className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-white/10 hover:bg-white/20 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation ${hintLabel === '繼續比牌' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}
                 >
-                  繼續比牌 <kbd className="ml-1 text-[11px] opacity-75 font-mono hidden sm:inline">N</kbd>
+                  繼續比牌 <kbd aria-hidden="true" className="ml-1 text-[11px] opacity-75 font-mono hidden sm:inline">N</kbd>
                 </button>
               </div>
             ) : gameState === 'insurance' ? (
@@ -1827,14 +1834,14 @@ export default function App() {
                   disabled={balance < insuranceCost}
                   className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-amber-500 hover:bg-amber-400 text-amber-950 font-black text-sm sm:text-base tracking-widest shadow disabled:opacity-30 hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation ${hintLabel === '買保險' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}
                 >
-                  保險 ${insuranceCost} <kbd className="ml-1 text-[11px] opacity-75 font-mono hidden sm:inline">I</kbd>
+                  保險 ${insuranceCost} <kbd aria-hidden="true" className="ml-1 text-[11px] opacity-75 font-mono hidden sm:inline">I</kbd>
                 </button>
                 <button
                   type="button"
                   onClick={declineInsurance}
                   className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-white/10 hover:bg-white/20 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation ${hintLabel === '不保險' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}
                 >
-                  不保險 <kbd className="ml-1 text-[11px] opacity-75 font-mono hidden sm:inline">N</kbd>
+                  不保險 <kbd aria-hidden="true" className="ml-1 text-[11px] opacity-75 font-mono hidden sm:inline">N</kbd>
                 </button>
                 {canSurrenderNow() && (
                   <button
@@ -1842,7 +1849,7 @@ export default function App() {
                     onClick={surrender}
                     className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation ${hintLabel === '投降' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}
                   >
-                    投降 <kbd className="ml-1 text-[11px] opacity-75 font-mono hidden sm:inline">R</kbd>
+                    投降 <kbd aria-hidden="true" className="ml-1 text-[11px] opacity-75 font-mono hidden sm:inline">R</kbd>
                   </button>
                 )}
               </div>
@@ -1854,14 +1861,14 @@ export default function App() {
                   disabled={!!playerHands[activeHandIndex]?.fromSplitAces}
                   className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation disabled:opacity-30 ${hintLabel === '要牌' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}
                 >
-                  要牌 <kbd className="ml-1 text-[11px] opacity-75 font-mono hidden sm:inline">H</kbd>
+                  要牌 <kbd aria-hidden="true" className="ml-1 text-[11px] opacity-75 font-mono hidden sm:inline">H</kbd>
                 </button>
                 <button
                   type="button"
                   onClick={stand}
                   className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation ${hintLabel === '停牌' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}
                 >
-                  停牌 <kbd className="ml-1 text-[11px] opacity-75 font-mono hidden sm:inline">S</kbd>
+                  停牌 <kbd aria-hidden="true" className="ml-1 text-[11px] opacity-75 font-mono hidden sm:inline">S</kbd>
                 </button>
                 <button
                   type="button"
@@ -1869,7 +1876,7 @@ export default function App() {
                   disabled={!canDoubleActive()}
                   className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-amber-500 hover:bg-amber-400 text-amber-950 font-black text-sm sm:text-base tracking-widest shadow disabled:opacity-30 hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation ${hintLabel === '加倍' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}
                 >
-                  加倍 <kbd className="ml-1 text-[11px] opacity-75 font-mono hidden sm:inline">D</kbd>
+                  加倍 <kbd aria-hidden="true" className="ml-1 text-[11px] opacity-75 font-mono hidden sm:inline">D</kbd>
                 </button>
                 {canSplitActive() && (
                   <button
@@ -1877,7 +1884,7 @@ export default function App() {
                     onClick={split}
                     className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation ${hintLabel === '分牌' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}
                   >
-                    分牌 <kbd className="ml-1 text-[11px] opacity-75 font-mono hidden sm:inline">P</kbd>
+                    分牌 <kbd aria-hidden="true" className="ml-1 text-[11px] opacity-75 font-mono hidden sm:inline">P</kbd>
                   </button>
                 )}
                 {canSurrenderNow() && (
@@ -1886,7 +1893,7 @@ export default function App() {
                     onClick={surrender}
                     className={`px-4 py-2.5 sm:px-5 sm:py-3 min-h-[44px] rounded-lg bg-slate-600 hover:bg-slate-500 text-white font-black text-sm sm:text-base tracking-widest shadow hover:-translate-y-0.5 active:translate-y-0 transition-all touch-manipulation ${hintLabel === '投降' ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-black/40' : ''}`}
                   >
-                    投降 <kbd className="ml-1 text-[11px] opacity-75 font-mono hidden sm:inline">R</kbd>
+                    投降 <kbd aria-hidden="true" className="ml-1 text-[11px] opacity-75 font-mono hidden sm:inline">R</kbd>
                   </button>
                 )}
               </div>
@@ -1898,7 +1905,7 @@ export default function App() {
                   className="px-6 py-3 min-h-[44px] rounded-xl bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black text-base tracking-widest shadow-lg hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center gap-2 touch-manipulation"
                 >
                   <RotateCcw className="w-5 h-5" />
-                  再下一局 <kbd className="ml-1 text-[11px] opacity-75 font-mono hidden sm:inline">Space</kbd>
+                  再下一局 <kbd aria-hidden="true" className="ml-1 text-[11px] opacity-75 font-mono hidden sm:inline">Space</kbd>
                 </button>
               </div>
             ) : (
@@ -2029,7 +2036,12 @@ export default function App() {
                 ['峰值籌碼', `$${stats.peakBankroll}`],
                 ['淨利', `$${stats.netProfit}`],
                 ['破產次數', stats.bustOuts],
-                ['救濟已用', `${stats.recoveriesUsed}/${MAX_RECOVERIES}`],
+                [
+                  '救濟已用',
+                  stats.recoveriesUsed > MAX_RECOVERIES
+                    ? `${stats.recoveriesUsed} 次（標準上限 ${MAX_RECOVERIES}）`
+                    : `${stats.recoveriesUsed}/${MAX_RECOVERIES}`,
+                ],
                 [
                   '策略命中',
                   stats.strategyTotal

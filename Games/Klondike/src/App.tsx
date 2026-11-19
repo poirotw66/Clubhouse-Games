@@ -31,6 +31,7 @@ import {
 } from './utils/gameLogic';
 import {
   canRecycle,
+  clampScore,
   initialScore,
   pointsFromFoundation,
   pointsRecycle,
@@ -174,13 +175,13 @@ export default function App() {
 
   const bumpScore = useCallback((delta: number) => {
     if (delta === 0) return;
-    setScore((s) => s + delta);
+    setScore((s) => clampScore(s + delta, scoreMode));
     setFlash({
       text: delta > 0 ? `+${delta}` : String(delta),
       tone: delta > 0 ? 'good' : 'bad',
       key: Date.now(),
     });
-  }, []);
+  }, [scoreMode]);
 
   const clearHint = () => setHint(null);
 
@@ -587,7 +588,7 @@ export default function App() {
     const meta = metaHistory.current.pop();
     if (meta) {
       const tax = pointsUndo(scoreMode);
-      setScore(meta.score + tax);
+      setScore(clampScore(meta.score + tax, scoreMode));
       setMoveCount(meta.moves);
       setRecycleCount(meta.recycles);
       if (tax !== 0) {
@@ -689,7 +690,7 @@ export default function App() {
     const { penalty, appliedThroughSec } = standardTimePenaltyTicks(elapsedSec, timePenaltyThrough);
     if (penalty !== 0) {
       setTimePenaltyThrough(appliedThroughSec);
-      setScore((s) => s + penalty);
+      setScore((s) => clampScore(s + penalty, scoreMode));
     }
   }, [elapsedSec, scoreMode, isGameWon, isGameOverNoMoves, timePenaltyThrough]);
 

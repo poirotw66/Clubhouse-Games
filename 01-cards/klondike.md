@@ -151,6 +151,19 @@
 - **提示**、**自動完成**、**悔棋**、局號發牌／同局重發。
 - 收牌飛牌動畫、勝利瀑布、共用 `synthAudio` 音效。
 
+## 品質門檻對齊
+
+對照 [`docs/GAME-QUALITY-BAR.md`](../docs/GAME-QUALITY-BAR.md)：
+
+| 項目 | 本實作說明與亮點 |
+|------|------------------|
+| **模式／變體** | 翻 1（Draw-1）／翻 3（Draw-3）× 標準計分（Windows Solitaire 風格，含時間與循環扣分）／維加斯計分（累計籌碼，開局底注 -$52，每張收牌 +$5，嚴格循環限制）× 隨機局／保證可解局（Thoughtful Klondike Solver 篩選）／每日一局（台北時間同步）× 雙翼皇家戰術指揮艙（雙翼展開／行動端微光戰術條） |
+| **Replay hook** | 完整持久化至 `localStorage`（`clubhouse:klondike:stats:v2`、`settings:v1`、`daily`）：總場次、勝場、勝率、當前／歷史最佳連勝、各模式（翻牌×計分 4 組合）之最佳分數／最速時間／最少步數、維加斯累計籌碼（跨局累積）、6 大通關挑戰目標成就（無悔棋／≤120步／≤80步／≤5分鐘／標準≥300／維加斯淨利）與每日連勝天數（Streak） |
+| **對手／輔助（Undo／Hint）** | 智慧破局與輔助系統：**一鍵復原（Undo）**（精確回溯牌面、步數與循環狀態，標準計分扣 2 分並嚴格執行 ≥0 邊界鉗位防負分機制）；**破局大師錦囊（Hint）**（優先偵測基座收牌、次尋暗牌翻開與列轉移、提示翻牌／循環）；**全解自動收牌（Auto-Complete）**（具備安全偵測，當無未翻蓋牌時一鍵或自動逐張飛入基座，確保不提前封死暗牌發掘）；**鍵盤指揮官快捷鍵 HUD**（Space/1-7/0/W/A/H/Z/V/N） |
+| **回饋（Feedback）** | 雙音效引擎：原生 Web Audio 引擎 `klondikeAudio`（卡牌風切聲 Flick、桌面敲擊聲 Snap、發牌洗牌聲 Riffle Shuffle、基座五聲音階爬音和弦 Ascending Cascade Arpeggio、維加斯低頻重低音 Bass Drop、慶典和弦鐘聲 Fanfare、煙火爆破聲 Firework Pop）+ 共享 `synthAudio`；**維加斯經典 3D 彈跳重力瀑布（WinCascade）**（52 張卡牌物理重力拋物彈跳畫布 + 點擊互動煙火粒子）；雙翼戰術情報儀表（牌庫 X-Ray 深度透視、暗牌熱圖、四色回收天秤、維加斯即時盈虧儀與連勝狂熱光環） |
+| **觸控與操作（Touch）** | 完整原生 HTML5 拖曳與觸控點擊選取／移動相容；流體卡牌佈局（Container Queries `cqi` 自適應 `--kl-corner-size` 與動態牌角露出步伐 `--kl-fan-face-up` / `--kl-waste-fan-x`，徹底解決堆疊切字問題）；直屏環境自動切換為頂部半透明微光戰術條（`MobileTacticalStrip`）與彈出式戰術抽屜 |
+| **驗證腳本（Check）** | `npm run check -w klondike` → `src/check-klondike.mjs`（>700 行深度檢驗，涵蓋維加斯累積籌碼與輪次限制、Undo 扣分與評分 ≥0 鉗位邊界、基座自動收牌安全性、可解局種子搜尋／決定性／腳本回退、台北時區日常日期連勝、卡牌物理座標與 Web Audio 調度契約等） |
+
 ## 常見變體或可選規則
 
 - **翻牌次數**：限一輪、三輪或無限輪（維加斯已內建限制）。

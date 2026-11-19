@@ -1,4 +1,4 @@
-import type { CardType, Rank, DragSource } from '../types.ts';
+import type { CardType, Rank, DragSource, Suit } from '../types.ts';
 
 export type DrawCount = 1 | 3;
 
@@ -104,6 +104,41 @@ export function findFoundationIndex(card: CardType, foundation: CardType[][]): n
 /** True when every tableau card is face-up (no blockers left to reveal). */
 export function canAutoComplete(tableau: CardType[][]): boolean {
   return tableau.every((col) => col.every((c) => c.faceUp));
+}
+
+/**
+ * Safe foundation move check:
+ * A card moving to foundation is mathematically guaranteed NOT to block
+ * uncovering face-down cards if:
+ * 1. All tableau cards are face-up (canAutoComplete is true), OR
+ * 2. The card is Ace or 2 (ranks 1 or 2 never need to hold cards on tableau), OR
+ * 3. Both foundation piles of the opposite color have reached at least rank R - 1
+ *    (meaning no lower rank opposite color card can possibly need this card as a parent
+ *    in the tableau to unblock a face-down card).
+ */
+export function isFoundationMoveSafe(
+  movingCard: CardType,
+  foundation: CardType[][],
+  tableau?: CardType[][],
+): boolean {
+  if (tableau && canAutoComplete(tableau)) {
+    return true;
+  }
+  const rankVal = rankValues[movingCard.rank];
+  if (rankVal <= 2) {
+    return true;
+  }
+  const oppColor = movingCard.color === 'red' ? 'black' : 'red';
+  const oppSuits: Suit[] = oppColor === 'red' ? ['hearts', 'diamonds'] : ['clubs', 'spades'];
+
+  for (const oppSuit of oppSuits) {
+    const pile = foundation.find((p) => p.length > 0 && p[p.length - 1].suit === oppSuit);
+    const oppRank = pile && pile.length > 0 ? rankValues[pile[pile.length - 1].rank] : 0;
+    if (oppRank < rankVal - 1) {
+      return false;
+    }
+  }
+  return true;
 }
 
 export function isGameWon(foundation: CardType[][]): boolean {

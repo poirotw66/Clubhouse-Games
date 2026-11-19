@@ -50,6 +50,22 @@ export function pointsUndo(mode: ScoreMode): number {
   return mode === 'standard' ? -2 : 0;
 }
 
+/**
+ * Standard scoring clamps at 0 (cannot drop negative).
+ * Vegas scoring is unconstrained (starts at −52 and can stay negative).
+ */
+export function clampScore(score: number, mode: ScoreMode): number {
+  if (mode === 'standard') {
+    return Math.max(0, score);
+  }
+  return score;
+}
+
+/** Apply score delta respecting mode clamping bounds. */
+export function applyScoreDelta(currentScore: number, delta: number, mode: ScoreMode): number {
+  return clampScore(currentScore + delta, mode);
+}
+
 /** −2 every 10 seconds in Standard timed scoring. */
 export function standardTimePenaltyTicks(elapsedSec: number, appliedThroughSec: number): {
   penalty: number;
