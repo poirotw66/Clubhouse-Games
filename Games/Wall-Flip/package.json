@@ -8,6 +8,6 @@
     "dev": "npx --yes serve .",
     "build": "node -e \"const fs=require('node:fs');fs.rmSync('dist',{recursive:true,force:true});fs.cpSync('.','dist',{recursive:true,filter:(s)=>!s.includes('dist')&&!s.includes('node_modules')});\"",
     "lint": "node scripts/lint.mjs",
-    "check": "node scripts/check-logic.mjs"
+    "check": "node scripts/check-logic.mjs && node scripts/stunt-club.test.mjs && node scripts/vehicle-garage.test.mjs && node scripts/vehicle-mesh.test.mjs && node scripts/leaderboard.test.mjs && node scripts/flight-coach.test.mjs"
   }
 }

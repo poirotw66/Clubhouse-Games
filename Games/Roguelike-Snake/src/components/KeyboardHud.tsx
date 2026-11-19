@@ -44,7 +44,7 @@ export function KeyboardHud({
   const isRight = currentDir === 'right' || pressedKey === 'd' || pressedKey === 'arrowright';
 
   return (
-    <div className="w-full max-w-xl mx-auto mt-2 rounded-2xl border border-slate-800/90 bg-gradient-to-b from-slate-900/90 to-slate-950/90 p-3 shadow-xl backdrop-blur-md">
+    <div className="hidden md:block w-full max-w-xl mx-auto mt-2 rounded-2xl border border-slate-800/90 bg-gradient-to-b from-slate-900/90 to-slate-950/90 p-3 shadow-xl backdrop-blur-md">
       <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
         {/* Direction Indicator cluster */}
         <div className="flex items-center gap-2">

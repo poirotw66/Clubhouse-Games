@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 
+import { fileURLToPath } from 'node:url';
+
 // The game lives in HTML: checking only external JS leaves its actual code unchecked.
 let checked = 0;
 for (const file of ['index.html', 'index-3d.html', 'simulation.js', 'leaderboard.js']) {
@@ -17,6 +19,8 @@ for (const file of ['index.html', 'index-3d.html', 'simulation.js', 'leaderboard
   }
 }
 assert.ok(checked >= 3, 'Expected game scripts in both HTML entry points');
-const external = spawnSync(process.execPath, ['../../scripts/lint-js-syntax.mjs'], { stdio: 'inherit' });
+const lintScript = fileURLToPath(new URL('../../../scripts/lint-js-syntax.mjs', import.meta.url));
+const gameDir = fileURLToPath(new URL('..', import.meta.url));
+const external = spawnSync(process.execPath, [lintScript, gameDir], { stdio: 'inherit' });
 assert.equal(external.status, 0, 'External script syntax check failed');
 console.log(`Inline syntax OK: ${checked} scripts`);

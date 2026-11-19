@@ -230,6 +230,19 @@
 
 最後一項剪枝檢查是最重要的一項：剪枝寫錯會安靜地砍掉正確解，而題目看起來仍然「正常」。
 
+## 品質門檻對齊
+
+對照 [`docs/GAME-QUALITY-BAR.md`](../docs/GAME-QUALITY-BAR.md)：
+
+| 項目 | 本實作說明與亮點 |
+|------|------------------|
+| **模式／變體** | 經典模式四級難度階梯（輕鬆 5×5、普通 6×6、困難 7×7、專家 8×8）× **缺口盤變體（Blocked-cell variant）**（盤面隨機挖出 3～6 格不可通行的空洞孔洞，路線不得進入且必須繞行）× **每日挑戰（Daily Challenge）**（固定 6×6，依 Asia/Taipei 當天日期映射全域統一題目，所有人當天同題較勁）× **本週挑戰（Weekly Schedule）**（週一至週日遞增 7 題固定題組，含週末限定缺口盤）× 自由自訂練習盤面 |
+| **Replay hook** | 完整持久化至 `localStorage`：進行中盤面狀態與走線（`clubhouse:every-corner:save`，重新整理或關閉分頁進度不遺失）、每日挑戰紀錄、連續完成天數（Streak）與歷史最佳時間（`clubhouse:every-corner:daily`）、本週挑戰進度（`clubhouse:every-corner:weekly`，七天挑戰達成率與全清標記）、全域累計統計與 10+ 項成就解鎖（`clubhouse:every-corner:stats`，具備資料結構 parse 驗證與自動防損修復）、音效靜音偏好（`clubhouse:every-corner:audio-muted`） |
+| **對手／輔助（Undo／Hint）** | **四段循序漸進智能提示系統（Progressive 4-Stage Hint）**：第一級指出錯誤偏離步數（Locate）、第二級自動回溯至最後正確節點（Rewind）、第三級標示下一步正解（Reveal）、第四級揭露至下一個檢查點之整段線路與轉折形狀（Segment）+ **斷路孤島死局動態過載警報與一鍵倒回安全點（Dead-End Overload & Safe Rollback）**（即時演算法偵測不可達孤島，一鍵精準撤銷至最後無孤島安全前綴）+ 點擊已導通 Checkpoint 快速倒帶 + 鍵盤 <kbd>Backspace</kbd> / <kbd>Z</kbd> 單步退回、<kbd>R</kbd> 重置、<kbd>H</kbd> 提示 |
+| **回饋（Feedback）** | **原生 Web Audio 賽博晶片動態合成音效（`circuitAudio.ts`）**：動態音高爬升五聲音階走線琶音（Cyber Synth Arpeggio）、檢查點導通諧波與八度滑音、撤銷降頻能量回流音（Reverse Energy Glide 480Hz → 180Hz）、斷路孤島雙振盪器不和諧低頻過載警報聲（165Hz/175Hz 鋸齒波）、一鍵安全倒回 C 大調修復和弦、**全盤通電大放電慶祝組曲（Full Grid Discharge Fanfare）**（110Hz → 45Hz 超重低音下潛脈衝 + 7 階層疊光速琶音與凱旋和弦）+ 四層複合高壓超導光軌與旋轉雷達探針視覺 + 棋盤超載光暈（`ec-board-overdrive`）與能量雙重衝擊波 + 通關結算視窗（呈現時間、步數、提示次數、星級評價與重玩）+ 成就即時 Toast 橫幅 |
+| **觸控與操作（Touch）** | **行動端專屬高採樣連續拖曳補差值演算法（`routeTo`）**（手指快速滑過多格不掉步、不走穿牆捷徑、防範剪角誤觸）+ 往回滑動即時擦除反悔 + **行動端專屬頂部即時戰術條（Mobile HUD Strip）**（常駐導通率 %、等效阻抗 Ω、目標方位指引，偵測到死局時立即彈出醒目的紅色過載警報與「⚡ 倒回安全點」按鈕）+ 響應式佈局支援手機直屏與桌面雙翼遙測儀表 |
+| **驗證腳本（Check）** | `npm run check -w every-corner` → `scripts/self-check.ts`（深度測試覆蓋擴展至 1100+ 行）：涵蓋回咬演算法（Backbite）拓撲不變式與混淆度、經典與缺口盤多尺寸（5×5 至 10×10）唯一解驗證與剪枝一致性（Pruned vs Unpruned 解題器嚴格一致）、線路拓撲遙測與等效阻抗／孤島斷路／安全回溯前綴演算法、賽博 Web Audio 原生合成器契約（頻率曲線、降頻、警報防抖、和弦音律與靜音模式）、四段式循序漸進提示契約、Asia/Taipei（UTC+8）時區日常／週常種子決定論、連續天數（Streak）跨日跨月跨年與閏年邊界守恆、成就系統、存檔結構驗證與損毀資料防禦 |
+
 ## 實作範圍建議
 
 v1 明確 **不做**：非矩形盤面、多條路徑、計時排行榜伺服器、題目分享編輯器。

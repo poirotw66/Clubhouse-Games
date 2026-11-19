@@ -21,21 +21,35 @@ export type DailyShareInput = {
   buildName?: string;
 };
 
-/** Local calendar day as YYYYMMDD (same format the title screen already uses). */
-export function todaySeedKey(now: Date = new Date()): string {
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${y}${m}${day}`;
+/** Calendar day in Asia/Taipei (UTC+8) as YYYYMMDD. */
+export function taipeiDateKey(now: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Taipei',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now);
+  const y = parts.find((p) => p.type === 'year')?.value ?? '';
+  const m = parts.find((p) => p.type === 'month')?.value ?? '';
+  const d = parts.find((p) => p.type === 'day')?.value ?? '';
+  return `${y}${m}${d}`;
 }
 
-function previousDayKey(key: string): string {
+/** Local calendar day as YYYYMMDD (anchored to Asia/Taipei for daily seed stability). */
+export function todaySeedKey(now: Date = new Date()): string {
+  return taipeiDateKey(now);
+}
+
+export function previousDayKey(key: string): string {
   const year = Number(key.slice(0, 4));
   const month = Number(key.slice(4, 6));
   const day = Number(key.slice(6, 8));
-  const date = new Date(year, month - 1, day);
-  date.setDate(date.getDate() - 1);
-  return todaySeedKey(date);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() - 1);
+  const prevY = date.getUTCFullYear();
+  const prevM = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const prevD = String(date.getUTCDate()).padStart(2, '0');
+  return `${prevY}${prevM}${prevD}`;
 }
 
 /** Consecutive daily clears ending today, or yesterday (streak survives one open day). */

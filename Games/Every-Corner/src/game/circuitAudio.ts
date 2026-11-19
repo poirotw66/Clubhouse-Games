@@ -4,14 +4,24 @@
  * dead-end isolation alarms, and full-grid overdrive celebration fanfares.
  */
 
-const AudioContextCtor =
-  typeof window !== 'undefined'
-    ? window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
-    : undefined;
+function getAudioContextCtor(): (new () => AudioContext) | undefined {
+  if (typeof window !== 'undefined') {
+    return window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  }
+  if (typeof globalThis !== 'undefined' && 'AudioContext' in globalThis) {
+    return (globalThis as unknown as { AudioContext: new () => AudioContext }).AudioContext;
+  }
+  return undefined;
+}
 
 let audioCtx: AudioContext | null = null;
 let isMuted = false;
 let lastAlarmTime = 0;
+
+export function resetAudioContextForTesting(): void {
+  audioCtx = null;
+  lastAlarmTime = 0;
+}
 
 const STORAGE_KEY_MUTED = 'clubhouse:every-corner:audio-muted';
 
@@ -40,9 +50,10 @@ export function setAudioMuted(muted: boolean): void {
 }
 
 function getContext(): AudioContext | null {
-  if (isMuted || !AudioContextCtor) return null;
+  const Ctor = getAudioContextCtor();
+  if (isMuted || !Ctor) return null;
   if (!audioCtx) {
-    audioCtx = new AudioContextCtor();
+    audioCtx = new Ctor();
   }
   if (audioCtx.state === 'suspended') {
     void audioCtx.resume();
@@ -51,7 +62,7 @@ function getContext(): AudioContext | null {
 }
 
 // Cyberpunk scale (A Minor Pentatonic across 2 octaves)
-const CYBER_SCALE = [
+export const CYBER_SCALE = [
   220.0, 261.63, 293.66, 329.63, 392.0, 440.0, 523.25, 587.33, 659.25, 783.99, 880.0, 1046.5,
 ];
 

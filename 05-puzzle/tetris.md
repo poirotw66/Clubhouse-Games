@@ -150,6 +150,19 @@
     - 電競級鍵盤操作指南 HUD：桌面端即時感應按鍵並觸發霓虹微光反饋。
     - 行動端頂部戰術速報條（Tactical Ticker）：在窄螢幕下以高密度數據條整合高度警戒、連擊態勢、Tetris 率與 B2B 狀態，並附帶戰術數據抽屜。
 
+## 品質門檻對齊
+
+對照 [`docs/GAME-QUALITY-BAR.md`](../docs/GAME-QUALITY-BAR.md)：
+
+| 項目 | 本實作說明與亮點 |
+|------|------------------|
+| **模式／變體** | 涵蓋六大遊玩模式：**無盡**（Marathon，隨行數升級與重力加速）、**衝刺 40 行**（Sprint，40 行競速計時）、**限時 2 分**（Ultra，兩分鐘衝高分）、**對戰 CPU**（Versus，三檔難度 × 四種戰術風格 × BO3 三戰兩勝系列賽）、**每日挑戰**（Daily Sprint 與 Daily Ultra，Asia/Taipei UTC+8 日曆種子確定性題庫）、**精通訓練**（Cheese 垃圾行挖掘奪星與 T-Spin 實戰殘局題庫）。 |
+| **Replay hook** | 完整持久化至 `localStorage`：單人三大模式最佳成績 (`clubhouse:tetris-best`)、對戰勝負／連勝／最佳連勝 (`clubhouse-tetris-versus`)、BO3 系列賽進度與 CPU 戰術偏好 (`clubhouse:tetris-versus-meta-v1`)、每日挑戰成績與連續通關天數 (`clubhouse:tetris-daily-v1`)、訓練模式星級與通關記錄 (`clubhouse:tetris-practice-v1`)。 |
+| **對手／輔助** | 對戰 CPU 搭載三檔難度（簡單／普通／困難）與四種戰術風格（均衡、保守防守、積極挖洞、T-Spin 特化），支援垃圾行攻擊表、相殺抵銷（Cancellation）與佇列推入；雙翼戰術座艙提供 10 列高度等化雷達、空洞數與側井深分析、7-Bag 循環分佈透視、B2B 充能指示、Next 預覽（3～5 步）、連擊狂熱連鎖計（Combo Fever）、消行效率（Tetris Rate %、LPM、PPS）、第 16 行雷射危險警戒線與大師戰術錦囊。 |
+| **回饋（Feedback）** | 採用 `@clubhouse/shared` 標準 `ResultOverlay`（勝負／過關判定、分數、消行數、用時、等級、今日最佳、連續天數、星級、BO3 比分與再玩／分享按鈕）；搭配 `@clubhouse/shared/synthAudio` 原生 WebAudio 合成音效（方塊移動、旋轉、軟降、硬降落底、消行、Tetris 震撼音、T-Spin 音效、垃圾行推送、連鎖 Combo 音階、全清 Perfect Clear 音效）；動態視覺包含 Guideline 計分 Callout 浮動動畫（`T-SPIN DOUBLE`、`B2B`、`N COMBO`、`+分數`）、消行閃光與鍵盤 HUD 即時按鍵霓虹微光。 |
+| **觸控與操作（Touch）** | 完整行動端虛擬按鈕支援（左移、右移、軟降連續長按、左轉、右轉、瞬間落下、暫存 Hold）；響應式行動端介面：< 768px 自動將雙翼座艙收折為頂部戰術速報條（Tactical Ticker，展示高度、連擊、Tetris 率、B2B）與抽屜式戰術錦囊，確保雙場地對戰視野清晰；桌面端配備電競級鍵盤操作指南 HUD。 |
+| **驗證腳本（Check）** | `npm run check -w tetris` → `src/check-tetris.mjs`（無瀏覽器依賴純邏輯驗證，擴充至 >900 行高密度測試）：涵蓋 SRS 旋轉與踢牆表（JLSTZ 與 I 塊各 8 狀態 5 偏移測試）、T-Spin 3 角法則（Full／Mini／第 4 踢升級判定）、Guideline 計分與 B2B 1.5x 加成不變量、Combo 狂熱階級與垃圾公式、相殺與佇列推入、CPU 三檔難度與戰術風格決策、BO3 系列賽進程、Sprint 40 行計時與 Ultra 2 分倒數、PPS/LPM 統計、`clubhouse:tetris-best` 記錄持久化、Cheese 挖掘與每日種子確定性。 |
+
 ## 參考與備註
 
 - 本規格以現代 Tetris Guideline 為參考：10×20 場地、7 種 Tetromino、SRS 旋轉、Hold／Next 等。  

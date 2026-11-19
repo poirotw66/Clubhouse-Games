@@ -46,7 +46,7 @@ export function TacticalTicker({
     <div className="w-full max-w-xl mx-auto flex items-center justify-between gap-1.5 rounded-xl border border-slate-800 bg-slate-900/90 px-3 py-1.5 text-xs lg:hidden">
       <div className="flex items-center gap-1.5">
         <span className="font-bold text-slate-100">
-          第 {floor} 層
+          B{floor}F
           {endless && <span className="text-amber-300 ml-1">無盡</span>}
           {ironsnake && <span className="text-rose-300 ml-1">鐵蛇</span>}
           {daily && <span className="text-emerald-300 ml-1">每日</span>}
