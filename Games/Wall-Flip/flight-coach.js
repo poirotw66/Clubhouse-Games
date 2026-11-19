@@ -3,6 +3,7 @@
   'use strict';
   const TAU = Math.PI * 2;
   const limits = Object.freeze({ tilt: 25 * Math.PI / 180, descent: 5, spin: 2.5 });
+  const targetLimits = Object.freeze({ tilt: 6.25 * Math.PI / 180, descent: 6 / 3.6, spin: 2.5 });
   function tiltOf(angle, pitch = 0) {
     const wrapped = ((angle % TAU) + TAU) % TAU;
     return Math.max(Math.min(wrapped, TAU - wrapped), Math.abs(pitch));
@@ -42,6 +43,10 @@
       aligned: airborne && tilt <= limits.tilt,
       slow: airborne && descent <= limits.descent,
       settled: airborne && spin <= limits.spin,
+      targetAligned: airborne && tilt <= targetLimits.tilt,
+      targetSlow: airborne && descent <= targetLimits.descent,
+      targetSettled: airborne && spin <= targetLimits.spin,
+      targetZone: airborne && tilt <= targetLimits.tilt && descent <= targetLimits.descent,
     };
   }
   const words = {
@@ -121,8 +126,8 @@
           text($('[data-flight-keys]'),language()==='en'?'B boost · release to land · X / ↓ descend':'B 噴射 · 放開著陸 · X／↓ 快降');
         }
         const airborne=state.mode==='air'; root.classList.toggle('airborne',airborne);
-        const values=[['tilt',a.tilt*180/Math.PI,25,'°',a.aligned],['descent',a.descent*3.6,18,' km/h',a.slow],['spin',a.spin,2.5,' rad/s',a.settled]];
-        for(const [name,value,limit,unit,ok] of values){const el=$('[data-coach-metric="'+name+'"]');text(el,w[name]+' '+value.toFixed(name==='spin'?1:0)+unit+' / '+limit+unit);el.classList.toggle('within',ok);}
+        const values=[['tilt',a.tilt*180/Math.PI,25,'°',a.aligned,a.targetAligned],['descent',a.descent*3.6,18,' km/h',a.slow,a.targetSlow],['spin',a.spin,2.5,' rad/s',a.settled,a.targetSettled]];
+        for(const [name,value,limit,unit,ok,targetOk] of values){const el=$('[data-coach-metric="'+name+'"]');text(el,w[name]+' '+value.toFixed(name==='spin'?1:0)+unit+' / '+limit+unit+(targetOk?' ★':''));el.classList.toggle('within',ok);el.classList.toggle('target',Boolean(targetOk));}
         text($('[data-flight-caveat]'),w.live);
         $('[data-flight-toggle]').setAttribute('aria-expanded',String(!compact));
         text($('[data-flight-toggle]'),compact?'+':'−'); $('[data-flight-toggle]').setAttribute('aria-label',compact?w.unfold:w.fold);
@@ -143,5 +148,5 @@
     }
     return {begin,finish,render};
   }
-  global.WallFlipFlight=Object.freeze({tiltOf,orientation,analyse,advance,limits,mount});
+  global.WallFlipFlight=Object.freeze({tiltOf,orientation,analyse,advance,limits,targetLimits,mount});
 })(globalThis);

@@ -4,8 +4,8 @@
   const KEY = 'wallflip.stuntClub.v1';
   const contracts = Object.freeze({
     flips: { thresholds: [1, 2, 3], value: s => s.rolls || 0 },
-    precision: { thresholds: [20, 35, 45], value: s => (s.soft || 0) + (s.level || 0) },
-    reserve: { thresholds: [30, 50, 70], value: s => s.air || 0 },
+    precision: { thresholds: [20, 32, 40], value: s => (s.soft || 0) + (s.level || 0) },
+    reserve: { thresholds: [25, 45, 65], value: s => s.air || 0 },
   });
   const paints = Object.freeze([
     // Keep the saved mint ID for each vehicle's factory livery.
@@ -38,7 +38,7 @@
   const words = {
     tc: { choose:'選擇這趟的挑戰', bank:'每項最多 3 星；成功落地才入袋。',
       flips:'翻滾秀', precision:'奶油著陸', reserve:'省氣高手',
-      hints:{flips:'翻 1 / 2 / 3 圈並落地',precision:'柔軟＋水平達 20 / 35 / 45',reserve:'落地剩餘空氣 30 / 50 / 70%'},
+      hints:{flips:'翻 1 / 2 / 3 圈並落地',precision:'柔軟＋水平達 20 / 32 / 40',reserve:'落地剩餘空氣 25 / 45 / 65%'},
       units:{flips:'圈',precision:'/ 50',reserve:'% 空氣'}, live:'本趟挑戰', pending:'落地才能入袋',
       landed:'挑戰結算', failed:'挑戰未完成 · 再來一趟', practice:'示範練習 · 不記錄獎勵',
       streak:'連續著陸', best:'最佳', paint:'車身塗裝', mint:'原廠',amber:'夕陽',violet:'星雲',
@@ -46,7 +46,7 @@
     },
     en: { choose:'Pick this run’s challenge',bank:'Up to 3 stars each. Land safely to bank them.',
       flips:'Air show',precision:'Butter landing',reserve:'Air saver',
-      hints:{flips:'Land after 1 / 2 / 3 flips',precision:'SOFT + LEVEL: 20 / 35 / 45',reserve:'Land with 30 / 50 / 70% air'},
+      hints:{flips:'Land after 1 / 2 / 3 flips',precision:'SOFT + LEVEL: 20 / 32 / 40',reserve:'Land with 25 / 45 / 65% air'},
       units:{flips:'flips',precision:'/ 50',reserve:'% air'},live:'RUN CONTRACT',pending:'Land to bank',
       landed:'Contract result',failed:'Contract missed · Try again',practice:'Demo practice · No rewards saved',
       streak:'Landing streak',best:'best',paint:'Livery',mint:'Factory',amber:'Sunset',violet:'Nebula',

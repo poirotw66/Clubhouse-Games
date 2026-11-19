@@ -16,10 +16,10 @@ test('contracts bank nothing on a crash, regardless of airborne feats', () => {
 test('each contract has reachable inclusive medal thresholds', () => {
   assert.equal(grade('flips', { win: true, rolls: 0 }), 0);
   for (let n = 1; n <= 3; n++) assert.equal(grade('flips', { win: true, rolls: n }), n);
-  for (const [quality, expected] of [[19, 0], [20, 1], [34, 1], [35, 2], [44, 2], [45, 3], [50, 3]]) {
+  for (const [quality, expected] of [[19, 0], [20, 1], [31, 1], [32, 2], [39, 2], [40, 3], [50, 3]]) {
     assert.equal(grade('precision', { win: true, soft: quality - 20, level: 20 }), expected);
   }
-  for (const [air, expected] of [[29.9, 0], [30, 1], [49.9, 1], [50, 2], [69.9, 2], [70, 3]]) {
+  for (const [air, expected] of [[24.9, 0], [25, 1], [44.9, 1], [45, 2], [64.9, 2], [65, 3]]) {
     assert.equal(grade('reserve', { win: true, air }), expected);
   }
 });

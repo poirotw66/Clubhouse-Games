@@ -67,6 +67,23 @@ assert.equal(scoreOf({ rolls: 0, fall: 0, tilt: 0 }).total, 50);
 assert.equal(scoreOf({ rolls: 2, fall: 0, tilt: 0 }).total, 150);
 assert.equal(scoreOf({ rolls: 2, fall: BASE.LAND_SPEED, tilt: BASE.LAND_TILT }).total, 100);
 assert.equal(scoreOf({ rolls: 0, fall: 100, tilt: 100 }).total, 0);
+
+// Landing fall decoupling: gentle vertical descent with residual spin preserves soft landing score.
+{
+  const sim = createSim();
+  Object.assign(sim.state, {
+    mode: 'air',
+    x: 10, y: 0.65, z: 0,
+    vx: 0, vy: -1.5, vz: 0,
+    roll: 0, pitch: 0, yaw: 0, rw: 1.8,
+    air: 80, clear: true,
+  });
+  sim.step(BASE.STEP, idle);
+  assert.equal(sim.state.mode, 'landed');
+  assert.ok(sim.state.land.fall < 2.5, `Fall velocity was ${sim.state.land.fall}, expected < 2.5`);
+  const score = scoreOf(sim.state.land);
+  assert.ok(score.soft >= 17, `Soft score was ${score.soft}, expected >= 17`);
+}
 assert.equal(rollsCount(Math.PI, Math.PI), 0);
 assert.equal(rollsCount(Math.PI * 3, Math.PI), 1);
 for (const angle of [-Math.PI, -1, 0, 1, Math.PI]) {

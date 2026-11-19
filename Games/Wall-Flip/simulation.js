@@ -304,7 +304,9 @@ function createSim(hooks = {}, consts = null) {
     const tilt = Math.max(Math.abs(s.roll - q * TAU), Math.abs(s.pitch));
     const [lx, ly, lz] = low.pt;
     const ky = tsin(s.pitch) * lx + tcos(s.pitch) * ly;
-    const fall = -(s.vy + s.rw * (-ky * tsin(s.roll) - lz * tcos(s.roll)));
+    const spinTerm = -ky * tsin(s.roll) - lz * tcos(s.roll);
+    const spinDamp = Math.abs(s.rw) <= (I.LAND_SPIN ?? BASE.LAND_SPIN) ? 0.35 : 1.0;
+    const fall = -(s.vy + s.rw * spinTerm * spinDamp);
     const completedRolls = Math.max(rollsCount(s.roll, s.roll0), s.rollsAccum || 0);
     s.land = { x: s.x, z: s.z, fall, tilt, spin: Math.abs(s.rw), rolls: completedRolls, vx: s.vx };
     if (low.pt[3] !== 'wheel' || tilt > I.LAND_TILT) { doCrash('tilt', low.w[0], 0); return; }

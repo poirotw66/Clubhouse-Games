@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import test from 'node:test';
 const sandbox = {};
 vm.runInNewContext(fs.readFileSync(new URL('../flight-coach.js', import.meta.url), 'utf8'), sandbox);
-const { analyse, advance, tiltOf, limits } = sandbox.WallFlipFlight;
+const { analyse, advance, tiltOf, limits, targetLimits } = sandbox.WallFlipFlight;
 
 test('road orientation follows the track instead of the uninitialized airborne roll', () => {
   const {orientation}=sandbox.WallFlipFlight;
@@ -49,4 +49,24 @@ test('license progress requires successful real outcomes and only one objective 
   assert.equal(advance(2,{...perfect,soft:20,level:15}),3);
   assert.equal(advance(3,perfect),3);
   assert.equal(perfect.total,999, 'The skill loop must not modify original score data');
+});
+
+test('License 03 precision target zone recognizes tilt <= 6.25 deg and descent <= 6 km/h', () => {
+  assert.ok(targetLimits.tilt < limits.tilt);
+  assert.ok(targetLimits.descent < limits.descent);
+
+  const inTarget = analyse({ mode: 'air', vy: -1.5, tilt: 5 * Math.PI / 180, rw: 1.0, air: 50 });
+  assert.equal(inTarget.targetAligned, true);
+  assert.equal(inTarget.targetSlow, true);
+  assert.equal(inTarget.targetZone, true);
+
+  const outsideTilt = analyse({ mode: 'air', vy: -1.5, tilt: 7 * Math.PI / 180, rw: 1.0, air: 50 });
+  assert.equal(outsideTilt.aligned, true, 'Still within safe envelope');
+  assert.equal(outsideTilt.targetAligned, false, 'Exceeds License 03 tilt');
+  assert.equal(outsideTilt.targetZone, false);
+
+  const outsideDescent = analyse({ mode: 'air', vy: -2.5, tilt: 5 * Math.PI / 180, rw: 1.0, air: 50 });
+  assert.equal(outsideDescent.slow, true, 'Still within safe envelope');
+  assert.equal(outsideDescent.targetSlow, false, 'Exceeds License 03 descent');
+  assert.equal(outsideDescent.targetZone, false);
 });

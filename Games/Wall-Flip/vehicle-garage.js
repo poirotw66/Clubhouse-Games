@@ -16,7 +16,7 @@
     {
       finish:{body:'#d4e1dc',accent:'#f2713d',trim:'#9bafbd',glass:'#203445',light:'#d9f7ff',wheel:'formula',roughness:.3},
       id: 'sparrow', hullParts:2, hull:[[-2.05,.45,-.28,-.02],[-1.5,.56,-.36,.09],[-.6,.52,-.35,.14],[.25,.38,-.32,.06],[1.4,.25,-.27,-.07],[2.08,.18,-.22,-.13]], name: 'SPARROW', number: '02',
-      handling: { motor: 1.1, rotation: 1.4, damping: .9, thrust: .92, airUse: 1.2 },
+      handling: { motor: 1.1, rotation: 1.4, damping: 1.05, thrust: .96, airUse: 1.2 },
       tc: { title: '飛雀方程式', role: '靈活翻滾', tip: '翻滾反應更快，適合衝圈數；提早放開單側噴射。', trade: '推力較弱、耗氣較快，落地前需要更多修正。' },
       en: { title: 'Open-wheel racer', role: 'Agile flipper', tip: 'Fast roll response rewards ambitious flips. Release the single jet early.', trade: 'Weaker lift and faster air use leave less room for late corrections.' },
       parts: [[3.3,.3,.92,-.25,-.22,0,'body'], [1.15,.18,.5,1.45,-.18,0,'body'], [.8,.04,.58,-.25,.15,0,'seam'], [.12,.32,.48,-.75,.28,0,'body',-.2], [.39,.045,1.94,-1.91,.46,0,'dark',-.08], [.27,.035,1.87,-1.95,.35,0,'body',-.08], [.3,.045,1.94,1.99,-.26,0,'dark'], [.2,.035,1.8,1.86,-.18,0,'body'], [.05,.34,.055,-1.83,.25,-.56,'trim'], [.05,.34,.055,-1.83,.25,.56,'trim']],
@@ -24,7 +24,7 @@
     {
       finish:{body:'#64705b',accent:'#dba656',trim:'#b1b7b2',glass:'#293d43',light:'#ffd18a',wheel:'rally',roughness:.42},
       id: 'atlas', hullParts:1, hull:[[-2.13,.68,-.31,.06],[-1.7,.98,-.38,.16],[-.85,.99,-.38,.14],[.8,.96,-.36,.13],[1.78,.87,-.3,.06],[2.14,.69,-.24,-.01]], name: 'ATLAS', number: '03',
-      handling: { motor: .92, rotation: .75, damping: 1.5, thrust: 1.08, airUse: .75 },
+      handling: { motor: .92, rotation: .82, damping: 1.5, thrust: 1.08, airUse: .75 },
       tc: { title: '磐石拉力', role: '穩定省氣', tip: '轉速收得快、噴射更省氣，適合精準著陸與續航挑戰。', trade: '加速和翻滾較慢，連續多圈需要提早開始。' },
       en: { title: 'Rally hatchback', role: 'Stable & efficient', tip: 'Rotation settles quickly and jets conserve air. Built for controlled landings.', trade: 'Slower acceleration and roll response demand earlier setup for multiple flips.' },
       canopy:[[-1.61,.68,.13,.22],[-1.3,.79,.13,.46],[.32,.76,.13,.46],[.94,.59,.13,.17]],
@@ -34,7 +34,7 @@
     {
       finish:{body:'#26324e',accent:'#9565ce',trim:'#8ca2bd',glass:'#142b4e',light:'#7aefff',wheel:'turbine',roughness:.27},
       id: 'nova', hullParts:2, hull:[[-2.15,.67,-.25,-.04],[-1.7,1.0,-.34,.1],[-.65,.95,-.33,.12],[.7,.81,-.29,.03],[1.65,.69,-.23,-.03],[2.16,.32,-.14,-.07]], name: 'NOVA', number: '04',
-      handling: { motor: 1.04, rotation: .95, damping: 1.05, thrust: 1.28, airUse: 1.4 },
+      handling: { motor: 1.04, rotation: .95, damping: 1.05, thrust: 1.28, airUse: 1.25 },
       tc: { title: '新星噴射', role: '強力升空', tip: '雙鍵噴射有更強升力，適合延長飛行與挽救下墜。', trade: '耗氣最快；倒掛時強力噴射也會加速墜落。' },
       en: { title: 'Jet prototype', role: 'Powerful lift', tip: 'Stronger twin jets extend flight and brake a steep descent.', trade: 'The fastest air drain. Powerful jets also push you down harder when inverted.' },
       canopy:[[-1.01,.31,.12,.17],[-.56,.48,.12,.41],[.16,.4,.09,.38],[.84,.12,.04,.1]],

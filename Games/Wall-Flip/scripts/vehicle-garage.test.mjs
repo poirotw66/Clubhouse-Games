@@ -43,6 +43,18 @@ test('different abilities change actual acceleration, rotation, settling, thrust
   assert.ok(airborne('nova',bothJets).air < airborne('roadster',bothJets).air);
 });
 
+test('Sparrow, Atlas, and Nova reflect calibrated handling presets', () => {
+  const sparrow = get('sparrow').handling;
+  assert.equal(sparrow.damping, 1.05);
+  assert.equal(sparrow.thrust, 0.96);
+
+  const atlas = get('atlas').handling;
+  assert.equal(atlas.rotation, 0.82);
+
+  const nova = get('nova').handling;
+  assert.equal(nova.airUse, 1.25);
+});
+
 test('every car can use twin jets for deliberate upward lift while level',()=>{
   for(const vehicle of vehicles) {
     const state=airborne(vehicle.id,{...idle,left:true,right:true});
