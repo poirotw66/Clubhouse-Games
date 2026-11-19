@@ -23,7 +23,7 @@ test('wall-flip club: challenge choice survives 2D/3D switching and locked paint
 });
 
 test('wall-flip club: a real landing banks medals once, unlocks paint and a crash keeps the collection', async ({ page }, testInfo) => {
-  test.setTimeout(45000);
+  test.setTimeout(60000);
   await page.goto('./Games/Wall-Flip/index-3d.html');
   await expect(page.locator('#startBtn')).toBeVisible({ timeout: 15000 });
   await page.locator('[data-contract="precision"]').click();

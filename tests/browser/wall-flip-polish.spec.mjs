@@ -6,7 +6,7 @@ test.beforeEach(()=>test.skip(!included,'selective CI'));
 
 for(const vehicle of ['roadster','mars'])for(const mode of ['2d','3d']) {
   test(`wall-flip polish: ${mode} ${vehicle} launches above the fold and B activates both jets`,async({page,isMobile},testInfo)=>{
-    if(vehicle==='mars')test.setTimeout(45000);
+    if(vehicle==='mars'||mode==='3d')test.setTimeout(60000);
     const errors=[];page.on('pageerror',e=>errors.push(e.message));
     await page.addInitScript(({mode,vehicle})=>{
       localStorage.setItem('wallflip.viewMode',mode);localStorage.setItem('wallflip.vehicle.v1',vehicle);

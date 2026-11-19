@@ -7,6 +7,7 @@
 <title>宙返りロードスター 2D · 牆上翻滾</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏎️</text></svg>">
 <script src="leaderboard-config.js"></script>
+<script src="leaderboard.js"></script>
 <script>
 /* Prefer 3D when remembered and WebGL is available (hub entry lands here). */
 (function () {
@@ -768,7 +769,10 @@ function openRank() {
   if (rankApi) fetchOnlineBoard(rankApi);
   sfx.click();
 }
-function closeRank() { rankOn = false; }
+function closeRank() {
+  rankOn = false;
+  rankClient.cancel();
+}
 // ---------- online leaderboard (backend-agnostic rank API client) ----------
 // Base URL is configured at runtime (gear button on the ranking overlay) and
 // persisted in localStorage `wallflip2.api`; empty = online off, local board only.
@@ -797,11 +801,6 @@ function apiBase() {
   const cfg = getLeaderboardConfig();
   return cfg ? cfg.url.replace(/\/+$/, '') : '';
 }
-function isSupabaseApi(base) {
-  const cfg = getLeaderboardConfig();
-  if (cfg && base.startsWith(cfg.url.replace(/\/+$/, ''))) return true;
-  return base.includes('.supabase.co');
-}
 function submitThrottled() {
   try { return Date.now() - (+localStorage.getItem('wallflip2.subT') || 0) < 60000; }
   catch (e) { return false; }
@@ -818,55 +817,24 @@ function logInputFrame() {
     inputLogLast = mask;
   }
 }
-// GET {base}/top?c=<courseIdx> (or Supabase REST); accepts a raw array or {board:[...]}; on
-// failure the online board stays null and the overlay falls back to local
-function fetchOnlineBoard(base) {
+const rankClient = window.WallFlipLeaderboard.createClient({ getConfig: getLeaderboardConfig });
+let onlineQuery = 0;
+async function fetchOnlineBoard(base) {
+  const query = ++onlineQuery;
   onlinePending = true;
-  const cfg = getLeaderboardConfig();
-  if (isSupabaseApi(base) && cfg) {
-    const table = cfg.table || 'wallflip_scores';
-    const q = base + '/rest/v1/' + table + '?select=name,score,rolls,time_sec,created_at&course=eq.' + courseIdx + '&order=score.desc,time_sec.asc&limit=10';
-    fetch(q, {
-      headers: {
-        'apikey': cfg.key,
-        'Authorization': 'Bearer ' + cfg.key
-      }
-    })
-      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-      .then(arr => {
-        if (!Array.isArray(arr)) throw new Error('unexpected payload');
-        onlineBoard = arr
-          .filter(e => e && typeof e.name === 'string' && Number.isFinite(e.score))
-          .slice(0, 10)
-          .map(e => ({ n: e.name, s: e.score, r: Number.isFinite(e.rolls) ? e.rolls : 0, t: Number.isFinite(Number(e.time_sec)) ? Number(e.time_sec) : 0 }));
-        if (lastSubmit) onlineHi = onlineBoard.findIndex(e => e.n === lastSubmit.n && e.s === lastSubmit.s);
-        onlinePending = false;
-      })
-      .catch(err => {
-        onlinePending = false;
-        onlineBoard = null;
-        console.warn('supabase rank fetch failed:', err);
-      });
-    return;
+  try {
+    const result = await rankClient.load(base, courseIdx);
+    if (!result) return;
+    onlineBoard = result.board;
+    if (lastSubmit) onlineHi = onlineBoard.findIndex(e => e.n === lastSubmit.n && e.s === lastSubmit.s);
+  } catch (err) {
+    onlineBoard = null;
+    console.warn('rank fetch failed:', err);
+  } finally {
+    if (query === onlineQuery) {
+      onlinePending = false;
+    }
   }
-
-  fetch(base + '/top?c=' + courseIdx)
-    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-    .then(j => {
-      const arr = Array.isArray(j) ? j : (j && Array.isArray(j.board)) ? j.board : null;
-      if (!arr) throw new Error('unexpected payload');
-      onlineBoard = arr
-        .filter(e => e && typeof e.n === 'string' && Number.isFinite(e.s) && Number.isFinite(e.r))
-        .slice(0, 10)
-        .map(e => ({ n: e.n, s: e.s, r: e.r, t: Number.isFinite(e.t) ? e.t : 0 }));
-      if (lastSubmit) onlineHi = onlineBoard.findIndex(e => e.n === lastSubmit.n && e.s === lastSubmit.s);
-      onlinePending = false;
-    })
-    .catch(err => {
-      onlinePending = false;
-      onlineBoard = null;              // silent fallback to the local board
-      console.warn('rank fetch failed:', err);
-    });
 }
 // POST {n, s, r, c, t, log} — sanitized client-side, throttled to 1 per 60 s;
 // bot/demo runs never reach this (guarded here and at the call site)
@@ -883,67 +851,8 @@ function submitScore(name) {
   };
   try { localStorage.setItem('wallflip2.subT', String(Date.now())); } catch (e) {}
   lastSubmit = { n: payload.n, s: payload.s };
-
-  const cfg = getLeaderboardConfig();
-  if (isSupabaseApi(base) && cfg) {
-    const table = cfg.table || 'wallflip_scores';
-    fetch(base + '/rest/v1/' + table, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': cfg.key,
-        'Authorization': 'Bearer ' + cfg.key,
-        'Prefer': 'return=representation'
-      },
-      body: JSON.stringify({
-        name: payload.n,
-        score: payload.s,
-        rolls: payload.r,
-        course: payload.c,
-        time_sec: payload.t
-      }),
-    })
-      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-      .then(async () => {
-        let rank = 1;
-        try {
-          const rankRes = await fetch(
-            base + '/rest/v1/' + table + '?course=eq.' + payload.c + '&or=(score.gt.' + payload.s + ',and(score.eq.' + payload.s + ',time_sec.lt.' + payload.t + '))&select=id',
-            {
-              headers: {
-                'apikey': cfg.key,
-                'Authorization': 'Bearer ' + cfg.key,
-                'Prefer': 'count=exact',
-                'Range': '0-0'
-              }
-            }
-          );
-          if (rankRes.ok) {
-            const cr = rankRes.headers.get('content-range') || '';
-            const match = /\/(\d+)$/.exec(cr);
-            if (match) rank = Number(match[1]) + 1;
-          }
-        } catch (_) {}
-        say(t('submitOk') + ' #' + rank, '#6ff0d0', 2.4);
-      })
-      .catch(err => {
-        lastSubmit = null;
-        console.warn('supabase submit failed:', err);
-        say(t('submitFail'), '#ff6b6b', 2.2);
-      });
-    return;
-  }
-
-  fetch(base + '/submit', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  })
-    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-    .then(j => {
-      if (!j || j.ok !== true || !Number.isFinite(j.rank)) throw new Error('unexpected response');
-      say(t('submitOk') + ' #' + j.rank, '#6ff0d0', 2.4);
-    })
+  rankClient.submit(base, payload)
+    .then(({ rank }) => say(t('submitOk') + ' #' + rank, '#6ff0d0', 2.4))
     .catch(err => {
       lastSubmit = null;
       console.warn('submit failed:', err);

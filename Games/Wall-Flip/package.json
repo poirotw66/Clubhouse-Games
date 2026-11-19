@@ -1,6 +1,7 @@
 {
   "name": "wall-flip",
   "private": true,
+  "type": "module",
   "version": "1.0.0",
   "description": "牆上翻滾 Wall Flip — 2D Canvas + Three.js 3D physical stunt game (static files; the build step stages them into dist/ for GitHub Pages)",
   "scripts": {

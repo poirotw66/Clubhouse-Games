@@ -5,6 +5,7 @@ import './flight-coach.test.mjs';
 import './stunt-club.test.mjs';
 import './vehicle-garage.test.mjs';
 import './vehicle-mesh.test.mjs';
+import './leaderboard.test.mjs';
 
 function block(source, from, to) {
   const start = source.indexOf(from);
@@ -13,11 +14,10 @@ function block(source, from, to) {
   return source.slice(start, end);
 }
 
-// Evaluate the actual inline pure simulation, without copying its formulas or booting WebGL.
-const threeSource = fs.readFileSync(new URL('../index-3d.html', import.meta.url), 'utf8');
+// Evaluate the production simulation without copying formulas or booting WebGL.
 const three = vm.runInNewContext(
-  block(threeSource, '// ---------- utils ----------', '// ============================================================\n// 3D night scene')
-  + '\n({ BASE, createSim, trackAt, scoreOf, rollsCount, tsin, tcos, atan2p });',
+  fs.readFileSync(new URL('../simulation.js', import.meta.url), 'utf8')
+  + '\nWallFlipSimulation;',
   {}, { timeout: 1000 },
 );
 const { BASE, createSim, trackAt, scoreOf, rollsCount, tsin, tcos, atan2p } = three;

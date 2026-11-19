@@ -4,7 +4,7 @@ import fs from 'node:fs';
 
 // The game lives in HTML: checking only external JS leaves its actual code unchecked.
 let checked = 0;
-for (const file of ['index.html', 'index-3d.html']) {
+for (const file of ['index.html', 'index-3d.html', 'simulation.js', 'leaderboard.js']) {
   const html = fs.readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
   for (const [, attributes, source] of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)) {
     if (/\bsrc\s*=/.test(attributes) || !source.trim()) continue;

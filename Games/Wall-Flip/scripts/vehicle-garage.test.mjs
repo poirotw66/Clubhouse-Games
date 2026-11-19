@@ -6,11 +6,8 @@ import vm from 'node:vm';
 const garageContext = {};
 vm.runInNewContext(fs.readFileSync(new URL('../vehicle-garage.js', import.meta.url), 'utf8'), garageContext);
 const { vehicles, get, tune, recordKey } = garageContext.WallFlipGarage;
-const source = fs.readFileSync(new URL('../index-3d.html', import.meta.url), 'utf8');
-const start = source.indexOf('// ---------- utils ----------');
-const end = source.indexOf('// ============================================================\n// 3D night scene');
-assert.ok(start >= 0 && end > start);
-const { BASE, createSim } = vm.runInNewContext(source.slice(start, end) + '\n({BASE,createSim});',{window:{WallFlipGarage:garageContext.WallFlipGarage}});
+const source = fs.readFileSync(new URL('../simulation.js', import.meta.url), 'utf8');
+const { BASE, createSim } = vm.runInNewContext(source + '\nWallFlipSimulation;', { window: { WallFlipGarage: garageContext.WallFlipGarage } });
 const idle = {drive:false,suck:false,left:false,right:false};
 
 test('Roadster preserves every original constant and legacy record key', () => {
