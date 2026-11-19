@@ -30,11 +30,15 @@ export interface DailyProgress {
   readonly records: readonly DailyRecord[];
 }
 
+/** Returns YYYY-MM-DD in Asia/Taipei (UTC+8) wall clock. */
 export function todayDateKey(now: Date = new Date()): string {
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Taipei',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  return formatter.format(now);
 }
 
 /** Build today's challenge from the calendar date (deterministic). */

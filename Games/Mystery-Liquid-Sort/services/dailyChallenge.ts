@@ -5,7 +5,7 @@ import { Color, type BottleData, type Order } from '../types.ts';
 import { createLayer } from './gameLogic.ts';
 import { localDateKey } from './streakService.ts';
 
-const DAILY_CLEAR_KEY = 'mls-daily-clear-v1';
+export const DAILY_CLEAR_KEY = 'mls-daily-clear-v1';
 
 export type DailyBoardDef = {
   id: string;
@@ -106,7 +106,7 @@ export const DAILY_BOARDS: readonly DailyBoardDef[] = [
   },
 ];
 
-function dayIndex(dateKey: string): number {
+export function dayIndex(dateKey: string): number {
   let h = 0;
   for (let i = 0; i < dateKey.length; i++) h = (h * 31 + dateKey.charCodeAt(i)) >>> 0;
   return h % DAILY_BOARDS.length;

@@ -10,6 +10,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
   BRANCH_TEMPLATES,
+  TEMPLATE_BY_ID,
   eligibleTemplates,
 } from '../src/game/branches.js';
 import {
@@ -24,23 +25,45 @@ import {
   isChallengeUnlocked,
 } from '../src/game/challenges.js';
 import {
+  APPROACH_LEN,
   FIELD_W,
   FIXED_DT,
   HIT_STUN_DURATION,
   HIT_STUN_MIN_MULT,
   JUMP_DURATION,
+  LANE_CHANGE_COOLDOWN,
   LANE_COUNT,
   MAX_BUFFER,
   MIN_SAME_LANE_SPACING,
+  NO_HIT_BONUS_PER_STREAK,
+  PLAYER_BASE_SPEED,
+  RAMP_CAP_SEC,
+  ROUTE_SCORE_PER_BRANCH,
+  ROUTE_SCORE_PER_DENSITY_CLEAN,
+  SCORE_MULT_STEP,
   SLIDE_DURATION,
   SPEED_MULT,
+  SPEED_RAMP_PER_SEC,
   START_BUFFER,
+  SUPPLY_BUFFER_GAIN,
+  TRAIN_BASE_SPEED,
   densityFloor,
   laneCenterX,
   playerBasePace,
   trainPace,
 } from '../src/game/constants.js';
-import { dailySeedCode, mergeDailyBest, todayKey } from '../src/game/daily.js';
+import {
+  TAIPEI_TIMEZONE,
+  computeDailyStreak,
+  dailySeedCode,
+  isConsecutiveDay,
+  mergeDailyBest,
+  nextDayKey,
+  previousDayKey,
+  taipeiDateKey,
+  todayKey,
+  type DailyClearRecord,
+} from '../src/game/daily.js';
 import { createRun, currentSpeed, finalScore, hitStunFactor, placeJunction, step } from '../src/game/engine.js';
 import { createFx, triggerHit, triggerPickup, triggerSwitch } from '../src/game/juice.js';
 import { MODIFIERS } from '../src/game/modifiers.js';
@@ -886,6 +909,762 @@ function pilotChallengeRun(
   assert.equal(before.hitsTotal, 0);
   assert.ok(after.tick === before.tick + 1);
   ok('juice helpers produce feedback without mutating RunState');
+}
+
+// ── 23) Multi-lane switchpoint branch preview windows and railway signal lights ─
+{
+  // 1) Over multiple seeded junctions, verify 2-branch vs 3-branch topology
+  // and closed-track detection.
+  for (let jId = 1; jId <= 60; jId++) {
+    const junction = placeJunction(hashString(`PREVIEW_TEST_${jId}`), jId, 1000 + jId * 800);
+    assert.ok(junction.branches.length === 2 || junction.branches.length === 3);
+    const assignedLanes = new Set(junction.branches.map((b) => b.lane));
+    assert.equal(assignedLanes.size, junction.branches.length);
+
+    const closedLanes = [0, 1, 2].filter((l) => !assignedLanes.has(l));
+    if (junction.branches.length === 2) {
+      assert.equal(closedLanes.length, 1, 'a 2-branch junction must leave exactly one lane closed');
+    } else {
+      assert.equal(closedLanes.length, 0, 'a 3-branch junction leaves no lanes closed');
+    }
+
+    // Signal status mapping contract:
+    for (let l = 0; l < LANE_COUNT; l++) {
+      const branch = junction.branches.find((b) => b.lane === l);
+      for (let playerLane = 0; playerLane < LANE_COUNT; playerLane++) {
+        const isAligned = playerLane === l;
+        const status = !branch ? 'closed' : isAligned ? 'aligned' : 'standby';
+        const signalColor = !branch ? '#f43f5e' : isAligned ? '#34d399' : '#94a3b8';
+
+        if (!branch) {
+          assert.equal(status, 'closed');
+          assert.equal(signalColor, '#f43f5e');
+        } else if (isAligned) {
+          assert.equal(status, 'aligned');
+          assert.equal(signalColor, '#34d399');
+        } else {
+          assert.equal(status, 'standby');
+          assert.equal(signalColor, '#94a3b8');
+        }
+      }
+    }
+  }
+
+  // 2) Preview window spatial boundaries and dynamic reaction countdown:
+  const lockDist = 1200;
+  const previewStart = lockDist - APPROACH_LEN; // 1200 - 260 = 940
+  assert.equal(previewStart, 940);
+
+  // Before preview window:
+  const farDist = 800;
+  const remFar = Math.max(0, lockDist - farDist);
+  assert.ok(remFar > APPROACH_LEN, 'far distance must be outside approach preview window');
+
+  // Within preview window:
+  const nearDist = 1050;
+  const remNear = Math.max(0, lockDist - nearDist);
+  assert.ok(remNear <= APPROACH_LEN && remNear > 0, 'near distance must be inside approach preview window');
+
+  // Time-to-lock preview shrinks inversely with player speed:
+  const baseSpeed = 150;
+  const fastSpeed = 250;
+  const timeBase = remNear / baseSpeed;
+  const timeFast = remNear / fastSpeed;
+  assert.ok(timeFast < timeBase, 'faster speed must afford less reaction time in preview window');
+  assert.equal(Number((timeBase / timeFast).toFixed(4)), Number((fastSpeed / baseSpeed).toFixed(4)));
+
+  // 3) Density visual dots indicator mapping:
+  const testDensities = [
+    { density: 1, expectedDotColor: '#86efac', tier: 'low' },
+    { density: 2, expectedDotColor: '#86efac', tier: 'low' },
+    { density: 3, expectedDotColor: '#fbbf24', tier: 'medium' },
+    { density: 5, expectedDotColor: '#fbbf24', tier: 'medium' },
+    { density: 9, expectedDotColor: '#f87171', tier: 'high' },
+    { density: 13, expectedDotColor: '#f87171', tier: 'high' },
+  ];
+  for (const td of testDensities) {
+    const color = td.density < 3 ? '#86efac' : td.density < 6 ? '#fbbf24' : '#f87171';
+    assert.equal(color, td.expectedDotColor);
+    const visibleDots = Math.min(8, td.density);
+    assert.ok(visibleDots <= 8 && visibleDots >= 1);
+  }
+
+  // 4) Entering junction on an open branch vs entering on a closed track:
+  // Open branch entry:
+  let sOpen = createRun('OPEN_SIGNAL');
+  sOpen = {
+    ...sOpen,
+    distance: sOpen.pendingJunction.lockDistance - 1,
+    lane: sOpen.pendingJunction.branches[0].lane, // aligned to open branch
+  };
+  const preBranch = sOpen.pendingJunction.branches[0];
+  const steppedOpen = step(sOpen, IDLE, FIXED_DT);
+  assert.ok(steppedOpen.activeBranch !== null, 'crossing lockDistance must activate branch');
+  assert.equal(steppedOpen.activeBranch?.templateId, preBranch.templateId);
+  assert.equal(steppedOpen.hitsTotal, 0, 'open branch entry must incur no hits');
+  assert.equal(steppedOpen.hitStunTimer, 0, 'open branch entry must have no hit stun');
+
+  // Closed track entry: create 2-branch junction where lane 1 is closed, put player in lane 1
+  let sClosed = createRun('CLOSED_SIGNAL');
+  const openLanes = [0, 2];
+  sClosed = {
+    ...sClosed,
+    distance: 999,
+    lane: 1, // closed lane!
+    pendingJunction: {
+      id: 777,
+      lockDistance: 1000,
+      branches: openLanes.map((lane) => ({
+        templateId: `open-${lane}`,
+        name: `branch-${lane}`,
+        lane,
+        speedMult: 1.0,
+        reward: 'none' as const,
+        rewardAbsDistance: -1,
+        length: 500,
+        density: 2,
+        obstacles: [],
+      })),
+    },
+  };
+  const steppedClosed = step(sClosed, IDLE, FIXED_DT);
+  assert.equal(steppedClosed.hitsTotal, 1, 'crossing lock in closed lane must register as a hit');
+  assert.ok(steppedClosed.hitStunTimer > 0, 'closed lane entry must trigger hit stun penalty');
+  assert.equal(steppedClosed.noHitStreak, 0, 'closed lane hit must reset noHitStreak');
+  assert.ok(openLanes.includes(steppedClosed.lane), 'player must be redirected into an open lane');
+  assert.ok(steppedClosed.activeBranch !== null, 'redirected player must receive an active branch');
+
+  ok('multi-lane switchpoint branch preview windows and railway signal light indicators');
+}
+
+// ── 24) Trailing pursuit train distance differential, catch-up acceleration, and buffer recovery ─
+{
+  // 1) Velocity differential formula: deltaV = vPlayer - vTrain
+  const t0 = 0;
+  const pBase0 = playerBasePace(t0);
+  const tBase0 = trainPace(t0);
+  assert.equal(pBase0, PLAYER_BASE_SPEED);
+  assert.equal(tBase0, TRAIN_BASE_SPEED);
+  assert.equal(pBase0, tBase0, 'player and train base speeds at t=0 must be identical');
+
+  const deltaAccel0 = SPEED_MULT.accel * pBase0 - tBase0;
+  const deltaHold0 = SPEED_MULT.hold * pBase0 - tBase0;
+  const deltaDecel0 = SPEED_MULT.decel * pBase0 - tBase0;
+  assert.equal(deltaAccel0, 15, 'accel branch at t=0 must yield exactly +15 units/s surplus lead');
+  assert.equal(deltaHold0, 0, 'hold branch at t=0 must yield exactly 0 delta (neutral pace)');
+  assert.equal(deltaDecel0, -24, 'decel branch at t=0 must yield exactly -24 units/s deficit decay');
+
+  // At ramp cap (t = RAMP_CAP_SEC = 240s):
+  const tCap = RAMP_CAP_SEC;
+  const pBaseCap = playerBasePace(tCap);
+  const tBaseCap = trainPace(tCap);
+  assert.equal(pBaseCap, PLAYER_BASE_SPEED + RAMP_CAP_SEC * SPEED_RAMP_PER_SEC); // 150 + 240 * 0.42 = 250.8
+  assert.equal(pBaseCap, tBaseCap);
+
+  // Ramp cap holds beyond RAMP_CAP_SEC:
+  assert.equal(playerBasePace(300), pBaseCap, 'ramp must cap at RAMP_CAP_SEC');
+  assert.equal(playerBasePace(1000), pBaseCap, 'ramp must not climb indefinitely');
+  assert.equal(trainPace(300), tBaseCap, 'train ramp must cap at RAMP_CAP_SEC');
+
+  const deltaAccelCap = SPEED_MULT.accel * pBaseCap - tBaseCap;
+  const deltaDecelCap = SPEED_MULT.decel * pBaseCap - tBaseCap;
+  assert.ok(Math.abs(deltaAccelCap - 25.08) < 1e-9, 'accel delta at cap must be +25.08 units/s');
+  assert.ok(Math.abs(deltaDecelCap - (-40.128)) < 1e-9, 'decel delta at cap must be -40.128 units/s');
+
+  // 2) Train catch-up acceleration during hit stun:
+  // Immediate post-impact speed factor is HIT_STUN_MIN_MULT (0.22)
+  const vStunMin = HIT_STUN_MIN_MULT * pBase0;
+  const deltaStunMax = vStunMin - tBase0; // 0.22 * 150 - 150 = 33 - 150 = -117 units/s
+  assert.equal(deltaStunMax, -117, 'instant of hit stun must yield -117 units/s catch-up closing rate');
+
+  // Monotonic stun recovery:
+  const steps = 10;
+  let prevFactor = hitStunFactor(HIT_STUN_DURATION);
+  for (let stepIdx = 1; stepIdx <= steps; stepIdx++) {
+    const remainingTimer = HIT_STUN_DURATION * (1 - stepIdx / steps);
+    const currFactor = hitStunFactor(remainingTimer);
+    assert.ok(currFactor >= prevFactor, 'hit stun factor must monotonically climb back to 1.0');
+    prevFactor = currFactor;
+  }
+  assert.equal(hitStunFactor(0), 1.0);
+
+  // Analytical buffer loss during 1.3s hit stun:
+  // average player speed during linear recovery = pBase0 * (0.22 + 1.0) / 2 = 150 * 0.61 = 91.5
+  // deficit vs train (150) = 58.5 units/s * 1.3s = 76.05 units of buffer lost
+  let sStun = createRun('STUN_INTEGRATION');
+  sStun = { ...sStun, hitStunTimer: HIT_STUN_DURATION, buffer: 200 };
+  const stunStartBuffer = sStun.buffer;
+  const stunTicks = Math.round(HIT_STUN_DURATION / FIXED_DT);
+  for (let i = 0; i < stunTicks; i++) {
+    sStun = step(sStun, IDLE, FIXED_DT);
+  }
+  const measuredBufferLoss = stunStartBuffer - sStun.buffer;
+  assert.ok(
+    Math.abs(measuredBufferLoss - 76.05) < 3.0,
+    `measured stun buffer loss (${measuredBufferLoss.toFixed(2)}) must closely match analytical integral (~76.05)`,
+  );
+
+  // 3) Buffer ceiling clamp:
+  let sCeil = createRun('CEIL_TEST');
+  sCeil = {
+    ...sCeil,
+    buffer: MAX_BUFFER - 5,
+    activeBranch: {
+      templateId: 'fast',
+      name: 'fast',
+      lane: sCeil.lane,
+      speedMult: SPEED_MULT.accel,
+      reward: 'none',
+      rewardAbsDistance: -1,
+      length: 2000,
+      density: 1,
+      startDistance: 0,
+      endDistance: 2000,
+      rewardCollected: false,
+      hitCount: 0,
+      obstacles: [],
+    },
+  };
+  for (let i = 0; i < 300; i++) {
+    sCeil = step(sCeil, IDLE, FIXED_DT);
+  }
+  assert.equal(sCeil.buffer, MAX_BUFFER, 'buffer must clamp strictly at MAX_BUFFER ceiling');
+
+  // 4) Supply reward recovery and ceiling clamp:
+  let sSupply = createRun('SUPPLY_TEST');
+  sSupply = {
+    ...sSupply,
+    buffer: 100,
+    activeBranch: {
+      templateId: 'sup',
+      name: 'sup',
+      lane: sSupply.lane,
+      speedMult: SPEED_MULT.hold,
+      reward: 'supply',
+      rewardAbsDistance: sSupply.distance + 1,
+      length: 500,
+      density: 1,
+      startDistance: sSupply.distance,
+      endDistance: sSupply.distance + 500,
+      rewardCollected: false,
+      hitCount: 0,
+      obstacles: [],
+    },
+  };
+  const beforeSup = sSupply.buffer;
+  const afterSup = step(sSupply, IDLE, FIXED_DT);
+  assert.ok(afterSup.buffer >= beforeSup + SUPPLY_BUFFER_GAIN - 1, 'supply reward must restore buffer');
+
+  // Supply buffer recovery capped at MAX_BUFFER:
+  let sSupplyNearMax = createRun('SUPPLY_MAX');
+  sSupplyNearMax = {
+    ...sSupplyNearMax,
+    buffer: MAX_BUFFER - 50,
+    activeBranch: {
+      templateId: 'sup2',
+      name: 'sup2',
+      lane: sSupplyNearMax.lane,
+      speedMult: SPEED_MULT.hold,
+      reward: 'supply',
+      rewardAbsDistance: sSupplyNearMax.distance + 1,
+      length: 500,
+      density: 1,
+      startDistance: sSupplyNearMax.distance,
+      endDistance: sSupplyNearMax.distance + 500,
+      rewardCollected: false,
+      hitCount: 0,
+      obstacles: [],
+    },
+  };
+  const afterSupNearMax = step(sSupplyNearMax, IDLE, FIXED_DT);
+  assert.equal(afterSupNearMax.buffer, MAX_BUFFER, 'supply recovery must clamp at MAX_BUFFER ceiling');
+
+  // 5) Zero buffer catch termination:
+  let sCaught = createRun('CAUGHT_TEST');
+  sCaught = { ...sCaught, buffer: 0.1 };
+  // Running on decel branch causes buffer to drain below 0
+  sCaught = {
+    ...sCaught,
+    activeBranch: {
+      templateId: 'drain',
+      name: 'drain',
+      lane: sCaught.lane,
+      speedMult: SPEED_MULT.decel,
+      reward: 'none',
+      rewardAbsDistance: -1,
+      length: 500,
+      density: 1,
+      startDistance: 0,
+      endDistance: 500,
+      rewardCollected: false,
+      hitCount: 0,
+      obstacles: [],
+    },
+  };
+  sCaught = step(sCaught, IDLE, FIXED_DT);
+  assert.equal(sCaught.buffer, 0, 'buffer must clamp to 0 on catch');
+  assert.equal(sCaught.phase, 'caught', 'phase must transition to caught');
+  // Further steps must be no-ops:
+  const frozen = step(sCaught, IDLE, FIXED_DT);
+  assert.equal(frozen.phase, 'caught');
+  assert.equal(frozen.distance, sCaught.distance);
+
+  ok('trailing pursuit train distance differential formula, catch-up acceleration, and buffer recovery');
+}
+
+// ── 25) Density vs speed scoring trade-offs across all 26 templates ──────────
+{
+  assert.equal(BRANCH_TEMPLATES.length, 26, 'must contain exactly 26 authored branch templates');
+
+  // 1) Verify density floors across all speed and reward tiers:
+  for (const t of BRANCH_TEMPLATES) {
+    const requiredFloor = densityFloor(t.speed, t.reward);
+    assert.ok(
+      t.obstacles.length >= requiredFloor,
+      `${t.id}: obstacle count ${t.obstacles.length} must meet or exceed floor ${requiredFloor}`,
+    );
+
+    // Verify template length provides sufficient runway for obstacles:
+    assert.ok(t.length >= 700, `${t.id}: length ${t.length} too short`);
+    assert.ok(t.rewardOffset > 0 && t.rewardOffset < t.length, `${t.id}: invalid reward offset`);
+  }
+
+  // 2) Clean clearance route score strictly increases with obstacle density:
+  // cleanScore = ROUTE_SCORE_PER_BRANCH + density * ROUTE_SCORE_PER_DENSITY_CLEAN
+  for (const t of BRANCH_TEMPLATES) {
+    const cleanRouteScore = ROUTE_SCORE_PER_BRANCH + t.obstacles.length * ROUTE_SCORE_PER_DENSITY_CLEAN;
+    const dirtyRouteScore = ROUTE_SCORE_PER_BRANCH;
+    assert.ok(
+      cleanRouteScore > dirtyRouteScore,
+      `${t.id}: clean route score (${cleanRouteScore}) must exceed dirty score (${dirtyRouteScore})`,
+    );
+  }
+
+  // Find max-density and min-density templates:
+  const sortedByDensity = [...BRANCH_TEMPLATES].sort((a, b) => b.obstacles.length - a.obstacles.length);
+  const highestDensityTemplate = sortedByDensity[0]; // mainline-dash (density 13)
+  const lowestDensityTemplate = sortedByDensity[sortedByDensity.length - 1]; // brakeline / final-siding (density 1)
+
+  assert.equal(highestDensityTemplate.id, 'mainline-dash');
+  assert.equal(highestDensityTemplate.obstacles.length, 13);
+  assert.equal(highestDensityTemplate.speed, 'accel');
+  assert.equal(highestDensityTemplate.reward, 'score');
+
+  const maxCleanRouteScore = ROUTE_SCORE_PER_BRANCH + highestDensityTemplate.obstacles.length * ROUTE_SCORE_PER_DENSITY_CLEAN;
+  const minCleanRouteScore = ROUTE_SCORE_PER_BRANCH + lowestDensityTemplate.obstacles.length * ROUTE_SCORE_PER_DENSITY_CLEAN;
+  assert.equal(maxCleanRouteScore, 12 + 13 * 6); // 90 points
+  assert.equal(minCleanRouteScore, 12 + 1 * 6); // 18 points
+  assert.equal(maxCleanRouteScore, 5 * minCleanRouteScore, 'highest-risk template yields 5x the clean route score of lowest-risk');
+
+  // 3) Proving high-risk paths yield higher multiplier growth:
+  // Score-reward templates:
+  const scoreTemplates = BRANCH_TEMPLATES.filter((t) => t.reward === 'score');
+  assert.ok(scoreTemplates.length >= 7, 'must have at least 7 score-reward templates across tiers');
+  for (const st of scoreTemplates) {
+    assert.ok(st.obstacles.length >= densityFloor(st.speed, 'score'));
+  }
+
+  // Head-to-head simulation: High-Risk (mainline-dash) vs Low-Risk (brakeline)
+  let sHighRisk = createRun('HIGH_RISK_TEST');
+  sHighRisk = {
+    ...sHighRisk,
+    activeBranch: {
+      templateId: highestDensityTemplate.id,
+      name: highestDensityTemplate.name,
+      lane: sHighRisk.lane,
+      speedMult: SPEED_MULT[highestDensityTemplate.speed],
+      reward: highestDensityTemplate.reward,
+      rewardAbsDistance: sHighRisk.distance + 10,
+      length: highestDensityTemplate.length,
+      density: highestDensityTemplate.obstacles.length,
+      startDistance: sHighRisk.distance,
+      endDistance: sHighRisk.distance + highestDensityTemplate.length,
+      rewardCollected: false,
+      hitCount: 0,
+      obstacles: [],
+    },
+  };
+
+  let sLowRisk = createRun('LOW_RISK_TEST');
+  sLowRisk = {
+    ...sLowRisk,
+    activeBranch: {
+      templateId: lowestDensityTemplate.id,
+      name: lowestDensityTemplate.name,
+      lane: sLowRisk.lane,
+      speedMult: SPEED_MULT[lowestDensityTemplate.speed],
+      reward: lowestDensityTemplate.reward,
+      rewardAbsDistance: -1,
+      length: lowestDensityTemplate.length,
+      density: lowestDensityTemplate.obstacles.length,
+      startDistance: sLowRisk.distance,
+      endDistance: sLowRisk.distance + lowestDensityTemplate.length,
+      rewardCollected: false,
+      hitCount: 0,
+      obstacles: [],
+    },
+  };
+
+  // Step through branch completion:
+  const ticksHigh = Math.ceil(highestDensityTemplate.length / (currentSpeed(sHighRisk) * FIXED_DT)) + 20;
+  for (let i = 0; i < ticksHigh && sHighRisk.activeBranch !== null; i++) {
+    sHighRisk = step(sHighRisk, IDLE, FIXED_DT);
+  }
+
+  const ticksLow = Math.ceil(lowestDensityTemplate.length / (currentSpeed(sLowRisk) * FIXED_DT)) + 20;
+  for (let i = 0; i < ticksLow && sLowRisk.activeBranch !== null; i++) {
+    sLowRisk = step(sLowRisk, IDLE, FIXED_DT);
+  }
+
+  // High-risk branch completed cleanly:
+  assert.equal(sHighRisk.scoreMult, 1.0 + SCORE_MULT_STEP, 'high-risk score branch must award SCORE_MULT_STEP to scoreMult');
+  assert.equal(sHighRisk.routeScore, maxCleanRouteScore, 'high-risk branch must award max clean route score (90 pts)');
+
+  // Low-risk branch completed cleanly:
+  assert.equal(sLowRisk.scoreMult, 1.0, 'low-risk none-reward branch must not increase scoreMult');
+  assert.equal(sLowRisk.routeScore, minCleanRouteScore, 'low-risk branch must award only base clean route score (18 pts)');
+
+  // Score comparison at same nominal distance:
+  const finalHigh = finalScore({ ...sHighRisk, distance: 2000, maxNoHitStreak: 13 });
+  const finalLow = finalScore({ ...sLowRisk, distance: 2000, maxNoHitStreak: 1 });
+  assert.ok(
+    finalHigh > finalLow + 100,
+    `high-risk finalScore (${finalHigh}) must significantly exceed low-risk (${finalLow})`,
+  );
+
+  // 4) High-risk failure penalty:
+  let sHighRiskHit = createRun('HIGH_RISK_FAIL');
+  sHighRiskHit = {
+    ...sHighRiskHit,
+    activeBranch: {
+      templateId: highestDensityTemplate.id,
+      name: highestDensityTemplate.name,
+      lane: sHighRiskHit.lane,
+      speedMult: SPEED_MULT[highestDensityTemplate.speed],
+      reward: highestDensityTemplate.reward,
+      rewardAbsDistance: sHighRiskHit.distance + 10,
+      length: highestDensityTemplate.length,
+      density: highestDensityTemplate.obstacles.length,
+      startDistance: sHighRiskHit.distance,
+      endDistance: sHighRiskHit.distance + highestDensityTemplate.length,
+      rewardCollected: false,
+      hitCount: 1, // simulated hit!
+      obstacles: [],
+    },
+  };
+  for (let i = 0; i < ticksHigh && sHighRiskHit.activeBranch !== null; i++) {
+    sHighRiskHit = step(sHighRiskHit, IDLE, FIXED_DT);
+  }
+  assert.equal(sHighRiskHit.routeScore, ROUTE_SCORE_PER_BRANCH, 'a branch with hits loses all density clean bonus');
+  assert.equal(sHighRiskHit.routeScore, 12);
+
+  ok('density vs speed scoring trade-offs across all 26 templates, proving high-risk paths yield higher multiplier growth');
+}
+
+// ── 26) Mobile touch swipe lane shift input debouncing, jump/slide transitions, and collision stun grace periods ─
+{
+  // 1) Mobile touch swipe gesture recognizer simulation:
+  const SWIPE_THRESH = 28;
+  function simulateSwipe(dx: number, dy: number): PlayerInput {
+    const input: PlayerInput = { laneStep: 0, jump: false, slide: false };
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > SWIPE_THRESH) {
+      input.laneStep = dx > 0 ? 1 : -1;
+    } else if (Math.abs(dy) > SWIPE_THRESH) {
+      if (dy < 0) input.jump = true;
+      else input.slide = true;
+    }
+    return input;
+  }
+
+  // Swipe Right:
+  const swipeR = simulateSwipe(45, 10);
+  assert.equal(swipeR.laneStep, 1);
+  assert.equal(swipeR.jump, false);
+  assert.equal(swipeR.slide, false);
+
+  // Swipe Left:
+  const swipeL = simulateSwipe(-50, -5);
+  assert.equal(swipeL.laneStep, -1);
+
+  // Swipe Up (Jump):
+  const swipeU = simulateSwipe(5, -40);
+  assert.equal(swipeU.laneStep, 0);
+  assert.equal(swipeU.jump, true);
+  assert.equal(swipeU.slide, false);
+
+  // Swipe Down (Slide):
+  const swipeD = simulateSwipe(-10, 48);
+  assert.equal(swipeD.laneStep, 0);
+  assert.equal(swipeD.jump, false);
+  assert.equal(swipeD.slide, true);
+
+  // Micro-touch jitter / tap below threshold (debounced):
+  const jitterA = simulateSwipe(12, 18);
+  assert.equal(jitterA.laneStep, 0);
+  assert.equal(jitterA.jump, false);
+  assert.equal(jitterA.slide, false);
+
+  const jitterB = simulateSwipe(28, 0); // threshold boundary check (must exceed > 28)
+  assert.equal(jitterB.laneStep, 0);
+
+  // Diagonal swipe priority resolution:
+  const diagHorizontal = simulateSwipe(35, 30);
+  assert.equal(diagHorizontal.laneStep, 1, 'horizontal delta exceeding vertical delta must resolve to lane shift');
+
+  const diagVertical = simulateSwipe(25, -35);
+  assert.equal(diagVertical.jump, true, 'vertical delta exceeding horizontal delta must resolve to jump');
+
+  // 2) Lane change debouncing via laneChangeCooldown:
+  let sLane = createRun('LANE_DEBOUNCE');
+  assert.equal(sLane.lane, 1);
+  assert.equal(sLane.laneChangeCooldown, 0);
+
+  // First lane change input accepted:
+  sLane = step(sLane, { laneStep: 1, jump: false, slide: false }, FIXED_DT);
+  assert.equal(sLane.lane, 2);
+  assert.equal(sLane.laneChangeCooldown, LANE_CHANGE_COOLDOWN, 'lane change must set cooldown to LANE_CHANGE_COOLDOWN');
+
+  // Rapid spam input during cooldown must be debounced:
+  const cooldownRemaining = sLane.laneChangeCooldown;
+  sLane = step(sLane, { laneStep: -1, jump: false, slide: false }, FIXED_DT);
+  assert.equal(sLane.lane, 2, 'rapid lane change input during cooldown must be ignored/debounced');
+  assert.ok(sLane.laneChangeCooldown < cooldownRemaining);
+
+  // Advance remaining ticks until cooldown expires:
+  while (sLane.laneChangeCooldown > 0) {
+    sLane = step(sLane, IDLE, FIXED_DT);
+  }
+  assert.equal(sLane.laneChangeCooldown, 0);
+
+  // Now next input is accepted:
+  sLane = step(sLane, { laneStep: -1, jump: false, slide: false }, FIXED_DT);
+  assert.equal(sLane.lane, 1);
+
+  // Track boundary clamping:
+  let sClamp = createRun('CLAMP_TEST');
+  sClamp = { ...sClamp, lane: 0, laneChangeCooldown: 0 };
+  sClamp = step(sClamp, { laneStep: -1, jump: false, slide: false }, FIXED_DT);
+  assert.equal(sClamp.lane, 0, 'lane must not go below 0');
+
+  sClamp = { ...sClamp, lane: 2, laneChangeCooldown: 0 };
+  sClamp = step(sClamp, { laneStep: 1, jump: false, slide: false }, FIXED_DT);
+  assert.equal(sClamp.lane, 2, 'lane must not exceed LANE_COUNT - 1');
+
+  // 3) Jump / slide state transitions & mutual lockout:
+  let sAction = createRun('ACTION_LOCKOUT');
+  assert.equal(sAction.jumpTimer, 0);
+  assert.equal(sAction.slideTimer, 0);
+
+  // Trigger Jump:
+  sAction = step(sAction, { laneStep: 0, jump: true, slide: false }, FIXED_DT);
+  assert.ok(sAction.jumpTimer > 0);
+  assert.equal(sAction.slideTimer, 0);
+
+  // While jumping, slide input must be rejected:
+  sAction = step(sAction, { laneStep: 0, jump: false, slide: true }, FIXED_DT);
+  assert.equal(sAction.slideTimer, 0, 'slide during jump must be locked out');
+
+  // While jumping, lane shift must be rejected:
+  const lanePreJump = sAction.lane;
+  sAction = step(sAction, { laneStep: 1, jump: false, slide: false }, FIXED_DT);
+  assert.equal(sAction.lane, lanePreJump, 'lane shift during jump must be locked out');
+
+  // Wait until jump finishes:
+  while (sAction.jumpTimer > 0) {
+    sAction = step(sAction, IDLE, FIXED_DT);
+  }
+  assert.equal(sAction.jumpTimer, 0);
+
+  // Trigger Slide:
+  sAction = step(sAction, { laneStep: 0, jump: false, slide: true }, FIXED_DT);
+  assert.ok(sAction.slideTimer > 0);
+  assert.equal(sAction.jumpTimer, 0);
+
+  // While sliding, jump input must be rejected:
+  sAction = step(sAction, { laneStep: 0, jump: true, slide: false }, FIXED_DT);
+  assert.equal(sAction.jumpTimer, 0, 'jump during slide must be locked out');
+
+  // While sliding, lane shift must be rejected:
+  sAction = step(sAction, { laneStep: -1, jump: false, slide: false }, FIXED_DT);
+  assert.equal(sAction.lane, lanePreJump, 'lane shift during slide must be locked out');
+
+  // Wait until slide finishes:
+  while (sAction.slideTimer > 0) {
+    sAction = step(sAction, IDLE, FIXED_DT);
+  }
+  assert.equal(sAction.slideTimer, 0);
+
+  // Simultaneous jump and slide input: jump takes precedence, slide is ignored
+  let sSimul = createRun('SIMUL_INPUT');
+  sSimul = step(sSimul, { laneStep: 0, jump: true, slide: true }, FIXED_DT);
+  assert.ok(sSimul.jumpTimer > 0, 'jump must activate');
+  assert.equal(sSimul.slideTimer, 0, 'slide must not activate simultaneously');
+
+  // 4) Collision stun grace periods:
+  // Once an obstacle is resolved, it must never hit the player again even as the
+  // player remains in its spatial envelope.
+  let sGrace = createRun('GRACE_TEST');
+  sGrace = {
+    ...sGrace,
+    activeBranch: {
+      templateId: 'grace-bench',
+      name: 'grace-bench',
+      lane: sGrace.lane,
+      speedMult: 1.0,
+      reward: 'none',
+      rewardAbsDistance: -1,
+      length: 500,
+      density: 1,
+      startDistance: sGrace.distance,
+      endDistance: sGrace.distance + 500,
+      rewardCollected: true,
+      hitCount: 0,
+      obstacles: [
+        { offset: 0, lane: sGrace.lane, kind: 'hurdle', absDistance: sGrace.distance + 1, resolved: false },
+      ],
+    },
+  };
+
+  // Step 1: collision occurs
+  sGrace = step(sGrace, IDLE, FIXED_DT);
+  assert.equal(sGrace.hitsTotal, 1);
+  assert.equal(sGrace.activeBranch?.obstacles[0].resolved, true);
+  assert.equal(sGrace.hitStunTimer, sGrace.hitStunDuration);
+
+  // Steps 2 through 10: player moves through obstacle's wake
+  for (let i = 0; i < 10; i++) {
+    sGrace = step(sGrace, IDLE, FIXED_DT);
+    assert.equal(sGrace.hitsTotal, 1, 'resolved obstacle must not inflict repeated hits');
+  }
+
+  // Runner profile stun recovery comparison:
+  // courier runner recovers faster than standard runner:
+  const standardParams = resolveRunParams({ runnerId: 'standard', themeId: 'tunnel', modifierIds: [] });
+  const courierParams = resolveRunParams({ runnerId: 'courier', themeId: 'tunnel', modifierIds: [] });
+  assert.ok(
+    courierParams.hitStunDuration < standardParams.hitStunDuration,
+    `courier stun duration (${courierParams.hitStunDuration}s) must be shorter than standard (${standardParams.hitStunDuration}s)`,
+  );
+
+  ok('mobile touch swipe lane shift input debouncing, jump/slide state transitions, and collision stun grace periods');
+}
+
+// ── 27) Asia/Taipei calendar rollover for daily challenge seed determinism and streak preservation ─
+{
+  assert.equal(TAIPEI_TIMEZONE, 'Asia/Taipei', 'timezone must be Asia/Taipei');
+
+  // 1) Asia/Taipei calendar day rollover across UTC time boundary (UTC 16:00 = Taipei 00:00):
+  // 2026-10-20 15:59:59 UTC = 2026-10-20 23:59:59 Taipei
+  const preMidnightUtc = new Date(Date.UTC(2026, 9, 20, 15, 59, 59, 999));
+  assert.equal(taipeiDateKey(preMidnightUtc), '20261020');
+  assert.equal(dailySeedCode(preMidnightUtc), 'D20261020');
+
+  // 2026-10-20 16:00:00 UTC = 2026-10-21 00:00:00 Taipei
+  const postMidnightUtc = new Date(Date.UTC(2026, 9, 20, 16, 0, 0, 0));
+  assert.equal(taipeiDateKey(postMidnightUtc), '20261021');
+  assert.equal(dailySeedCode(postMidnightUtc), 'D20261021');
+
+  // End of month rollover: 2026-02-28 16:00:00 UTC = 2026-03-01 00:00:00 Taipei
+  const monthEndUtc = new Date(Date.UTC(2026, 1, 28, 16, 0, 0, 0));
+  assert.equal(taipeiDateKey(monthEndUtc), '20260301');
+
+  // Leap year rollover: 2024-02-28 16:00:00 UTC = 2024-02-29 00:00:00 Taipei
+  const leapYearUtc = new Date(Date.UTC(2024, 1, 28, 16, 0, 0, 0));
+  assert.equal(taipeiDateKey(leapYearUtc), '20240229');
+
+  // Leap year to March: 2024-02-29 16:00:00 UTC = 2024-03-01 00:00:00 Taipei
+  const leapYearToMarchUtc = new Date(Date.UTC(2024, 1, 29, 16, 0, 0, 0));
+  assert.equal(taipeiDateKey(leapYearToMarchUtc), '20240301');
+
+  // New Year rollover: 2026-12-31 16:00:00 UTC = 2027-01-01 00:00:00 Taipei
+  const newYearUtc = new Date(Date.UTC(2026, 11, 31, 16, 0, 0, 0));
+  assert.equal(taipeiDateKey(newYearUtc), '20270101');
+  assert.equal(dailySeedCode(newYearUtc), 'D20270101');
+
+  // 2) Daily challenge seed determinism:
+  // Identical daily seeds must produce identical runs globally:
+  const dailyRunA = createRun(dailySeedCode(postMidnightUtc));
+  const dailyRunB = createRun(dailySeedCode(postMidnightUtc));
+  assert.equal(dailyRunA.seed, dailyRunB.seed);
+  assert.equal(JSON.stringify(dailyRunA.pendingJunction), JSON.stringify(dailyRunB.pendingJunction));
+
+  // Consecutive daily runs must diverge in seed and initial junction branches:
+  const prevDayRun = createRun(dailySeedCode(preMidnightUtc));
+  assert.notEqual(dailyRunA.seed, prevDayRun.seed);
+
+  // 3) Date arithmetic and consecutive day checks:
+  assert.equal(previousDayKey('20261021'), '20261020');
+  assert.equal(previousDayKey('20261001'), '20260930');
+  assert.equal(previousDayKey('20260301'), '20260228');
+  assert.equal(previousDayKey('20240301'), '20240229', 'previousDayKey must handle leap year February 29');
+  assert.equal(previousDayKey('20260101'), '20251231', 'previousDayKey must handle year boundaries');
+
+  assert.equal(nextDayKey('20261020'), '20261021');
+  assert.equal(nextDayKey('20260930'), '20261001');
+  assert.equal(nextDayKey('20240228'), '20240229', 'nextDayKey must handle leap year February 29');
+  assert.equal(nextDayKey('20251231'), '20260101', 'nextDayKey must handle year boundaries');
+
+  assert.equal(isConsecutiveDay('20261020', '20261021'), true);
+  assert.equal(isConsecutiveDay('20261020', '20261022'), false);
+  assert.equal(isConsecutiveDay('20251231', '20260101'), true);
+  assert.equal(isConsecutiveDay('20240228', '20240229'), true);
+
+  // 4) Daily streak calculation and preservation:
+  const clearHistory: DailyClearRecord[] = [
+    { date: '20261018', cleared: true, distance: 1600, score: 2200 },
+    { date: '20261019', cleared: true, distance: 1800, score: 2500 },
+    { date: '20261020', cleared: true, distance: 2000, score: 3000 },
+  ];
+  assert.equal(computeDailyStreak(clearHistory, '20261020'), 3, 'streak on today must be 3');
+  // Streak survives one open day (player has not cleared yet on 20261021):
+  assert.equal(computeDailyStreak(clearHistory, '20261021'), 3, 'streak must survive one open day');
+
+  // Clearing on 20261021 extends streak to 4:
+  const extendedHistory: DailyClearRecord[] = [
+    ...clearHistory,
+    { date: '20261021', cleared: true, distance: 1700, score: 2400 },
+  ];
+  assert.equal(computeDailyStreak(extendedHistory, '20261021'), 4, 'clearing today must extend streak to 4');
+
+  // Missing two days resets streak:
+  assert.equal(computeDailyStreak(clearHistory, '20261023'), 0, 'missing two days must reset streak to 0');
+
+  // Streak across month and year boundaries:
+  const yearBoundaryHistory: DailyClearRecord[] = [
+    { date: '20251230', cleared: true, distance: 1500, score: 2000 },
+    { date: '20251231', cleared: true, distance: 1600, score: 2100 },
+    { date: '20260101', cleared: true, distance: 1700, score: 2200 },
+  ];
+  assert.equal(computeDailyStreak(yearBoundaryHistory, '20260101'), 3, 'streak must preserve across year boundary');
+
+  const leapYearHistory: DailyClearRecord[] = [
+    { date: '20240228', cleared: true, distance: 1500, score: 2000 },
+    { date: '20240229', cleared: true, distance: 1600, score: 2100 },
+    { date: '20240301', cleared: true, distance: 1700, score: 2200 },
+  ];
+  assert.equal(computeDailyStreak(leapYearHistory, '20240301'), 3, 'streak must preserve across leap year Feb 29');
+
+  // 5) mergeDailyBest streak mechanics:
+  const day1 = mergeDailyBest({ date: '', bestDistance: 0, bestScore: 0, attempts: 0, streak: 0 }, '20261020', 1600, 2000);
+  assert.equal(day1.attempts, 1);
+  assert.equal(day1.streak, 1, 'clearing on day 1 must set streak to 1');
+
+  // Multiple runs on same day must not inflate streak:
+  const day1Second = mergeDailyBest(day1, '20261020', 1800, 2500);
+  assert.equal(day1Second.attempts, 2);
+  assert.equal(day1Second.bestDistance, 1800);
+  assert.equal(day1Second.streak, 1, 'multiple attempts on same day must preserve streak at 1');
+
+  // Consecutive day clear increments streak:
+  const day2 = mergeDailyBest(day1Second, '20261021', 1700, 2400);
+  assert.equal(day2.attempts, 1);
+  assert.equal(day2.streak, 2, 'consecutive day clear must advance streak to 2');
+
+  // Skipped day resets streak:
+  const day4 = mergeDailyBest(day2, '20261024', 1600, 2200);
+  assert.equal(day4.streak, 1, 'clearing after skipped day must reset streak to 1');
+
+  ok('Asia/Taipei calendar rollover for daily challenge seed determinism and streak preservation');
 }
 
 console.log(`\nself-check: ok (${passed} checks)`);

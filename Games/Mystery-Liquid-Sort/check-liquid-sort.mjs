@@ -26,6 +26,10 @@ import {
 import {
   getCapacityForLevel,
   COST_HINT,
+  COST_UNDO,
+  COST_ADD_BOTTLE,
+  COST_REVEAL,
+  COST_SHUFFLE,
   HOWTO_STORAGE_KEY,
   QP_MOVE_LIMITS,
   QP_TIME_LIMITS_SEC,
@@ -64,6 +68,8 @@ import {
   buildDailyShareText,
   displayStreak,
   localDateKey,
+  taipeiDateKey,
+  TAIPEI_TZ_OFFSET_MS,
 } from './services/streakService.ts';
 import {
   BOTTLE_SKINS,
@@ -74,6 +80,9 @@ import {
 import {
   DAILY_BOARDS,
   materializeDailyBoard,
+  dayIndex,
+  getDailyBoard,
+  DAILY_CLEAR_KEY,
 } from './services/dailyChallenge.ts';
 
 function layer(color, isHidden = false) {
@@ -888,6 +897,729 @@ function isSolvable(bottles, orders, maxNodes = 200000, maxMs = 5000) {
 
   const bMixed = bottle('m', [layer(Color.RED), layer(Color.BLUE)]);
   assert.equal(getTubeQuickStatus(bMixed).status, 'mixed');
+}
+
+// ============================================================================
+// DEEPENED TEST SUITE 1: Liquid Transfer Volume Capacity Invariants
+// ============================================================================
+{
+  // 1.1 Consecutive matching layer transfers up to capacity 4
+  // Single unit transfer into 3-unit tube -> exactly completes capacity 4
+  {
+    const src = bottle('s', [layer(Color.RED)]);
+    const dst = bottle('d', [layer(Color.RED), layer(Color.RED), layer(Color.RED)], 4);
+    const { newSource, newTarget, movedCount } = pourLiquid(src, dst);
+    assert.equal(movedCount, 1);
+    assert.equal(newSource.layers.length, 0);
+    assert.equal(newTarget.layers.length, 4);
+    assert.equal(newTarget.isCompleted, true, 'full uniform bottle marks completed');
+  }
+
+  // 2-units transfer into 2-unit tube
+  {
+    const src = bottle('s', [layer(Color.BLUE), layer(Color.BLUE)]);
+    const dst = bottle('d', [layer(Color.BLUE), layer(Color.BLUE)], 4);
+    const { newSource, newTarget, movedCount } = pourLiquid(src, dst);
+    assert.equal(movedCount, 2);
+    assert.equal(newSource.layers.length, 0);
+    assert.equal(newTarget.layers.length, 4);
+    assert.equal(newTarget.isCompleted, true);
+  }
+
+  // 3-units transfer into 1-unit tube
+  {
+    const src = bottle('s', [layer(Color.GREEN), layer(Color.GREEN), layer(Color.GREEN)]);
+    const dst = bottle('d', [layer(Color.GREEN)], 4);
+    const { newSource, newTarget, movedCount } = pourLiquid(src, dst);
+    assert.equal(movedCount, 3);
+    assert.equal(newSource.layers.length, 0);
+    assert.equal(newTarget.layers.length, 4);
+    assert.equal(newTarget.isCompleted, true);
+  }
+
+  // 4-units transfer into empty tube of capacity 4
+  {
+    const src = bottle('s', [
+      layer(Color.YELLOW),
+      layer(Color.YELLOW),
+      layer(Color.YELLOW),
+      layer(Color.YELLOW),
+    ]);
+    const dst = bottle('d', [], 4);
+    const { newSource, newTarget, movedCount } = pourLiquid(src, dst);
+    assert.equal(movedCount, 4);
+    assert.equal(newSource.layers.length, 0);
+    assert.equal(newTarget.layers.length, 4);
+    assert.equal(newTarget.isCompleted, true);
+  }
+
+  // 1.2 Recipient capacity truncation (overflow prevention)
+  // Source has 4 matching units, recipient has 3 units (capacity 4). Only 1 can transfer.
+  {
+    const src = bottle('s', [
+      layer(Color.CYAN),
+      layer(Color.CYAN),
+      layer(Color.CYAN),
+      layer(Color.CYAN),
+    ]);
+    const dst = bottle('d', [layer(Color.CYAN), layer(Color.CYAN), layer(Color.CYAN)], 4);
+    assert.equal(canPour(src, dst), true);
+    const { newSource, newTarget, movedCount } = pourLiquid(src, dst);
+    assert.equal(movedCount, 1, 'cannot overflow past capacity 4');
+    assert.equal(newSource.layers.length, 3, 'source retains 3 untransferred units');
+    assert.equal(newTarget.layers.length, 4, 'target caps at capacity 4');
+    assert.equal(newTarget.isCompleted, true);
+  }
+
+  // Source has 3 matching units, recipient has 2 units (capacity 4). Exactly 2 transfer.
+  {
+    const src = bottle('s', [layer(Color.PURPLE), layer(Color.PURPLE), layer(Color.PURPLE)]);
+    const dst = bottle('d', [layer(Color.PURPLE), layer(Color.PURPLE)], 4);
+    const { newSource, newTarget, movedCount } = pourLiquid(src, dst);
+    assert.equal(movedCount, 2);
+    assert.equal(newSource.layers.length, 1);
+    assert.equal(newTarget.layers.length, 4);
+    assert.equal(newTarget.isCompleted, true);
+  }
+
+  // Source has 2 matching units, recipient has 3 units (capacity 4). Exactly 1 transfers.
+  {
+    const src = bottle('s', [layer(Color.ORANGE), layer(Color.ORANGE)]);
+    const dst = bottle('d', [layer(Color.ORANGE), layer(Color.ORANGE), layer(Color.ORANGE)], 4);
+    const { newSource, newTarget, movedCount } = pourLiquid(src, dst);
+    assert.equal(movedCount, 1);
+    assert.equal(newSource.layers.length, 1);
+    assert.equal(newTarget.layers.length, 4);
+    assert.equal(newTarget.isCompleted, true);
+  }
+
+  // 1.3 Heterogeneous source stack: top run transfers, deeper layers stay untouched
+  {
+    const src = bottle('s', [
+      layer(Color.RED),
+      layer(Color.YELLOW),
+      layer(Color.BLUE),
+      layer(Color.BLUE),
+    ]);
+    const dst = bottle('d', [layer(Color.BLUE)], 4);
+    const { newSource, newTarget, movedCount } = pourLiquid(src, dst);
+    assert.equal(movedCount, 2, 'only contiguous top run of BLUE moves');
+    assert.equal(newSource.layers.length, 2);
+    assert.equal(newSource.layers[0].color, Color.RED);
+    assert.equal(newSource.layers[1].color, Color.YELLOW);
+    assert.equal(newTarget.layers.length, 3);
+    assert.equal(newTarget.isCompleted, false, '3/4 is not completed');
+  }
+
+  // 1.4 Volume conservation invariant across repeated legal pours
+  {
+    function totalUnitsByColor(bottles) {
+      const counts = new Map();
+      for (const b of bottles) {
+        for (const l of b.layers) {
+          counts.set(l.color, (counts.get(l.color) ?? 0) + 1);
+        }
+      }
+      return counts;
+    }
+
+    let bList = [
+      bottle('b1', [layer(Color.RED), layer(Color.BLUE), layer(Color.BLUE)]),
+      bottle('b2', [layer(Color.BLUE), layer(Color.RED), layer(Color.RED)]),
+      bottle('b3', [layer(Color.RED)]),
+      bottle('b4', [], 4),
+    ];
+
+    const initialCounts = totalUnitsByColor(bList);
+
+    // Pour b1 top BLUE into an empty bottle b4
+    const p1 = pourLiquid(bList[0], bList[3]);
+    bList[0] = p1.newSource;
+    bList[3] = p1.newTarget;
+    const step1Counts = totalUnitsByColor(bList);
+    for (const [col, count] of initialCounts) {
+      assert.equal(step1Counts.get(col), count, `conservation of ${col}`);
+    }
+
+    // Attempting to pour into completed bottle is strictly rejected
+    const completedTube = bottle('comp', [
+      layer(Color.RED),
+      layer(Color.RED),
+      layer(Color.RED),
+      layer(Color.RED),
+    ], 4, true);
+    const anotherTube = bottle('other', [layer(Color.RED)]);
+    assert.equal(canPour(anotherTube, completedTube), false, 'cannot pour into completed bottle');
+    // UI/Engine rule: completed bottles are barred from being move sources in getLegalMoves
+    const movesWithCompleted = getLegalMoves([completedTube, anotherTube]);
+    assert.equal(movesWithCompleted.some((m) => m.sourceId === 'comp'), false, 'completed tube cannot be source in legal moves');
+  }
+}
+
+// ============================================================================
+// DEEPENED TEST SUITE 2: Blind / Fog Layer Uncovering Invariants
+// ============================================================================
+{
+  // 2.1 Hidden layers cannot be poured onto colored targets, and are barred in legal moves
+  const hiddenTop = bottle('ht', [layer(Color.BLUE), layer(Color.RED, true)]);
+  const coloredTarget = bottle('ct', [layer(Color.RED)]);
+  const emptyTarget = bottle('et', []);
+  assert.equal(canPour(hiddenTop, coloredTarget), false, 'cannot pour onto colored target when top layer is hidden');
+  // getLegalMoves bars bottles with hidden top layer from acting as move sources
+  const movesFromHidden = getLegalMoves([hiddenTop, emptyTarget]);
+  assert.equal(movesFromHidden.length, 0, 'hidden top layer cannot be source in legal moves');
+
+  // 2.2 Blind/fog invariant: all legal boards start with visible top layers
+  const sampledLevel = generateLevel(5);
+  for (const b of sampledLevel.bottles) {
+    if (b.layers.length > 0) {
+      assert.equal(b.layers[b.layers.length - 1].isHidden, false, 'starting top layers must be visible');
+    }
+  }
+
+  // 2.3 Layer uncovering upon exposing new top layer
+  {
+    const sourceBottle = bottle('fog-src', [
+      layer(Color.GREEN, true), // Layer 0: hidden
+      layer(Color.YELLOW, true), // Layer 1: hidden
+      layer(Color.BLUE, false), // Layer 2: visible
+      layer(Color.BLUE, false), // Layer 3: visible
+    ]);
+    const targetBottle = bottle('fog-tgt', []);
+
+    // Pour 1: transfers both BLUE layers (top run length 2)
+    const pour1 = pourLiquid(sourceBottle, targetBottle);
+    assert.equal(pour1.movedCount, 2);
+    assert.equal(pour1.newSource.layers.length, 2);
+
+    // Layer 1 (YELLOW) was exposed -> automatically uncovered
+    assert.equal(pour1.newSource.layers[1].color, Color.YELLOW);
+    assert.equal(pour1.newSource.layers[1].isHidden, false, 'exposed top layer 1 must be uncovered');
+
+    // Layer 0 (GREEN) is still underneath -> MUST remain hidden
+    assert.equal(pour1.newSource.layers[0].color, Color.GREEN);
+    assert.equal(pour1.newSource.layers[0].isHidden, true, 'deeper layer 0 must stay hidden');
+
+    // Pour 2: transfer newly uncovered YELLOW layer into target 2
+    const targetBottle2 = bottle('fog-tgt-2', []);
+    const pour2 = pourLiquid(pour1.newSource, targetBottle2);
+    assert.equal(pour2.movedCount, 1);
+    assert.equal(pour2.newSource.layers.length, 1);
+
+    // Layer 0 (GREEN) is now the top layer -> automatically uncovered
+    assert.equal(pour2.newSource.layers[0].color, Color.GREEN);
+    assert.equal(pour2.newSource.layers[0].isHidden, false, 'newly exposed layer 0 must now uncover');
+  }
+
+  // 2.4 Completion invariant under fog: full tube with hidden layers NEVER completes
+  {
+    const maskedTube = bottle('masked', [
+      layer(Color.RED, true),
+      layer(Color.RED, true),
+      layer(Color.RED, true),
+      layer(Color.RED, false),
+    ]);
+    assert.equal(maskedTube.isCompleted, false, 'cannot be completed while any layer is hidden');
+
+    // Pour 1 unit of RED into a 3-unit tube where 1 unit is hidden
+    const partialMasked = bottle('pm', [
+      layer(Color.RED, true),
+      layer(Color.RED, false),
+      layer(Color.RED, false),
+    ]);
+    const donor = bottle('donor', [layer(Color.RED)]);
+    const { newTarget } = pourLiquid(donor, partialMasked);
+    assert.equal(newTarget.layers.length, 4);
+    assert.equal(newTarget.isCompleted, false, 'even when full, hidden layer blocks completion');
+  }
+
+  // 2.5 Booster item revealHiddenLayers uncovers all layers and completes eligible tubes
+  {
+    const b1 = bottle('b1', [
+      layer(Color.PURPLE, true),
+      layer(Color.PURPLE, true),
+      layer(Color.PURPLE, false),
+      layer(Color.PURPLE, false),
+    ]);
+    const b2 = bottle('b2', [
+      layer(Color.CYAN, true),
+      layer(Color.YELLOW, false),
+    ]);
+
+    const revealed = revealHiddenLayers([b1, b2]);
+    assert.ok(revealed[0].layers.every((l) => !l.isHidden), 'all b1 layers revealed');
+    assert.ok(revealed[1].layers.every((l) => !l.isHidden), 'all b2 layers revealed');
+    assert.equal(revealed[0].isCompleted, true, 'b1 full mono is now completed');
+    assert.equal(revealed[1].isCompleted, false, 'b2 is incomplete');
+  }
+}
+
+// ============================================================================
+// DEEPENED TEST SUITE 3: Solver IDA* Backtracking Depth Limit & Unsolvable State Detection
+// ============================================================================
+{
+  /**
+   * Admissible heuristic for Liquid Sort IDA*:
+   * Counts color discontinuities (adjacent layer color differences) in each tube.
+   * Every pour can resolve at most one discontinuity (merging matching runs),
+   * making the total count of discontinuities an admissible lower bound on moves.
+   */
+  function liquidSortHeuristic(bottles) {
+    let discontinuities = 0;
+    let incompletePureCount = 0;
+    for (const b of bottles) {
+      if (b.layers.length === 0 || b.isCompleted) continue;
+      let tubeDisc = 0;
+      for (let i = 0; i < b.layers.length - 1; i++) {
+        if (b.layers[i].color !== b.layers[i + 1].color) {
+          tubeDisc++;
+        }
+      }
+      discontinuities += tubeDisc;
+      if (tubeDisc === 0 && b.layers.length < b.capacity) {
+        incompletePureCount++;
+      }
+    }
+    return discontinuities + Math.floor(incompletePureCount / 2);
+  }
+
+  /**
+   * IDA* search implementation with strict depth threshold and node limit.
+   */
+  function solveWithIDAStar(bottles, requiredColors, maxDepthLimit = 25, maxNodes = 50000) {
+    let nodes = 0;
+    const path = [];
+
+    function search(curBottles, g, bound, onPath) {
+      nodes++;
+      if (nodes > maxNodes) return { status: 'exhausted' };
+
+      const h = liquidSortHeuristic(curBottles);
+      const f = g + h;
+      if (f > bound) return { status: 'cutoff', minF: f };
+
+      if (isBoardWon(curBottles, requiredColors)) {
+        return { status: 'found', moves: path.slice() };
+      }
+
+      const key = bottlesKey(curBottles);
+      if (onPath.has(key)) return { status: 'cutoff', minF: Infinity };
+      onPath.add(key);
+
+      const moves = getLegalMoves(curBottles)
+        .map((move) => scoreMove(curBottles, move, requiredColors))
+        .sort((a, b) => b.score - a.score);
+
+      let minCutoff = Infinity;
+      for (const { move } of moves) {
+        path.push(move);
+        const nextBottles = applyMove(curBottles, move);
+        const res = search(nextBottles, g + 1, bound, onPath);
+
+        if (res.status === 'found') return res;
+        if (res.status === 'exhausted') return res;
+        if (res.status === 'cutoff' && res.minF < minCutoff) {
+          minCutoff = res.minF;
+        }
+        path.pop();
+      }
+
+      onPath.delete(key);
+      return { status: 'cutoff', minF: minCutoff };
+    }
+
+    let bound = liquidSortHeuristic(bottles);
+    while (bound <= maxDepthLimit) {
+      const onPath = new Set();
+      const res = search(bottles, 0, bound, onPath);
+      if (res.status === 'found') {
+        return { result: 'solvable', moves: res.moves, depth: res.moves.length, nodes };
+      }
+      if (res.status === 'exhausted') {
+        return { result: 'exhausted', nodes };
+      }
+      if (!Number.isFinite(res.minF) || res.minF <= bound) {
+        return { result: 'unsolvable', nodes };
+      }
+      bound = res.minF;
+    }
+
+    return { result: 'depth_limit_exceeded', depthLimit: maxDepthLimit, nodes };
+  }
+
+  // 3.1 Solvable puzzle: IDA* finds minimal path
+  {
+    const b1 = bottle('b1', [layer(Color.RED), layer(Color.BLUE)], 2);
+    const b2 = bottle('b2', [layer(Color.BLUE), layer(Color.RED)], 2);
+    const b3 = bottle('b3', [], 2);
+    const req = new Set([Color.RED, Color.BLUE]);
+
+    const idaSol = solveWithIDAStar([b1, b2, b3], req, 10);
+    assert.equal(idaSol.result, 'solvable', 'IDA* should solve 3-step puzzle');
+    assert.equal(idaSol.depth, 3, 'minimal depth is 3');
+    let cur = [b1, b2, b3];
+    for (const m of idaSol.moves) {
+      cur = applyMove(cur, m);
+    }
+    assert.equal(isBoardWon(cur, req), true, 'replaying IDA* moves must reach won board');
+  }
+
+  // 3.2 Depth limit cutoff: prevents runaway search when limit is below required depth
+  {
+    const b1 = bottle('b1', [layer(Color.RED), layer(Color.BLUE)], 2);
+    const b2 = bottle('b2', [layer(Color.BLUE), layer(Color.RED)], 2);
+    const b3 = bottle('b3', [], 2);
+    const req = new Set([Color.RED, Color.BLUE]);
+
+    // Limit depth to 2 when solution requires 3
+    const cutoff = solveWithIDAStar([b1, b2, b3], req, 2);
+    assert.equal(cutoff.result, 'depth_limit_exceeded');
+    assert.equal(cutoff.depthLimit, 2);
+    assert.ok(cutoff.nodes > 0);
+  }
+
+  // 3.3 Unsolvable state detection: Total Deadlock (zero legal moves)
+  {
+    const dead1 = bottle('d1', [layer(Color.RED), layer(Color.BLUE)], 2);
+    const dead2 = bottle('d2', [layer(Color.BLUE), layer(Color.RED)], 2);
+    const req = new Set([Color.RED, Color.BLUE]);
+
+    // No empty bottles, tops mismatched -> 0 legal moves
+    assert.equal(getLegalMoves([dead1, dead2]).length, 0);
+    const res = solveWithIDAStar([dead1, dead2], req, 10);
+    assert.equal(res.result, 'unsolvable', 'deadlocked board must be detected as unsolvable');
+  }
+
+  // 3.4 Unsolvable state detection: Volume Deficit (impossible color counts)
+  {
+    const def1 = bottle('df1', [layer(Color.RED), layer(Color.RED)], 2);
+    const def2 = bottle('df2', [layer(Color.RED), layer(Color.BLUE)], 2);
+    const def3 = bottle('df3', [], 2);
+    const req = new Set([Color.RED, Color.BLUE]);
+
+    const res = solveWithIDAStar([def1, def2, def3], req, 8);
+    assert.equal(res.result, 'unsolvable', 'volume deficit must be detected as unsolvable');
+  }
+
+  // 3.5 Unsolvable state detection: Irreversible mix deadlock
+  {
+    const mix1 = { ...bottle('m1', [layer(Color.RED)], 2), mixingEnabled: true };
+    const mix2 = { ...bottle('m2', [layer(Color.YELLOW)], 2), mixingEnabled: true };
+    const req = new Set([Color.RED, Color.YELLOW]);
+
+    // Pour m1 into m2 produces ORANGE, leaving no RED or YELLOW
+    const pour = pourLiquid(mix1, mix2);
+    assert.equal(pour.newTarget.layers[0].color, Color.ORANGE);
+
+    // Board with only ORANGE and no way to get RED/YELLOW
+    const res = solveWithIDAStar([pour.newSource, pour.newTarget], req, 5);
+    assert.equal(res.result, 'unsolvable', 'secondary mix without orders is unsolvable');
+  }
+}
+
+// ============================================================================
+// DEEPENED TEST SUITE 4: Extra Vial Booster Safety & Undo/Restart State Preservation
+// ============================================================================
+{
+  function simulateAddBottle(state, capacity = 4) {
+    const newBottle = {
+      id: `extra-vial-${Math.random().toString(36).slice(2, 7)}`,
+      layers: [],
+      capacity,
+      isCompleted: false,
+      mixingEnabled: state.bottles.some((b) => b.mixingEnabled),
+    };
+    return {
+      ...state,
+      bottles: [...state.bottles, newBottle],
+    };
+  }
+
+  function simulatePushHistory(state) {
+    const snapshot = {
+      bottles: JSON.parse(JSON.stringify(state.bottles)),
+      orders: JSON.parse(JSON.stringify(state.orders)),
+    };
+    return {
+      ...state,
+      history: [...state.history, snapshot],
+    };
+  }
+
+  function simulateUndo(state) {
+    if (state.history.length === 0) return state;
+    const previous = state.history[state.history.length - 1];
+    const newHistory = state.history.slice(0, -1);
+    return {
+      ...state,
+      bottles: JSON.parse(JSON.stringify(previous.bottles)),
+      orders: JSON.parse(JSON.stringify(previous.orders)),
+      history: newHistory,
+    };
+  }
+
+  function simulateRestart(state) {
+    return {
+      ...state,
+      bottles: JSON.parse(JSON.stringify(state.initialBoardState.bottles)),
+      orders: JSON.parse(JSON.stringify(state.initialBoardState.orders)),
+      history: [],
+      selectedBottleId: null,
+      isWin: false,
+    };
+  }
+
+  // 4.1 Extra vial booster safety: adds empty buffer tube and unjams deadlock
+  {
+    const dead1 = bottle('d1', [layer(Color.RED), layer(Color.BLUE)], 2);
+    const dead2 = bottle('d2', [layer(Color.BLUE), layer(Color.RED)], 2);
+    const state = {
+      bottles: [dead1, dead2],
+      orders: [
+        { id: 'o1', color: Color.RED, isCompleted: false, isLocked: false },
+        { id: 'o2', color: Color.BLUE, isCompleted: false, isLocked: false },
+      ],
+      history: [],
+    };
+
+    assert.equal(calculateLegalPours(state.bottles).count, 0, 'initially zero legal pours');
+    const boosterState = simulateAddBottle(state, 2);
+    assert.equal(boosterState.bottles.length, 3, 'one extra tube appended');
+    assert.equal(boosterState.bottles[2].layers.length, 0, 'extra tube is empty buffer');
+    assert.equal(boosterState.bottles[2].capacity, 2);
+    assert.equal(boosterState.bottles[0].id, 'd1', 'original bottle 1 intact');
+    assert.equal(boosterState.bottles[1].id, 'd2', 'original bottle 2 intact');
+    assert.equal(boosterState.orders.length, 2, 'orders intact');
+
+    // Legal pours immediately unjammed
+    const legalPours = calculateLegalPours(boosterState.bottles);
+    assert.ok(legalPours.count > 0, 'extra vial creates legal moves');
+  }
+
+  // 4.2 Multi-step Undo stack state preservation
+  {
+    const b1 = bottle('b1', [layer(Color.RED), layer(Color.BLUE)], 2);
+    const b2 = bottle('b2', [layer(Color.BLUE), layer(Color.RED)], 2);
+    const b3 = bottle('b3', [], 2);
+    const o1 = { id: 'o1', color: Color.RED, isCompleted: false, isLocked: false };
+    const o2 = { id: 'o2', color: Color.BLUE, isCompleted: false, isLocked: false };
+
+    let state = {
+      bottles: [b1, b2, b3],
+      orders: [o1, o2],
+      history: [],
+    };
+    const initialBottlesSnapshot = JSON.parse(JSON.stringify(state.bottles));
+
+    // Move 1: b1 -> b3
+    state = simulatePushHistory(state);
+    const p1 = pourLiquid(state.bottles[0], state.bottles[2]);
+    state.bottles[0] = p1.newSource;
+    state.bottles[2] = p1.newTarget;
+    assert.equal(state.history.length, 1);
+
+    // Move 2: b2 -> b1
+    state = simulatePushHistory(state);
+    const p2 = pourLiquid(state.bottles[1], state.bottles[0]);
+    state.bottles[1] = p2.newSource;
+    state.bottles[0] = p2.newTarget;
+    assert.equal(state.history.length, 2);
+
+    // Move 3: b3 -> b2
+    state = simulatePushHistory(state);
+    const p3 = pourLiquid(state.bottles[2], state.bottles[1]);
+    state.bottles[2] = p3.newSource;
+    state.bottles[1] = p3.newTarget;
+    assert.equal(state.history.length, 3);
+    assert.equal(state.bottles[0].isCompleted, true);
+    assert.equal(state.bottles[1].isCompleted, true);
+
+    // Step-by-step undo
+    state = simulateUndo(state);
+    assert.equal(state.history.length, 2);
+    assert.equal(state.bottles[1].isCompleted, false);
+
+    state = simulateUndo(state);
+    assert.equal(state.history.length, 1);
+    assert.equal(state.bottles[0].isCompleted, false);
+
+    state = simulateUndo(state);
+    assert.equal(state.history.length, 0);
+    assert.deepEqual(state.bottles, initialBottlesSnapshot, 'undo restores exact initial bottles');
+
+    // Calling undo on empty history is safe
+    const idleState = simulateUndo(state);
+    assert.equal(idleState.history.length, 0);
+    assert.deepEqual(idleState.bottles, initialBottlesSnapshot);
+  }
+
+  // 4.3 Order delivery and Undo safety
+  {
+    const bCompleted = bottle('b1', [layer(Color.RED), layer(Color.RED)], 2, true);
+    const bBuffer = bottle('b2', [], 2);
+    const initialOrders = [
+      { id: 'o1', color: Color.RED, isCompleted: false, isLocked: false },
+      { id: 'o2', color: Color.BLUE, isCompleted: false, isLocked: true },
+    ];
+    let state = {
+      bottles: [bCompleted, bBuffer],
+      orders: initialOrders,
+      history: [],
+    };
+
+    // Pre-delivery snapshot
+    state = simulatePushHistory(state);
+    // Simulate order delivery (Game.tsx delivery effect)
+    state.orders = [
+      { id: 'o1', color: Color.RED, isCompleted: true, isLocked: false },
+      { id: 'o2', color: Color.BLUE, isCompleted: false, isLocked: false }, // unlocked!
+    ];
+    state.bottles = [bBuffer]; // completed bottle removed
+
+    assert.equal(state.orders[0].isCompleted, true);
+    assert.equal(state.orders[1].isLocked, false);
+    assert.equal(state.bottles.length, 1);
+
+    // Undo delivery
+    state = simulateUndo(state);
+    assert.equal(state.bottles.length, 2, 'completed bottle restored to board');
+    assert.equal(state.bottles[0].id, 'b1');
+    assert.equal(state.orders[0].isCompleted, false, 'order 1 reverted to open');
+    assert.equal(state.orders[1].isLocked, true, 'order 2 reverted to locked');
+  }
+
+  // 4.4 Restart state preservation
+  {
+    const initialBottles = [
+      bottle('b1', [layer(Color.RED), layer(Color.GREEN)], 2),
+      bottle('b2', [layer(Color.GREEN), layer(Color.RED)], 2),
+      bottle('b3', [], 2),
+    ];
+    const initialOrders = [
+      { id: 'o1', color: Color.RED, isCompleted: false, isLocked: false },
+      { id: 'o2', color: Color.GREEN, isCompleted: false, isLocked: false },
+    ];
+
+    let state = {
+      bottles: JSON.parse(JSON.stringify(initialBottles)),
+      orders: JSON.parse(JSON.stringify(initialOrders)),
+      initialBoardState: {
+        bottles: JSON.parse(JSON.stringify(initialBottles)),
+        orders: JSON.parse(JSON.stringify(initialOrders)),
+      },
+      history: [],
+      selectedBottleId: 'b1',
+      isWin: false,
+    };
+
+    // Modify state heavily
+    state = simulateAddBottle(state, 2);
+    state = simulatePushHistory(state);
+    state.bottles[0].layers.pop();
+    state.history.push({ bottles: [], orders: [] });
+
+    // Trigger restart
+    state = simulateRestart(state);
+    assert.deepEqual(state.bottles, initialBottles, 'restart restores initial bottles');
+    assert.deepEqual(state.orders, initialOrders, 'restart restores initial orders');
+    assert.equal(state.history.length, 0, 'history cleared');
+    assert.equal(state.selectedBottleId, null, 'selected bottle cleared');
+    assert.equal(state.isWin, false);
+  }
+}
+
+// ============================================================================
+// DEEPENED TEST SUITE 5: Daily Puzzle Seed Determinism Across Asia/Taipei Calendar Rollover
+// ============================================================================
+{
+  assert.equal(TAIPEI_TZ_OFFSET_MS, 8 * 60 * 60 * 1000, 'Asia/Taipei is UTC+8');
+
+  // 5.1 Millisecond boundary rollover tests (UTC to Asia/Taipei)
+  const tzCases = [
+    { utc: '2026-06-15T15:59:59.999Z', expected: '2026-06-15' }, // 23:59:59.999 Taipei
+    { utc: '2026-06-15T16:00:00.000Z', expected: '2026-06-16' }, // 00:00:00.000 Taipei (Rollover!)
+    { utc: '2026-06-15T00:00:00.000Z', expected: '2026-06-15' }, // 08:00:00.000 Taipei
+    { utc: '2026-12-31T15:59:59.999Z', expected: '2026-12-31' }, // Year boundary (same year)
+    { utc: '2026-12-31T16:00:00.000Z', expected: '2027-01-01' }, // Year boundary (New Year rollover!)
+    { utc: '2024-02-28T16:00:00.000Z', expected: '2024-02-29' }, // Leap year Feb 29 rollover
+    { utc: '2024-02-29T16:00:00.000Z', expected: '2024-03-01' }, // Leap year Mar 1 rollover
+    { utc: '2026-02-28T16:00:00.000Z', expected: '2026-03-01' }, // Non-leap year Mar 1 rollover
+    { utc: '2026-04-30T16:00:00.000Z', expected: '2026-05-01' }, // 30-day month rollover
+  ];
+
+  for (const { utc, expected } of tzCases) {
+    const d = new Date(utc);
+    assert.equal(taipeiDateKey(d), expected, `UTC ${utc} should map to Taipei ${expected}`);
+  }
+
+  // 5.2 Daily puzzle seed & index determinism
+  const testKey = '2026-11-19';
+  const expectedIndex = dayIndex(testKey);
+  for (let i = 0; i < 50; i++) {
+    assert.equal(dayIndex(testKey), expectedIndex, 'dayIndex must be strictly deterministic');
+  }
+  assert.notEqual(dayIndex('2026-11-19'), dayIndex('2026-11-20'), 'adjacent days differ');
+
+  // getDailyBoard with explicit Date objects
+  const dailyAtUtc1559 = getDailyBoard(new Date('2026-06-15T15:59:59.000Z'));
+  const dailyAtUtc1600 = getDailyBoard(new Date('2026-06-15T16:00:00.000Z'));
+  assert.equal(dailyAtUtc1559.dateKey, '2026-06-15');
+  assert.equal(dailyAtUtc1600.dateKey, '2026-06-16');
+  assert.equal(DAILY_CLEAR_KEY, 'mls-daily-clear-v1');
+
+  // 5.3 Coverage of all 365 calendar days of 2026
+  const hitBoards = new Set();
+  const startDay = new Date(Date.UTC(2026, 0, 1, 0, 0, 0));
+  for (let offset = 0; offset < 365; offset++) {
+    const curDate = new Date(startDay.getTime() + offset * 86_400_000);
+    const daily = getDailyBoard(curDate);
+    assert.ok(daily.board, `daily board defined for offset ${offset}`);
+    assert.ok(daily.index >= 0 && daily.index < DAILY_BOARDS.length);
+    hitBoards.add(daily.board.id);
+  }
+  assert.equal(hitBoards.size, DAILY_BOARDS.length, 'all 7 curated daily boards must be visited in a year');
+
+  // 5.4 Streak preservation across calendar boundaries
+  // Year boundary transition: Dec 31 -> Jan 1
+  {
+    const s0 = { lastPlayDate: '2026-12-30', currentStreak: 5, bestStreak: 5 };
+    const s1 = applyPlayDay(s0, '2026-12-31');
+    assert.equal(s1.currentStreak, 6);
+    const s2 = applyPlayDay(s1, '2027-01-01');
+    assert.equal(s2.currentStreak, 7, 'streak survives across year boundary');
+    assert.equal(s2.bestStreak, 7);
+  }
+
+  // Month boundary transition: Feb 28 -> Mar 1 (non-leap)
+  {
+    const s0 = { lastPlayDate: '2026-02-27', currentStreak: 2, bestStreak: 4 };
+    const s1 = applyPlayDay(s0, '2026-02-28');
+    assert.equal(s1.currentStreak, 3);
+    const s2 = applyPlayDay(s1, '2026-03-01');
+    assert.equal(s2.currentStreak, 4, 'streak survives across month boundary');
+  }
+
+  // Same-day replay: no double increment
+  {
+    const s0 = { lastPlayDate: '2026-10-21', currentStreak: 3, bestStreak: 3 };
+    const s1 = applyPlayDay(s0, '2026-10-21');
+    assert.equal(s1.currentStreak, 3, 'same-day play is a no-op for streak increment');
+  }
+
+  // 2-day gap resets streak
+  {
+    const s0 = { lastPlayDate: '2026-10-20', currentStreak: 8, bestStreak: 12 };
+    const sGap = applyPlayDay(s0, '2026-10-22');
+    assert.equal(sGap.currentStreak, 1, 'gap resets current streak to 1');
+    assert.equal(sGap.bestStreak, 12, 'best streak preserved');
+  }
+
+  // Active streak before playing today
+  {
+    const s0 = { lastPlayDate: '2026-10-20', currentStreak: 5, bestStreak: 5 };
+    const active = displayStreak(s0, new Date('2026-10-21T02:00:00.000Z'));
+    assert.equal(active, 5, 'streak remains active on current day before playing');
+  }
 }
 
 console.log('check-liquid-sort: ok');

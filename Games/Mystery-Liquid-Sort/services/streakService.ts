@@ -18,12 +18,20 @@ export const EMPTY_STREAK: StreakState = {
   bestStreak: 0,
 };
 
-/** Local calendar date as YYYY-MM-DD. */
-export function localDateKey(d: Date = new Date()): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
+export const TAIPEI_TZ_OFFSET_MS = 8 * 60 * 60 * 1000;
+
+/** Calendar date in Asia/Taipei (UTC+8) as YYYY-MM-DD. */
+export function taipeiDateKey(d: Date = new Date()): string {
+  const shifted = new Date(d.getTime() + TAIPEI_TZ_OFFSET_MS);
+  const y = shifted.getUTCFullYear();
+  const m = String(shifted.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(shifted.getUTCDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
+}
+
+/** Local calendar date as YYYY-MM-DD. Defaults to Asia/Taipei timezone. */
+export function localDateKey(d: Date = new Date()): string {
+  return taipeiDateKey(d);
 }
 
 function parseDateKey(key: string): Date | null {

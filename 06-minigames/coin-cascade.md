@@ -136,6 +136,30 @@
 
 實作：`src/game/daily.ts`。
 
+## 品質門檻對齊
+
+對照 [`docs/GAME-QUALITY-BAR.md`](../docs/GAME-QUALITY-BAR.md)：
+
+| 項目 | 本實作規範與對齊成果 |
+|---|---|
+| **模式／變體** | 自由遊玩（Free Play，無時間限制，地形堆疊與連鎖佈局，支援種子分享）／挑戰模式包（Mode Pack，6 關手編固定種子闖關階梯：`score-novice` 分數入門、`score-steady` 穩健回收、`score-surge` 高分潮、`cascade-trio` 連鎖起步、`cascade-avalanche` 雪崩挑戰、`timed-rush` 限時衝刺，具備依序解鎖前進機制）／主題台面（Themed Tables，3 張具備獨立物理與規則之機台：`classic` 經典基準廳、`peg-alley` 釘陣廳含 5 根固定阻擋釘柱、`spring-tide` 潮汐廳快推程與 1.5× 潮湧彩池加成）／台北每日挑戰（Daily Challenge，依 Asia/Taipei 台北時區曆法產生決定性固定種子 `cc-daily-YYYY-MM-DD` 與輪替台面）／狂熱超頻模式（Fever Overdrive，100% 充能觸發 12 秒 2× 雙倍結算倍率與合成器狂熱琶音）／幸運輪盤迷你遊戲（Lucky Wheel Spin，彩池連鎖觸發、乘數疊加至 30× MEGA 與潮幣結算轉換）／5 款特殊幣種（普通幣、重幣、滾珠、震動搖台、解鎖磁吸幣）。相關實作請見：[`src/game/modes.ts`](../Games/Coin-Cascade/src/game/modes.ts)、[`src/game/tables.ts`](../Games/Coin-Cascade/src/game/tables.ts)、[`src/game/daily.ts`](../Games/Coin-Cascade/src/game/daily.ts)、[`src/game/fever.ts`](../Games/Coin-Cascade/src/game/fever.ts)、[`src/game/wheel.ts`](../Games/Coin-Cascade/src/game/wheel.ts)。 |
+| **重玩誘因** | 多軌獨立 `localStorage` 持久化架構，遵循嚴格不可互相覆寫與欄位級防禦解析規範：`coin-cascade:best`（自由遊玩歷史最佳總分）、`coin-cascade:best-cascade`（自由遊玩最長連鎖紀錄）、`coin-cascade:modes-v1`（模式包 6 關解鎖進度、通關旗標、各關最佳得分與最長連鎖）、`coin-cascade:meta-v1`（潮幣餘額與生涯累計潮幣、解鎖台面、解鎖磁吸特殊幣、幣面收藏［黃金／翠玉／霓虹］、各台面最佳紀錄、8 大本機成就里程碑）、`coin-cascade:daily-v1`（每日挑戰嘗試次數、通關狀態、最佳成績、Asia/Taipei 台北時區連續挑戰天數 Streak）、每日登入與離線補給（7 天登入獎勵階梯 Day 1～Day 7 大滿貫、每 90 秒離線閒置代幣補充上限 80 枚且具備單調防作弊機制）。相關實作請見：[`src/game/progress.ts`](../Games/Coin-Cascade/src/game/progress.ts)、[`src/game/daily.ts`](../Games/Coin-Cascade/src/game/daily.ts)、[`src/game/rewards.ts`](../Games/Coin-Cascade/src/game/rewards.ts)。 |
+| **盤面／卡牌對手與提示** | 物理街機推幣機不適用傳統棋盤 AI 或回溯撤銷（Undo，推幣崩塌物理不可逆）；以「台面地形障礙、重力與推板動態」作為環境對手。懸吊近失偵測（Near-miss Teetering Detection）：前緣幣懸垂超過 35% 半徑高亮與停頓訊號圈，觸發近失心理學誘因；桌面雙翼戰術座艙（Arcade Wings）：左翼機台動態儀提供推板動能波形、台面左／中／右三道地形密度分析、落點側向滑移偏角預測與特殊幣戰術指引；右翼彩池與金流提供即時 RTP % 遙測、彩池金庫深度、懸垂崩塌雷達（Cliff Danger Radar，0～100% 邊緣坍方危險指數、最危險走道預警）與觸發幣落崖距離；甜蜜點雷射瞄準（Laser Aiming）：推板後退最深處（甜蜜點）觸發 PERFECT 光暈、光子軌跡雷射與十字落點虛影預測。相關實作請見：[`src/game/engine.ts`](../Games/Coin-Cascade/src/game/engine.ts)、[`src/game/chute.ts`](../Games/Coin-Cascade/src/game/chute.ts)、[`src/game/fever.ts`](../Games/Coin-Cascade/src/game/fever.ts)、[`src/components/GameCanvas.tsx`](../Games/Coin-Cascade/src/components/GameCanvas.tsx)。 |
+| **手感回饋** | 結算介面：專屬全螢幕結算卡片（展示回收幣數、彩池爆開加成、最長連鎖、新高分徽章與潮幣獲取結算），契約對齊 `ResultOverlay` 之指標與操作規格；因純 2D Canvas 街機一體化機台設計誠實標註為永久 ～（詳見 [`docs/GAME-QUALITY-BAR.md`](../docs/GAME-QUALITY-BAR.md)）。WebAudio 原生雙重合成音效引擎：`src/audio.ts`（金屬撞擊多層次泛音、彩池傾瀉低音扇形衝擊、落幣節奏鐘琴、即時音量與 <kbd>M</kbd> 鍵快速靜音）、`src/feverAudio.ts`（狂熱超頻啟動號角 Fanfare、合成器琶音 Arpeggiator BGM、脈衝鼓點）；視覺多巴胺特效：落幣飄升金幣數值浮空字樣（`+1`, `+2`, 狂熱雙倍 `+2`）、彩池爆開全螢幕金色粒子傾瀉、潮湧彩池青藍衝擊波、螢幕微震（完整支援 `prefers-reduced-motion` 無障礙降級）。相關實作請見：[`src/audio.ts`](../Games/Coin-Cascade/src/audio.ts)、[`src/feverAudio.ts`](../Games/Coin-Cascade/src/feverAudio.ts)、[`src/components/GameCanvas.tsx`](../Games/Coin-Cascade/src/components/GameCanvas.tsx)、[`src/App.tsx`](../Games/Coin-Cascade/src/App.tsx)。 |
+| **觸控與操作** | 雙模式適配：寬螢幕桌面展開左右雙翼戰術座艙；行動端自適應收合雙翼座艙，保持純粹推幣視野。台面上方觸控橫條：手指觸控滑動或點擊任意橫向位置，投幣漏斗即時平滑跟隨並完成落幣。底部觸控盤面：直覺切換 5 款特殊幣種、暫停／繼續選單、收藏櫃彈窗與重新開始。相關實作請見：[`src/App.tsx`](../Games/Coin-Cascade/src/App.tsx)、[`src/components/GameCanvas.tsx`](../Games/Coin-Cascade/src/components/GameCanvas.tsx)。 |
+| **驗證腳本** | `npm run lint -w coin-cascade`（TypeScript 嚴格型別檢查 0 錯誤）與 `npm run check -w coin-cascade` → [`scripts/self-check.ts`](../Games/Coin-Cascade/scripts/self-check.ts)（1,515 行深度測試，30 項全面斷言）：涵蓋推板物理週期、正弦速度、三角波加速度與各幣種邊緣懸垂臨界值（normal, heavy, ball, magnet, trigger）；側溝損耗（Gutter Loss）vs 出幣獎勵槽（Prize Chute）在三大台面（classic, peg-alley, spring-tide）的 RTP 數值邊界（35%～115% 守衛帶）與防死局保證；幸運輪盤迷你遊戲（Wheel Spin Mini-game）彩池連鎖觸發、乘數疊加（Fever 2× + 潮湧 1.5× + 輪盤 2～10× = 最高 30× MEGA）與潮幣結算轉換；離線閒置代幣補充（Idle Credit Replenishment）上限與單調遞增算術、Asia/Taipei 台北時區每日登入 7 天階梯獎勵與連勝判定；懸垂崩塌雷達（Cliff Danger Radar）與狂熱超頻（Fever Overdrive）狀態機生命週期。 |
+
+## 實作結構
+
+- 專案根目錄：[`Games/Coin-Cascade/`](../Games/Coin-Cascade/)
+- 物理核心與幾何引擎：[`src/game/engine.ts`](../Games/Coin-Cascade/src/game/engine.ts)、[`src/game/constants.ts`](../Games/Coin-Cascade/src/game/constants.ts)、[`src/game/chute.ts`](../Games/Coin-Cascade/src/game/chute.ts)
+- 關卡、台面與隨機種子：[`src/game/modes.ts`](../Games/Coin-Cascade/src/game/modes.ts)、[`src/game/tables.ts`](../Games/Coin-Cascade/src/game/tables.ts)、[`src/game/rng.ts`](../Games/Coin-Cascade/src/game/rng.ts)
+- 每日挑戰與經濟存檔：[`src/game/daily.ts`](../Games/Coin-Cascade/src/game/daily.ts)、[`src/game/progress.ts`](../Games/Coin-Cascade/src/game/progress.ts)、[`src/game/rewards.ts`](../Games/Coin-Cascade/src/game/rewards.ts)
+- 狂熱超頻與輪盤迷你遊戲：[`src/game/fever.ts`](../Games/Coin-Cascade/src/game/fever.ts)、[`src/game/wheel.ts`](../Games/Coin-Cascade/src/game/wheel.ts)
+- WebAudio 原生合成音效：[`src/audio.ts`](../Games/Coin-Cascade/src/audio.ts)、[`src/feverAudio.ts`](../Games/Coin-Cascade/src/feverAudio.ts)
+- 街機介面與 Canvas 繪製：[`src/App.tsx`](../Games/Coin-Cascade/src/App.tsx)、[`src/components/GameCanvas.tsx`](../Games/Coin-Cascade/src/components/GameCanvas.tsx)
+- 驗證測試腳本：[`scripts/self-check.ts`](../Games/Coin-Cascade/scripts/self-check.ts)
+
 ## 備註
 
 - 以 2D Canvas 繪製，不使用 3D 引擎與任何第三方物理函式庫；碰撞解算自行實作，因為決定性要求比效能重要。

@@ -71,6 +71,20 @@
 - **結束**：緩衝歸零，被列車追上。
 - **成績**：分數 = 距離 + 路線評價 × 倍率 + 無傷連續加成。
 - **紀錄**：依模式分開保存最佳距離／分數（自由遊玩、每日挑戰、挑戰種子包），見「進度與解鎖」。
+- **結算 UI**：共用 `@clubhouse/shared/ResultOverlay`。
+
+## 品質門檻對齊
+
+對照 [`docs/GAME-QUALITY-BAR.md`](../docs/GAME-QUALITY-BAR.md)：
+
+| 項目 | 本實作規範與對齊成果 |
+|---|---|
+| **模式／變體** | 自由遊玩（Free Play，無盡挑戰、隨距離推進動態開放高階 26 種支線模板）／挑戰種子包（Challenge Pack，6 關手編固定種子闖關階梯：初探道岔、五千之遙、萬米長征、萬分之爭、極限超馳、終焉之途，具備解鎖前進機制）／台北每日挑戰（Daily Challenge，Asia/Taipei UTC+8 日曆日期種子 `DYYYYMMDD` 全球統一題庫，獨立記錄當日最佳與連續挑戰天數 Streak）／車庫負載自訂（4 款特性扳道車：標準／重載／信使／特急 × 4 款地貌主題：深隧／貨場／濱海／夜班 × 4 款修飾規則：玻璃緩衝、密岔預覽、評分狂熱、無補給）。實作：[`src/game/challenges.ts`](../Games/Switchpoint-Run/src/game/challenges.ts)、[`src/game/daily.ts`](../Games/Switchpoint-Run/src/game/daily.ts)、[`src/game/profiles.ts`](../Games/Switchpoint-Run/src/game/profiles.ts)、[`src/game/themes.ts`](../Games/Switchpoint-Run/src/game/themes.ts)、[`src/game/modifiers.ts`](../Games/Switchpoint-Run/src/game/modifiers.ts)。 |
+| **重玩誘因** | 採用結構化本機儲存（`switchpoint-run:meta-v1` 與 `switchpoint-run:challenges`），具備嚴格防禦解析與自動遷移舊版 `best-distance` / `best-score`。持久化儲存自由遊玩最佳距離、最高分數、總趟數、生涯累積里程與通過道岔數；結算鐵道螺栓經濟貨幣（依距離、岔道數、連擊數與評分換算，用於解鎖車款與地貌主題）；記錄台北每日挑戰今日最佳距離、最高得分、嘗試次數與連續每日完成天數（Streak）；記錄挑戰種子包 6 關解鎖進度與各關最佳成績。實作：[`src/game/progress.ts`](../Games/Switchpoint-Run/src/game/progress.ts)、[`src/game/challenges.ts`](../Games/Switchpoint-Run/src/game/challenges.ts)、[`src/game/daily.ts`](../Games/Switchpoint-Run/src/game/daily.ts)。 |
+| **盤面／卡牌對手與提示** | 即時高速跑酷不適用 Undo；無棋盤卡牌對手，以「後方追越列車（Pursuit Train）」作為連續動態加壓對手。左翼中央調度信號雷達（Signal Dispatch Radar）提供三股道拓撲預警、綠／黃／紅信號燈識別、道岔自動鎖定距離與時間倒數條、追越列車差速計（Δv）與三段式安全／警戒／緊急預警；右翼行車記錄黑盒子提供調度員動態錦囊（依即時列車間距與車速智慧建議避險或進攻策略）、即時調度事件簿與倍率收益矩陣；首次開跑提供新手操作引導與障礙識別說明（低欄跳躍、鋼樑鏟滑、側牆變更股道）。實作：[`src/components/DispatchLeftWing.tsx`](../Games/Switchpoint-Run/src/components/DispatchLeftWing.tsx)、[`src/components/DispatchRightWing.tsx`](../Games/Switchpoint-Run/src/components/DispatchRightWing.tsx)、[`src/game/engine.ts`](../Games/Switchpoint-Run/src/game/engine.ts)。 |
+| **手感回饋** | 結算面板深度整合共用套件 `@clubhouse/shared/ResultOverlay`：依勝負條件（挑戰成功、挑戰未過、今日挑戰結束、被列車追上）動態呈現結算卡片，包含距離、分數、目標、螺栓收益、解鎖徽章與重試／下一關／回選單動作。深度整合共用 WebAudio 原生合成音效 `@clubhouse/shared/synthAudio`（`playMove` 扳道變更股道音、`playWin` 挑戰通關和弦、`playLose` 列車追撞出局音、`playScore` 收集物資音、`playCombo` 連續無傷升調音、`playError` 撞擊制動音）。撞擊觸發 Hit-Stop 凍結與畫面震顫（Screen Shake）、擦身閃避粒子、扳道鎖定光環、高速速度線（Speed Lines）、車載姿態動力儀、電競按鍵 HUD 發光；完整支援 `prefers-reduced-motion: reduce` 無障礙降級。實作：[`src/App.tsx`](../Games/Switchpoint-Run/src/App.tsx)、[`src/game/juice.ts`](../Games/Switchpoint-Run/src/game/juice.ts)、[`src/components/GameCanvas.tsx`](../Games/Switchpoint-Run/src/components/GameCanvas.tsx)。 |
+| **原生觸控支援** | 雙重原生觸控模式：支援手勢滑動（左右滑動扳道換股道、上滑跳躍、下滑鏟滑）與行動端專屬大尺寸電競虛擬按鍵（`MobileControlsOverlay`：左扳道、右扳道、跳躍、鏟滑，可一鍵開啟或隱藏）。觸控手勢具備 28px 移動門檻防抖（Debounce）與方向優先級判定，避免誤觸；切道硬直與冷卻時間（100ms）防止連點抽搐。整合行動端調度速報條（`MobileTacticalRibbon`，整合緩衝%、差速計與即時道岔簡況）與可隨時滑出之調度速報抽屜（`DispatchDrawer`）。原生觸控震動反饋（Haptic Feedback：tap 0.6 / 0.7）與 CSS `touch-action: manipulation` 防雙擊縮放。實作：[`src/components/MobileControlsOverlay.tsx`](../Games/Switchpoint-Run/src/components/MobileControlsOverlay.tsx)、[`src/components/MobileTacticalRibbon.tsx`](../Games/Switchpoint-Run/src/components/MobileTacticalRibbon.tsx)、[`src/components/DispatchDrawer.tsx`](../Games/Switchpoint-Run/src/components/DispatchDrawer.tsx)、[`src/App.tsx`](../Games/Switchpoint-Run/src/App.tsx)。 |
+| **驗證腳本** | 執行 `npm run lint -w switchpoint-run`（TypeScript 零錯誤）與 `npm run check -w switchpoint-run`（`scripts/self-check.ts`，大幅擴充深化至 >1,600 行）。涵蓋：1) 多道岔分支預覽窗與鐵路信號燈指示器狀態機（2 支線 vs 3 支線股道佔用、封閉股道識別、APPROACH_LEN 預覽距離倒數、誤入封閉軌道制動懲罰與最近安全股道重定位、信號燈綠黃紅色彩契約與密度光點投影）；2) 後方追越列車差速公式、追越加速度與緩衝恢復（Δv = v_player - v_train 微分積分模型、撞擊失速降至 0.22x 之追越加速度極限、緩衝上限 430m 截斷防止無盡脫逃、補給節點 +190m 階躍恢復與歸零出局判定）；3) 全 26 款支線模板之密度 vs 速度評分權衡（無任一模板三軸占優、危險加速/評分路徑產出最高倍率成長與連擊無傷密度加成、失誤撞擊喪失密度清潔加分之嚴格風險回報守恆）；4) 行動端觸控滑動切道輸入防抖（Debounce）、跳躍/鏟滑互斥狀態機轉移與撞擊失速無敵緩衝期（100ms 切道冷卻、跳躍/鏟滑互鎖、障礙物一次性解析標記與同軌 110m 間距容許度）；5) Asia/Taipei 台北時區日曆換日決定論與連勝天數守恆（UTC 16:00 跨日翻轉、跨月跨年與閏年邊界計算、每日種子 DYYYYMMDD 全局統一性、連勝 Streak 維持與中斷判定）。實作：[`scripts/self-check.ts`](../Games/Switchpoint-Run/scripts/self-check.ts)。 |
 
 ## 雙翼中央調度座艙（Dual-Wing Cockpit）
 

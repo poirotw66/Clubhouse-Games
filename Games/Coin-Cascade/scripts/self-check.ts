@@ -15,9 +15,11 @@ import {
   COST,
   DROP_COOLDOWN_TICKS,
   CASCADE_MIN,
+  FALL_VALUE,
   FIXED_DT,
   INITIAL_SETTLE_TICKS,
   MAX_COINS_ON_SHELF,
+  NEAR_MISS_OVERHANG,
   SETTLE_GRACE_TICKS,
   SHELF_LEN,
   STARTING_CREDITS,
@@ -48,8 +50,48 @@ import {
   parseDailyProgress,
   recordDailyAttempt,
 } from '../src/game/daily.js';
-import { TABLE_PACK, assertTablePackShape, tableById } from '../src/game/tables.js';
+import { TABLE_PACK, assertTablePackShape, tableById, type TableId } from '../src/game/tables.js';
 import { hashString, mulberry32, shuffle, streamRng } from '../src/game/rng.js';
+import {
+  LEFT_GUTTER_MAX_X,
+  RIGHT_GUTTER_MIN_X,
+  analyzeDropZones,
+  classifyDropZone,
+  coinOverhangDistance,
+  isGutterLoss,
+  isPrizeChute,
+  pusherHarmonicFrontY,
+  pusherVelocitySinusoidal,
+  pusherVelocityTriangle,
+  teeteringThresholdForKind,
+} from '../src/game/chute.js';
+import {
+  JACKPOT_CASCADE_TRIGGER_MIN,
+  WHEEL_SEGMENTS,
+  convertRunTokensWithWheel,
+  isWheelSpinTriggered,
+  spinWheel,
+  stackMultipliers,
+} from '../src/game/wheel.js';
+import {
+  DAILY_LOGIN_LADDER,
+  IDLE_REPLENISH_INTERVAL_SEC,
+  IDLE_REPLENISH_MAX_CAP,
+  calculateIdleReplenishment,
+  evaluateTaipeiLoginReward,
+  isConsecutiveTaipeiDay,
+  todayDateKeyTaipei,
+} from '../src/game/rewards.js';
+import {
+  FEVER_DURATION_SEC,
+  FEVER_MULTIPLIER,
+  INITIAL_FEVER_STATE,
+  activateFever,
+  addFeverCharge,
+  calculateFeverChargeGain,
+  computeCliffDanger,
+  stepFeverState,
+} from '../src/game/fever.js';
 import type { PlayerInput, RunState } from '../src/game/types.js';
 
 const TEST_PROFILE = process.env.CLUBHOUSE_TEST_PROFILE || 'full';
@@ -263,13 +305,66 @@ function runQuickChecks(): void {
   assert.deepEqual(shuffle(values, mulberry32(7)).sort((x, y) => x - y), values);
   assert.deepEqual(values, [1, 2, 3, 4]);
   assert.notEqual(streamRng(1234, 'a')(), streamRng(1234, 'b')());
-  for (const file of ['rng.ts', 'engine.ts', 'types.ts', 'constants.ts', 'modes.ts', 'tables.ts', 'progress.ts', 'daily.ts']) {
+  for (const file of [
+    'rng.ts', 'engine.ts', 'types.ts', 'constants.ts', 'modes.ts',
+    'tables.ts', 'progress.ts', 'daily.ts', 'chute.ts', 'wheel.ts',
+    'rewards.ts', 'fever.ts',
+  ]) {
     const source = readFileSync(resolve(__dirname, '..', '..', 'src', 'game', file), 'utf8')
       .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
     if (file !== 'rng.ts') assert.ok(!source.includes('Math.random'), `${file} must use seeded RNG`);
     assert.ok(!/sort\(\s*\(\)\s*=>/.test(source), `${file} must not shuffle with an inconsistent comparator`);
   }
   ok('seeded RNG stream separation, nonmutating shuffle and source hygiene');
+
+  // Quick checks for chute, pusher kinematics, teetering, wheel, rewards, and fever
+  assert.equal(classifyDropZone(WALL_X0), 'left_gutter');
+  assert.equal(classifyDropZone((WALL_X0 + WALL_X1) / 2), 'prize_chute');
+  assert.equal(classifyDropZone(WALL_X1), 'right_gutter');
+  assert.equal(isGutterLoss(LEFT_GUTTER_MAX_X - 1), true);
+  assert.equal(isPrizeChute(LEFT_GUTTER_MAX_X + 1), true);
+  assert.equal(pusherVelocitySinusoidal(0), 0);
+  assert.ok(pusherVelocitySinusoidal(37.5) > 0);
+  assert.equal(pusherVelocityTriangle(0), pusherVelocityTriangle(10));
+  assert.equal(teeteringThresholdForKind('normal'), SHELF_LEN - COIN_R + NEAR_MISS_OVERHANG);
+
+  assert.equal(isWheelSpinTriggered({ jackpotBurst: 0, cascadeDepth: 4, feverActive: false }), false);
+  assert.equal(isWheelSpinTriggered({ jackpotBurst: 10, cascadeDepth: 3, feverActive: false }), true);
+  assert.equal(isWheelSpinTriggered({ jackpotBurst: 10, cascadeDepth: 1, feverActive: true }), true);
+  const spin0 = spinWheel(42, 0);
+  assert.equal(spin0.segment.id, spinWheel(42, 0).segment.id);
+  assert.equal(stackMultipliers({ feverActive: true, tideBonus: true, wheelMultiplier: 2 }).totalMultiplier, 6.0);
+  assert.ok(convertRunTokensWithWheel({ baseScore: 120, cascadeCount: 3, jackpotBursts: 1, wheelBonusTokens: 25, stackedMultiplier: 2 }) > 25);
+
+  assert.equal(todayDateKeyTaipei(new Date('2026-10-20T15:59:00Z')), '2026-10-20');
+  assert.equal(todayDateKeyTaipei(new Date('2026-10-20T16:00:00Z')), '2026-10-21');
+  assert.equal(isConsecutiveTaipeiDay('2026-10-20', '2026-10-21'), true);
+  assert.equal(isConsecutiveTaipeiDay('2026-10-20', '2026-10-22'), false);
+  const claim1 = evaluateTaipeiLoginReward(null, '2026-10-20', 0);
+  assert.equal(claim1.newStreak, 1);
+  assert.equal(claim1.eligible, true);
+  const claimDup = evaluateTaipeiLoginReward('2026-10-20', '2026-10-20', 1);
+  assert.equal(claimDup.eligible, false);
+  assert.equal(claimDup.alreadyClaimedToday, true);
+
+  const idleGain = calculateIdleReplenishment({
+    lastActiveTimestampMs: 1000,
+    currentTimestampMs: 1000 + IDLE_REPLENISH_INTERVAL_SEC * 1000 * 2,
+    currentCredits: 10,
+    cap: 50,
+  });
+  assert.equal(idleGain.replenishedCredits, 2);
+  assert.equal(idleGain.finalCredits, 12);
+
+  const feverState = activateFever(INITIAL_FEVER_STATE);
+  assert.equal(feverState.active, true);
+  assert.equal(feverState.multiplier, FEVER_MULTIPLIER);
+  const steppedFever = stepFeverState(feverState, FEVER_DURATION_SEC + 1);
+  assert.equal(steppedFever.active, false);
+  assert.equal(steppedFever.multiplier, 1);
+  const radar = computeCliffDanger([]);
+  assert.equal(radar.dangerIndex, 0);
+  ok('quick chute kinematics, wheel triggers, Taipei rewards, idle replenishment and fever models');
 }
 
 if (TEST_PROFILE === 'quick') {
@@ -719,7 +814,11 @@ for (const seed of LANE_SEEDS) {
   assert.equal(items.join(), '1,2,3,4,5,6,7,8', 'shuffle must not mutate its input');
 
   const stripComments = (src: string): string => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
-  for (const file of ['rng.ts', 'engine.ts', 'types.ts', 'constants.ts', 'modes.ts', 'tables.ts', 'progress.ts', 'daily.ts']) {
+  for (const file of [
+    'rng.ts', 'engine.ts', 'types.ts', 'constants.ts', 'modes.ts',
+    'tables.ts', 'progress.ts', 'daily.ts', 'chute.ts', 'wheel.ts',
+    'rewards.ts', 'fever.ts',
+  ]) {
     const src = stripComments(readFileSync(resolve(__dirname, '..', '..', 'src', 'game', file), 'utf8'));
     assert.ok(
       !/sort\(\s*\(\s*\)?\s*[^)]*\)\s*=>\s*[^;]*random/i.test(src) && !/sort\(\s*\(\)\s*=>/.test(src),
@@ -997,6 +1096,415 @@ for (const seed of LANE_SEEDS) {
   assert.equal(recorded.records[0]?.bestScore, a.targetScore);
 
   ok('daily challenge seeding, target, and progress hold');
+}
+
+// ── 16) Pusher physics cycle, sinusoidal velocity, and coin overhang teetering ──
+{
+  // 16.1 Kinematics across all three authored tables
+  for (const table of TABLE_PACK) {
+    const physics = table.physics;
+    const period = physics.pusherPeriodTicks;
+    const stroke = physics.pusherStroke;
+    const backY = physics.pusherBackY;
+
+    // Harmonic position matches stroke bounds and periodicity
+    const y0 = pusherHarmonicFrontY(0, physics);
+    const yHalf = pusherHarmonicFrontY(period / 2, physics);
+    const yFull = pusherHarmonicFrontY(period, physics);
+    assert.ok(Math.abs(y0 - backY) < 1e-9, `${table.id}: harmonic stroke must start at back wall`);
+    assert.ok(Math.abs(yHalf - (backY + stroke)) < 1e-9, `${table.id}: harmonic stroke must reach peak extension at half period`);
+    assert.ok(Math.abs(yFull - backY) < 1e-9, `${table.id}: harmonic stroke must return to back wall at full period`);
+
+    // Sinusoidal velocity profiles
+    const v0 = pusherVelocitySinusoidal(0, physics);
+    const vQuarter = pusherVelocitySinusoidal(period / 4, physics);
+    const vHalf = pusherVelocitySinusoidal(period / 2, physics);
+    const vThreeQuarter = pusherVelocitySinusoidal((period * 3) / 4, physics);
+    const peakTheoretical = (Math.PI * stroke) / period;
+
+    assert.ok(Math.abs(v0) < 1e-9, `${table.id}: sinusoidal velocity must be zero at retraction turnaround`);
+    assert.ok(Math.abs(vQuarter - peakTheoretical) < 1e-9, `${table.id}: sinusoidal velocity must peak forward at quarter period`);
+    assert.ok(Math.abs(vHalf) < 1e-9, `${table.id}: sinusoidal velocity must be zero at forward crest turnaround`);
+    assert.ok(Math.abs(vThreeQuarter - (-peakTheoretical)) < 1e-9, `${table.id}: sinusoidal velocity must peak backward at three-quarter period`);
+
+    // Triangle wave velocity magnitude
+    const vTriFwd = pusherVelocityTriangle(0, physics);
+    const vTriBack = pusherVelocityTriangle(period / 2, physics);
+    const triSpeed = (2 * stroke) / period;
+    assert.ok(Math.abs(vTriFwd - triSpeed) < 1e-9, `${table.id}: forward triangle velocity must equal 2*stroke/period`);
+    assert.ok(Math.abs(vTriBack - (-triSpeed)) < 1e-9, `${table.id}: backward triangle velocity must equal -2*stroke/period`);
+  }
+
+  // Velocity ratio: spring-tide (stroke 58, period 100) vs classic (stroke 46, period 150)
+  const classicPhysics = tableById('classic')!.physics;
+  const tidePhysics = tableById('spring-tide')!.physics;
+  const vSinClassic = pusherVelocitySinusoidal(classicPhysics.pusherPeriodTicks / 4, classicPhysics);
+  const vSinTide = pusherVelocitySinusoidal(tidePhysics.pusherPeriodTicks / 4, tidePhysics);
+  const sinRatio = vSinTide / vSinClassic;
+  const expectedRatio = (58 / 100) / (46 / 150); // 87 / 46 ≈ 1.8913
+  assert.ok(
+    Math.abs(sinRatio - expectedRatio) < 1e-6,
+    `spring-tide should have 87/46 (~1.891x) peak velocity of classic, got ${sinRatio.toFixed(3)}`,
+  );
+
+  // 16.2 Coin edge overhang teetering thresholds for all coin kinds
+  const kinds = ['normal', 'heavy', 'ball', 'magnet', 'trigger'] as const;
+  for (const kind of kinds) {
+    const r = coinRadius(kind);
+    const thresholdY = teeteringThresholdForKind(kind);
+    assert.ok(Math.abs(thresholdY - (SHELF_LEN - r + NEAR_MISS_OVERHANG)) < 1e-9);
+
+    const coinResting = { id: 101, kind, x: 200, y: thresholdY - 0.05, teeterSince: -1 };
+    const coinTeeteringMin = { id: 102, kind, x: 200, y: thresholdY + 0.05, teeterSince: -1 };
+    const coinAtEdge = { id: 103, kind, x: 200, y: SHELF_LEN, teeterSince: -1 };
+    const coinFallen = { id: 104, kind, x: 200, y: SHELF_LEN + 0.05, teeterSince: -1 };
+
+    assert.equal(isTeetering(coinResting), false, `${kind} just behind threshold must not teeter`);
+    assert.equal(isTeetering(coinTeeteringMin), true, `${kind} just over threshold must teeter`);
+    assert.equal(isTeetering(coinAtEdge), true, `${kind} at shelf edge must teeter`);
+    assert.equal(isTeetering(coinFallen), false, `${kind} past edge is fallen, not teetering`);
+
+    // Overhang distance calculations
+    assert.equal(coinOverhangDistance({ id: 105, kind, x: 200, y: SHELF_LEN - r, teeterSince: -1 }), 0);
+    assert.ok(Math.abs(coinOverhangDistance({ id: 106, kind, x: 200, y: SHELF_LEN - r + 4, teeterSince: -1 }) - 4) < 1e-9);
+    assert.ok(Math.abs(coinOverhangDistance(coinAtEdge) - r) < 1e-9);
+    assert.ok(Math.abs(coinOverhangDistance(coinFallen) - (r + 0.05)) < 1e-9);
+  }
+
+  ok('pusher physics cycle, sinusoidal velocity, and coin overhang teetering thresholds verified');
+}
+
+// ── 17) Gutter loss vs prize drop chute return-to-player (RTP) across tables ──
+{
+  // 17.1 Boundary classification tests
+  assert.equal(classifyDropZone(WALL_X0), 'left_gutter');
+  assert.equal(classifyDropZone(LEFT_GUTTER_MAX_X - 0.01), 'left_gutter');
+  assert.equal(classifyDropZone(LEFT_GUTTER_MAX_X + 0.01), 'prize_chute');
+  assert.equal(classifyDropZone((WALL_X0 + WALL_X1) / 2), 'prize_chute');
+  assert.equal(classifyDropZone(RIGHT_GUTTER_MIN_X - 0.01), 'prize_chute');
+  assert.equal(classifyDropZone(RIGHT_GUTTER_MIN_X + 0.01), 'right_gutter');
+  assert.equal(classifyDropZone(WALL_X1), 'right_gutter');
+
+  assert.equal(isGutterLoss(WALL_X0), true);
+  assert.equal(isGutterLoss(LEFT_GUTTER_MAX_X + 10), false);
+  assert.equal(isGutterLoss(RIGHT_GUTTER_MIN_X + 1), true);
+  assert.equal(isPrizeChute((WALL_X0 + WALL_X1) / 2), true);
+  assert.equal(isPrizeChute(WALL_X0), false);
+
+  // 17.2 Multi-table chute vs gutter simulations
+  const runCompleteSession = (
+    seed: string,
+    tableId: TableId,
+    credits: number,
+    pattern: 'center' | 'sweep',
+  ): { session: RunState; falls: { x: number; prefilled?: boolean }[] } => {
+    let s = createRun(seed, { tableId, startingCredits: credits });
+    const falls: { x: number; prefilled?: boolean }[] = [];
+    let guard = 0;
+    let tick = 0;
+    const sweepXs = [WALL_X0 + 20, (WALL_X0 + WALL_X1) / 2, WALL_X1 - 20];
+    while (s.phase === 'playing' && guard++ < 60_000) {
+      const drop = s.cooldown === 0 && s.creditsRemaining > 0;
+      const dropX = pattern === 'center' ? (WALL_X0 + WALL_X1) / 2 : sweepXs[Math.floor(tick / 50) % sweepXs.length]!;
+      s = step(s, { dropX, drop, special: 'normal' }, FIXED_DT);
+      for (const f of s.events.fallen) falls.push({ x: f.x, prefilled: f.prefilled });
+      tick++;
+    }
+    return { session: s, falls };
+  };
+
+  const SIM_CREDITS = 80;
+
+  // Center drops across all three tables: prize chute capture dominates and chute RTP lands in playable band
+  for (const table of TABLE_PACK) {
+    const res = runCompleteSession(`GUT-CTR-${table.id.toUpperCase()}`, table.id, SIM_CREDITS, 'center');
+    const summary = analyzeDropZones(res.falls.map((f) => f.x));
+    assert.ok(summary.totalFalls > 0, `${table.id}: table must shed coins`);
+    assert.ok(
+      summary.chuteRatio >= 0.85,
+      `${table.id}: center drops should capture >=85% chute ratio, got ${(summary.chuteRatio * 100).toFixed(1)}%`,
+    );
+
+    const totalRtp = res.session.score / res.session.creditsSpent;
+    const chuteRtp = totalRtp * summary.chuteRatio;
+    assert.ok(
+      chuteRtp > 0.35,
+      `${table.id}: chute RTP ${(chuteRtp * 100).toFixed(1)}% below floor`,
+    );
+    assert.ok(
+      chuteRtp < 1.15,
+      `${table.id}: chute RTP ${(chuteRtp * 100).toFixed(1)}% above ceiling`,
+    );
+  }
+
+  // Sweep drops across all three tables: dropping along side edges introduces real gutter loss
+  for (const table of TABLE_PACK) {
+    const sweepRes = runCompleteSession(`GUT-SWP-${table.id.toUpperCase()}`, table.id, SIM_CREDITS, 'sweep');
+    const sweepSummary = analyzeDropZones(sweepRes.falls.map((f) => f.x));
+    assert.ok(
+      sweepSummary.gutterLossRatio >= 0.10,
+      `${table.id}: sweep drops must produce at least 10% gutter loss, got ${(sweepSummary.gutterLossRatio * 100).toFixed(1)}%`,
+    );
+    assert.ok(
+      sweepSummary.gutterLossRatio <= 0.45,
+      `${table.id}: gutter loss must not exceed 45%, got ${(sweepSummary.gutterLossRatio * 100).toFixed(1)}%`,
+    );
+  }
+
+  ok('gutter loss vs prize drop chute RTP bounds across all tables hold');
+}
+
+// ── 18) Wheel spin mini-game jackpot cascade triggers, multipliers, tokens ──
+{
+  // 18.1 Trigger qualification rules
+  assert.equal(isWheelSpinTriggered({ jackpotBurst: 0, cascadeDepth: 5, feverActive: true }), false);
+  assert.equal(isWheelSpinTriggered({ jackpotBurst: 10, cascadeDepth: 1, feverActive: false }), false);
+  assert.equal(isWheelSpinTriggered({ jackpotBurst: 10, cascadeDepth: 2, feverActive: false }), false);
+  assert.equal(isWheelSpinTriggered({ jackpotBurst: 10, cascadeDepth: JACKPOT_CASCADE_TRIGGER_MIN, feverActive: false }), true);
+  assert.equal(isWheelSpinTriggered({ jackpotBurst: 10, cascadeDepth: 6, feverActive: false }), true);
+  assert.equal(isWheelSpinTriggered({ jackpotBurst: 10, cascadeDepth: 1, feverActive: true }), true);
+
+  // 18.2 Wheel layout and deterministic spins
+  assert.equal(WHEEL_SEGMENTS.length, 8);
+  const totalWeight = WHEEL_SEGMENTS.reduce((sum, s) => sum + s.weight, 0);
+  assert.equal(totalWeight, 115);
+
+  const spinA1 = spinWheel(8888, 0);
+  const spinA2 = spinWheel(8888, 0);
+  const spinB = spinWheel(8888, 1);
+  assert.equal(spinA1.segment.id, spinA2.segment.id);
+  assert.equal(spinA1.spinAngleDeg, spinA2.spinAngleDeg);
+  assert.notEqual(spinA1.spinAngleDeg, spinB.spinAngleDeg);
+
+  // Diverse outcomes across multiple spins
+  const seenKinds = new Set<string>();
+  for (let i = 0; i < 60; i++) {
+    seenKinds.add(spinWheel(9999 + i, i).segment.kind);
+  }
+  assert.ok(seenKinds.has('multiplier') && seenKinds.has('tokens'), 'wheel must yield multiple outcome kinds');
+
+  // 18.3 Multiplier stacking algebra
+  assert.equal(stackMultipliers().totalMultiplier, 1.0);
+  assert.equal(stackMultipliers({ feverActive: true }).totalMultiplier, 2.0);
+  assert.equal(stackMultipliers({ tideBonus: true }).totalMultiplier, 1.5);
+  assert.equal(stackMultipliers({ feverActive: true, tideBonus: true }).totalMultiplier, 3.0);
+  assert.equal(stackMultipliers({ feverActive: true, tideBonus: true, wheelMultiplier: 2 }).totalMultiplier, 6.0);
+  assert.equal(stackMultipliers({ feverActive: true, tideBonus: true, wheelMultiplier: 3 }).totalMultiplier, 9.0);
+  assert.equal(stackMultipliers({ feverActive: true, tideBonus: true, wheelMultiplier: 5 }).totalMultiplier, 15.0);
+  assert.equal(stackMultipliers({ feverActive: true, tideBonus: true, wheelMultiplier: 10 }).totalMultiplier, 30.0);
+
+  // 18.4 Token reward conversion
+  const baseConversion = convertRunTokensWithWheel({
+    baseScore: 120,
+    cascadeCount: 3,
+    jackpotBursts: 1,
+    stackedMultiplier: 1.0,
+  });
+  assert.equal(baseConversion, 21); // floor(120/12) + 3*2 + 1*5 = 10 + 6 + 5 = 21
+
+  const tripleConversion = convertRunTokensWithWheel({
+    baseScore: 120,
+    cascadeCount: 3,
+    jackpotBursts: 1,
+    stackedMultiplier: 3.0,
+  });
+  assert.equal(tripleConversion, 63); // 21 * 3 = 63
+
+  const withFlatBonus = convertRunTokensWithWheel({
+    baseScore: 120,
+    cascadeCount: 3,
+    jackpotBursts: 1,
+    wheelBonusTokens: 50,
+    stackedMultiplier: 3.0,
+  });
+  assert.equal(withFlatBonus, 113); // 63 + 50 = 113
+
+  // Monotonicity and zero-score floor
+  assert.equal(convertRunTokensWithWheel({ baseScore: 0, cascadeCount: 0, jackpotBursts: 0 }), 1);
+  assert.ok(
+    convertRunTokensWithWheel({ baseScore: 240, cascadeCount: 3, jackpotBursts: 1 }) >
+      convertRunTokensWithWheel({ baseScore: 120, cascadeCount: 3, jackpotBursts: 1 }),
+  );
+
+  ok('wheel spin mini-game jackpot triggers, multiplier stacking, and tokens hold');
+}
+
+// ── 19) Idle credit replenishment and daily Taipei login rewards ──────────
+{
+  // 19.1 Asia/Taipei timezone rollover determinism
+  assert.equal(todayDateKeyTaipei(new Date('2026-10-20T15:59:00Z')), '2026-10-20');
+  assert.equal(todayDateKeyTaipei(new Date('2026-10-20T16:00:00Z')), '2026-10-21');
+  assert.equal(todayDateKeyTaipei(new Date('2026-10-20T16:01:00Z')), '2026-10-21');
+  assert.equal(todayDateKeyTaipei(new Date('2026-04-30T16:00:00Z')), '2026-05-01');
+  assert.equal(todayDateKeyTaipei(new Date('2028-02-28T16:00:00Z')), '2028-02-29'); // Leap year
+  assert.equal(todayDateKeyTaipei(new Date('2026-12-31T15:59:00Z')), '2026-12-31');
+  assert.equal(todayDateKeyTaipei(new Date('2026-12-31T16:00:00Z')), '2027-01-01');
+
+  // Consecutive day validation
+  assert.equal(isConsecutiveTaipeiDay('2026-10-20', '2026-10-21'), true);
+  assert.equal(isConsecutiveTaipeiDay('2026-02-28', '2026-03-01'), true);
+  assert.equal(isConsecutiveTaipeiDay('2028-02-28', '2028-02-29'), true);
+  assert.equal(isConsecutiveTaipeiDay('2028-02-29', '2028-03-01'), true);
+  assert.equal(isConsecutiveTaipeiDay('2026-12-31', '2027-01-01'), true);
+  assert.equal(isConsecutiveTaipeiDay('2026-10-20', '2026-10-22'), false);
+  assert.equal(isConsecutiveTaipeiDay('2026-10-20', '2026-10-20'), false);
+  assert.equal(isConsecutiveTaipeiDay('2026-10-21', '2026-10-20'), false);
+  assert.equal(isConsecutiveTaipeiDay('bad-key', '2026-10-21'), false);
+
+  // 19.2 7-day login ladder progression
+  assert.equal(DAILY_LOGIN_LADDER.length, 7);
+  assert.equal(DAILY_LOGIN_LADDER[0].tokens, 10);
+  assert.equal(DAILY_LOGIN_LADDER[6].tokens, 70);
+  assert.equal(DAILY_LOGIN_LADDER[6].bonusCredits, 100);
+
+  const day1 = evaluateTaipeiLoginReward(null, '2026-10-20', 0);
+  assert.equal(day1.eligible, true);
+  assert.equal(day1.newStreak, 1);
+  assert.equal(day1.reward?.day, 1);
+
+  const duplicateToday = evaluateTaipeiLoginReward('2026-10-20', '2026-10-20', 1);
+  assert.equal(duplicateToday.eligible, false);
+  assert.equal(duplicateToday.alreadyClaimedToday, true);
+
+  let streak = day1.newStreak;
+  let lastDate = '2026-10-20';
+  for (let i = 2; i <= 7; i++) {
+    const nextDate = `2026-10-${String(19 + i).padStart(2, '0')}`;
+    const claim = evaluateTaipeiLoginReward(lastDate, nextDate, streak);
+    assert.equal(claim.eligible, true);
+    assert.equal(claim.newStreak, i);
+    assert.equal(claim.reward?.day, i);
+    assert.equal(claim.isConsecutive, true);
+    streak = claim.newStreak;
+    lastDate = nextDate;
+  }
+  assert.equal(streak, 7);
+
+  // Day 8 rollover to day 1
+  const day8 = evaluateTaipeiLoginReward('2026-10-26', '2026-10-27', 7);
+  assert.equal(day8.eligible, true);
+  assert.equal(day8.newStreak, 1);
+  assert.equal(day8.isConsecutive, true);
+
+  // Missed day resets streak to 1
+  const brokenStreak = evaluateTaipeiLoginReward('2026-10-20', '2026-10-25', 4);
+  assert.equal(brokenStreak.eligible, true);
+  assert.equal(brokenStreak.newStreak, 1);
+  assert.equal(brokenStreak.isConsecutive, false);
+
+  // 19.3 Idle credit replenishment arithmetic
+  const negTime = calculateIdleReplenishment({
+    lastActiveTimestampMs: 5000,
+    currentTimestampMs: 2000,
+    currentCredits: 20,
+  });
+  assert.equal(negTime.replenishedCredits, 0);
+  assert.equal(negTime.finalCredits, 20);
+
+  const oneInterval = calculateIdleReplenishment({
+    lastActiveTimestampMs: 0,
+    currentTimestampMs: IDLE_REPLENISH_INTERVAL_SEC * 1000,
+    currentCredits: 20,
+  });
+  assert.equal(oneInterval.replenishedCredits, 1);
+  assert.equal(oneInterval.finalCredits, 21);
+
+  const threeIntervals = calculateIdleReplenishment({
+    lastActiveTimestampMs: 0,
+    currentTimestampMs: IDLE_REPLENISH_INTERVAL_SEC * 1000 * 3,
+    currentCredits: 20,
+  });
+  assert.equal(threeIntervals.replenishedCredits, 3);
+  assert.equal(threeIntervals.finalCredits, 23);
+
+  const capSaturation = calculateIdleReplenishment({
+    lastActiveTimestampMs: 0,
+    currentTimestampMs: 10_000_000,
+    currentCredits: 78,
+    cap: IDLE_REPLENISH_MAX_CAP,
+  });
+  assert.equal(capSaturation.replenishedCredits, 2);
+  assert.equal(capSaturation.finalCredits, IDLE_REPLENISH_MAX_CAP);
+  assert.equal(capSaturation.reachedCap, true);
+  assert.equal(capSaturation.secondsUntilNextCredit, 0);
+
+  const overCapAlready = calculateIdleReplenishment({
+    lastActiveTimestampMs: 0,
+    currentTimestampMs: 10_000_000,
+    currentCredits: 95,
+    cap: IDLE_REPLENISH_MAX_CAP,
+  });
+  assert.equal(overCapAlready.replenishedCredits, 0);
+  assert.equal(overCapAlready.finalCredits, 95);
+  assert.equal(overCapAlready.reachedCap, true);
+
+  ok('idle credit replenishment and daily Taipei login rewards hold');
+}
+
+// ── 20) Cliff edge danger radar and Fever Overdrive dynamics ───────────────
+{
+  // 20.1 Cliff danger radar telemetry
+  const emptyRadar = computeCliffDanger([]);
+  assert.equal(emptyRadar.dangerIndex, 0);
+  assert.equal(emptyRadar.nearEdgeCount, 0);
+  assert.equal(emptyRadar.teeterCount, 0);
+
+  const farCoins = [{ id: 1, kind: 'normal' as const, x: 210, y: 100, teeterSince: -1 }];
+  const farRadar = computeCliffDanger(farCoins);
+  assert.equal(farRadar.dangerIndex, 0);
+
+  const nearCoins = [
+    { id: 2, kind: 'normal' as const, x: 210, y: SHELF_LEN - 10, teeterSince: -1 },
+    { id: 3, kind: 'normal' as const, x: 215, y: SHELF_LEN - 5, teeterSince: -1 },
+  ];
+  const nearRadar = computeCliffDanger(nearCoins);
+  assert.equal(nearRadar.nearEdgeCount, 2);
+  assert.ok(nearRadar.dangerIndex > 0);
+
+  const teeterCoins = [
+    { id: 4, kind: 'normal' as const, x: 210, y: SHELF_LEN - 1, teeterSince: 100 },
+    { id: 5, kind: 'normal' as const, x: 215, y: SHELF_LEN - 1, teeterSince: 100 },
+  ];
+  const teeterRadar = computeCliffDanger(teeterCoins);
+  assert.equal(teeterRadar.teeterCount, 2);
+  assert.ok(teeterRadar.dangerIndex >= 25);
+
+  const leftCoins = [
+    { id: 6, kind: 'normal' as const, x: WALL_X0 + 20, y: SHELF_LEN - 5, teeterSince: -1 },
+    { id: 7, kind: 'normal' as const, x: WALL_X0 + 30, y: SHELF_LEN - 5, teeterSince: -1 },
+  ];
+  assert.equal(computeCliffDanger(leftCoins).hottestLane, 'left');
+
+  // 20.2 Fever Overdrive lifecycle
+  const f0 = INITIAL_FEVER_STATE;
+  assert.equal(f0.charge, 0);
+  assert.equal(f0.active, false);
+  assert.equal(f0.multiplier, 1);
+
+  assert.equal(calculateFeverChargeGain({ timingQuality: 'perfect', cascadeCount: 0, isJackpot: false, teeterCount: 0 }), 15);
+  assert.equal(calculateFeverChargeGain({ timingQuality: 'good', cascadeCount: 0, isJackpot: false, teeterCount: 0 }), 5);
+  assert.equal(calculateFeverChargeGain({ timingQuality: 'late', cascadeCount: 4, isJackpot: false, teeterCount: 0 }), 22); // 16 + (4-3)*6
+  assert.equal(calculateFeverChargeGain({ timingQuality: 'late', cascadeCount: 0, isJackpot: true, teeterCount: 0 }), 100);
+
+  const fCharged = addFeverCharge(f0, 100);
+  assert.equal(fCharged.charge, 100);
+  assert.equal(fCharged.active, false);
+
+  const fActive = activateFever(fCharged);
+  assert.equal(fActive.active, true);
+  assert.equal(fActive.multiplier, FEVER_MULTIPLIER);
+  assert.equal(fActive.remainingSec, FEVER_DURATION_SEC);
+
+  const fStepped = stepFeverState(fActive, 5.0);
+  assert.equal(fStepped.active, true);
+  assert.equal(fStepped.remainingSec, FEVER_DURATION_SEC - 5.0);
+
+  const fExpired = stepFeverState(fStepped, 8.0);
+  assert.equal(fExpired.active, false);
+  assert.equal(fExpired.multiplier, 1.0);
+  assert.equal(fExpired.charge, 0);
+
+  ok('cliff edge danger radar and Fever Overdrive dynamics hold');
 }
 
 console.log(`\nself-check: ok (${passed} checks${HEAVY ? ', heavy' : ''})`);
