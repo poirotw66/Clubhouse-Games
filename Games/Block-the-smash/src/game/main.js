@@ -1718,6 +1718,9 @@ function queueWindup() {
   const tellDef = SMASH_DEFS[pick.tell];
   const sideSign = pick.sideSign ?? (state.rng() < 0.5 ? -1 : 1);
   let windupSec = tellDef.windupSec * (style ? 1 : 1 - phaseTier() * 0.06);
+  if (habit?.windupBonusSec) {
+    windupSec += habit.windupBonusSec;
+  }
   if (habit?.tempoJitter) {
     windupSec *= 1 + (state.rng() * 2 - 1) * habit.tempoJitter;
   }
@@ -2573,7 +2576,8 @@ function animate() {
         const posGrade = gradePosition(dist);
         if (posGrade !== 'out') {
           const tier = phaseTier();
-          const windows = getTimingWindowsMs(tier, state.combo);
+          const bonusMs = opponentHabit()?.goodWindowBonusMs ?? 0;
+          const windows = getTimingWindowsMs(tier, state.combo, bonusMs);
           const timing = state.swinging
             ? gradeTiming(state.swingTime, state.swingDuration, state.swingEtaAtStart, windows)
             : 'late';

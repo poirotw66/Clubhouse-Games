@@ -1358,20 +1358,11 @@
       players[1].state.outgoingGarbage = 0;
       return;
     }
-    var a = players[0].state;
-    var b = players[1].state;
-    var cancelled = Math.min(a.outgoingGarbage, b.outgoingGarbage);
-    a.outgoingGarbage -= cancelled;
-    b.outgoingGarbage -= cancelled;
-
-    if (a.outgoingGarbage > 0) {
-      players[1].state.incomingGarbage += a.outgoingGarbage;
-      a.outgoingGarbage = 0;
-    }
-    if (b.outgoingGarbage > 0) {
-      players[0].state.incomingGarbage += b.outgoingGarbage;
-      b.outgoingGarbage = 0;
-    }
+    var res = L.resolveGarbageBuffer(players[0].state, players[1].state);
+    players[0].state.outgoingGarbage = res.playerA.outgoingGarbage;
+    players[0].state.incomingGarbage = res.playerA.incomingGarbage;
+    players[1].state.outgoingGarbage = res.playerB.outgoingGarbage;
+    players[1].state.incomingGarbage = res.playerB.incomingGarbage;
   }
 
   function cpuDelay() {

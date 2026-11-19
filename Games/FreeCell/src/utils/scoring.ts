@@ -24,6 +24,38 @@ export function pointsUndo(): number {
   return -UNDO_PENALTY;
 }
 
+/** Score clamps at 0 (cannot drop negative). */
+export function clampScore(score: number): number {
+  return Math.max(0, score);
+}
+
+/** Apply score delta respecting non-negative clamping bounds. */
+export function applyScoreDelta(currentScore: number, delta: number): number {
+  return clampScore(currentScore + delta);
+}
+
+/**
+ * Time penalty calculation for timed / speed challenges:
+ * Decrements score by penaltyPerInterval every intervalSec seconds.
+ */
+export function timePenaltyTicks(
+  elapsedSec: number,
+  appliedThroughSec: number,
+  intervalSec = 10,
+  penaltyPerInterval = 2,
+): { penalty: number; appliedThroughSec: number } {
+  if (intervalSec <= 0) return { penalty: 0, appliedThroughSec };
+  const nextThrough = Math.floor(elapsedSec / intervalSec) * intervalSec;
+  if (nextThrough <= appliedThroughSec) {
+    return { penalty: 0, appliedThroughSec };
+  }
+  const intervals = Math.floor((nextThrough - appliedThroughSec) / intervalSec);
+  return {
+    penalty: -penaltyPerInterval * intervals,
+    appliedThroughSec: nextThrough,
+  };
+}
+
 /** End-of-hand adjustment vs solver par (null par → no move bonus/penalty). */
 export function finishMoveDelta(moves: number, parMoves: number | null): number {
   if (parMoves == null || parMoves <= 0) return 0;

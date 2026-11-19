@@ -128,14 +128,14 @@
 
 對照 [`docs/GAME-QUALITY-BAR.md`](../docs/GAME-QUALITY-BAR.md)：
 
-| 項目 | 本實作 |
-|------|--------|
-| 模式／變體 | 訓練×難度×球數、得分挑戰、對戰階梯＋八對手 BO3、每日挑戰 |
-| Replay hook | v3 生涯／各模式最佳／對戰勝場／每日最佳與連續 |
-| Undo／Hint | 不適用（即時）；以 tell／假動作／回殺選擇作可讀資訊 |
-| Feedback | 時機評等 toast、回殺 UI、hit-stop、震動、結算評等＋父層 `synthAudio` |
-| Touch | 拖曳、揮拍、回殺按鈕可觸控 |
-| Check | `npm run check` → `src/check-smash.mjs` |
+| 項目 | 本實作規範與對齊成果 |
+|------|----------------------|
+| 模式／變體 | 四種深度模式：訓練（10／25／50 球 × 簡單／普通／困難 3 難度）、波次加壓得分挑戰（每 8 球升階）、8 位招牌對手對戰階梯（BO3 系列賽制）、台北 Asia/Taipei（UTC+8）每日挑戰（18 球固定種子腳本）。 |
+| Replay hook | 採用 v3 結構化本機儲存（`clubhouse:block-the-smash-stats-v3`），向下相容並自動遷移 v2 準確率；持久化記錄各難度訓練準確率、得分挑戰最高分、對戰系列勝場與最佳連勝、每日挑戰今日最高分與連續天數（streak）、生涯完美數、最大連擊數、總局數與完美回殺成功次數。 |
+| Board / card opponents | 8 位具備鮮明招牌習慣與覆蓋特性的 CPU 階梯（閃電阿豪、斜線美美、假動作阿鬼、鐵壁教練、節奏阿律、連殺猛寶、追身小敏、羽球魔王）；終關「羽球魔王」進行高階反應校準（+20ms 引拍預備 tell 補償與 +20ms 容錯時機窗，兼顧行動端觸控公平性與高技巧天花板）；具備引拍動作（tell）視覺提早示警與假動作偵測問號；即時動作遊戲不適用 Undo，以 3 向完美回殺落點策略抉擇作為可讀資訊回饋。 |
+| Feedback | 雙翼接殺電競座艙 HUD（StatCast 初速遙測、毫秒級反應延遲即時線圖、完美防守連擊倍率、體能耐力條、九宮格落點熱區雷達、威脅警報與戰術錦囊）；±ms 精度時機反饋；擊球 Hit-Stop、低音震擊、衝擊波光環與羽毛爆散粒子；父層深度接入 `@clubhouse/shared/synthAudio`；依據品質規範列為**永久 ～** honest exception（結算面板內嵌於 Three.js iframe 專屬電競座艙戰報）。 |
+| Touch | 完整行動端原生觸控支援：底部電競虛擬按鍵（◀ 步法、⚡ 魚躍撲救、步法 ▶、⯅ 截擊、⯆ 挑球），支援觸控即時拖曳定位球拍、點擊揮拍防守與大尺寸完美回殺落點觸控卡片。 |
+| Check | 專屬深度驗證腳本 `check-smash.mjs`（>650 行），嚴密覆蓋連續重殺不變量（shouldStartBurst）、節奏打亂機率（counterDisruptsRhythm）、橫向瞄準與難度邊界外推（resolveAimX）、極限時機與空間幾何接觸判定（gradePosition, gradeTiming, combineContact）、完美回殺窗口與得分乘數（COUNTER_WINDOW_SEC, counterScoreBonus）、8 對手天梯進度與系列賽賽制（seriesWinsNeeded, isOpponentUnlocked）、台北每日挑戰種子確定性、跨日連續天數保持與分享文本格式化。 |
 
 ## 實作
 

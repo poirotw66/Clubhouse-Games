@@ -20,12 +20,13 @@ export const HIT_STOP_GOOD = 0.07;
 /**
  * @param {number} waveTier  0–2 drill phase or score-attack wave floor
  * @param {number} [combo]
+ * @param {number} [bonusMs]  reaction calibration offset (e.g. mobile touch tolerance)
  */
-export function getTimingWindowsMs(waveTier = 0, combo = 0) {
+export function getTimingWindowsMs(waveTier = 0, combo = 0, bonusMs = 0) {
   const tier = Math.min(6, Math.max(0, waveTier) + Math.floor(combo / 8));
   return {
     perfect: Math.max(50, WINDOW_PERFECT_MS - tier * 8),
-    good: Math.max(140, WINDOW_GOOD_MS - tier * 16),
+    good: Math.max(140, WINDOW_GOOD_MS - tier * 16 + bonusMs),
   };
 }
 

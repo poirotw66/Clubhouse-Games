@@ -22,6 +22,7 @@
   var ALL_CLEAR_BONUS = 2100;
   var POP_SIZE = 4;
   var GARBAGE = 'garbage';
+  var GARBAGE_RATE = 70;
 
   // Vs-CPU career stats (replay hook). 2P local matches are not counted.
   var STATS_KEY = 'clubhouse-puyo-stats';
@@ -906,6 +907,300 @@
     return score;
   }
 
+  /**
+   * Unified Puyo scoring & garbage formula helper:
+   * 1. calculateScore(groups, chain, garbageRate) -> matches stepScore result with .garbage
+   * 2. calculateScore(chain, puyoCount, colorCount, groupSize, garbageRate) -> numeric inputs
+   * 3. calculateScore({ chain, puyoCount/cleared, colorCount/colors, groupSize, garbageRate }) -> options object
+   */
+  function calculateScore(groupsOrChain, maybeCount, maybeColors, maybeGroupSize, maybeRate) {
+    if (Array.isArray(groupsOrChain)) {
+      var res = stepScore(groupsOrChain, maybeCount || 1);
+      var rate = maybeColors || GARBAGE_RATE;
+      res.garbage = Math.floor(res.score / rate);
+      return res;
+    }
+    var rate = GARBAGE_RATE;
+    var chain = 1;
+    var puyos = 4;
+    var colors = 1;
+    var gSize = 4;
+
+    if (typeof groupsOrChain === 'number') {
+      chain = groupsOrChain;
+      if (maybeCount != null) puyos = maybeCount;
+      if (maybeColors != null) colors = maybeColors;
+      if (maybeGroupSize != null) gSize = maybeGroupSize;
+      if (maybeRate != null) rate = maybeRate;
+    } else if (typeof groupsOrChain === 'object' && groupsOrChain !== null) {
+      chain = groupsOrChain.chain || 1;
+      puyos = groupsOrChain.puyoCount != null ? groupsOrChain.puyoCount : (groupsOrChain.cleared != null ? groupsOrChain.cleared : 4);
+      colors = groupsOrChain.colorCount != null ? groupsOrChain.colorCount : (groupsOrChain.colors != null ? groupsOrChain.colors : 1);
+      gSize = groupsOrChain.groupSize != null ? groupsOrChain.groupSize : puyos;
+      rate = groupsOrChain.garbageRate != null ? groupsOrChain.garbageRate : GARBAGE_RATE;
+    }
+
+    var cp = chainPower(chain);
+    var cb = COLOR_BONUS[Math.min(colors, COLOR_BONUS.length - 1)] || 0;
+    var gb = groupBonus(gSize);
+    var mult = cp + cb + gb;
+    if (mult < 1) mult = 1;
+    if (mult > 999) mult = 999;
+    var score = 10 * puyos * mult;
+    var garbage = Math.floor(score / rate);
+
+    return {
+      score: score,
+      cleared: puyos,
+      multiplier: mult,
+      chainPower: cp,
+      colorBonus: cb,
+      groupBonus: gb,
+      garbage: garbage,
+    };
+  }
+
+  /**
+   * Pure resolution of garbage cancellation buffer (相殺 / sousai):
+   * Mutual clash between active outgoing attacks, followed by self-defense
+   * against pending incoming garbage tray, and finally overflow sent to enemy.
+   */
+  function resolveGarbageBuffer(playerA, playerB) {
+    var a = {
+      outgoing: Math.max(0, (playerA && playerA.outgoingGarbage != null ? playerA.outgoingGarbage : playerA.outgoing) || 0),
+      incoming: Math.max(0, (playerA && playerA.incomingGarbage != null ? playerA.incomingGarbage : playerA.incoming) || 0),
+    };
+    var b = {
+      outgoing: Math.max(0, (playerB && playerB.outgoingGarbage != null ? playerB.outgoingGarbage : playerB.outgoing) || 0),
+      incoming: Math.max(0, (playerB && playerB.incomingGarbage != null ? playerB.incomingGarbage : playerB.incoming) || 0),
+    };
+
+    // 1. Concurrent clash: mutual outgoing garbage cancels directly
+    var mutualClash = Math.min(a.outgoing, b.outgoing);
+    a.outgoing -= mutualClash;
+    b.outgoing -= mutualClash;
+
+    // 2. Self-defense: remaining outgoing garbage cancels own incoming tray
+    var selfCancelA = Math.min(a.outgoing, a.incoming);
+    a.outgoing -= selfCancelA;
+    a.incoming -= selfCancelA;
+
+    var selfCancelB = Math.min(b.outgoing, b.incoming);
+    b.outgoing -= selfCancelB;
+    b.incoming -= selfCancelB;
+
+    // 3. Overflow attack: surplus outgoing sends new incoming to opponent
+    if (a.outgoing > 0) {
+      b.incoming += a.outgoing;
+      a.outgoing = 0;
+    }
+    if (b.outgoing > 0) {
+      a.incoming += b.outgoing;
+      b.outgoing = 0;
+    }
+
+    return {
+      playerA: { outgoingGarbage: a.outgoing, incomingGarbage: a.incoming },
+      playerB: { outgoingGarbage: b.outgoing, incomingGarbage: b.incoming },
+      mutualClash: mutualClash,
+      selfCancelA: selfCancelA,
+      selfCancelB: selfCancelB,
+    };
+  }
+
+  function boardDanger(board) {
+    var danger = 0;
+    for (var col = 0; col < COLS; col += 1) {
+      for (var row = 0; row < ROWS; row += 1) {
+        if (board[row][col] !== null) {
+          danger += ROWS - row;
+          break;
+        }
+      }
+    }
+    return danger;
+  }
+
+  var DIFFICULTIES = {
+    easy: {
+      id: 'easy',
+      label: '簡單',
+      lookahead: 1,
+      cpuMin: 140,
+      cpuMax: 230,
+      futureWeight: 0,
+      attackWeight: 0.75,
+      setupWeight: 0.15,
+      weakPopPenalty: 0,
+      buildBias: 0,
+      garbageDropCap: 6,
+      noise: 90,
+      allClearBonus: 200,
+      flatnessWeight: 0,
+      counterWeight: 0.2,
+      triggerWeight: 0.1,
+      asyncPlan: false,
+      planBatch: 8,
+    },
+    normal: {
+      id: 'normal',
+      label: '普通',
+      lookahead: 2,
+      cpuMin: 90,
+      cpuMax: 160,
+      futureWeight: 0.4,
+      attackWeight: 1,
+      setupWeight: 0.55,
+      weakPopPenalty: 80,
+      buildBias: 0.25,
+      garbageDropCap: 12,
+      noise: 18,
+      allClearBonus: 400,
+      flatnessWeight: 4,
+      counterWeight: 0.55,
+      triggerWeight: 0.35,
+      asyncPlan: false,
+      planBatch: 8,
+    },
+    hard: {
+      id: 'hard',
+      label: '困難',
+      lookahead: 3,
+      cpuMin: 40,
+      cpuMax: 85,
+      futureWeight: 0.82,
+      attackWeight: 1.45,
+      setupWeight: 1.5,
+      weakPopPenalty: 300,
+      buildBias: 1.0,
+      garbageDropCap: 18,
+      noise: 0,
+      allClearBonus: 800,
+      flatnessWeight: 12,
+      counterWeight: 1.05,
+      triggerWeight: 0.85,
+      asyncPlan: true,
+      planBatch: 5,
+    },
+    master: {
+      id: 'master',
+      label: '達人',
+      lookahead: 4,
+      cpuMin: 22,
+      cpuMax: 48,
+      futureWeight: 0.92,
+      attackWeight: 1.65,
+      setupWeight: 1.85,
+      weakPopPenalty: 360,
+      buildBias: 1.25,
+      garbageDropCap: 24,
+      noise: 0,
+      allClearBonus: 1200,
+      flatnessWeight: 18,
+      counterWeight: 1.35,
+      triggerWeight: 1.15,
+      asyncPlan: true,
+      planBatch: 4,
+    },
+    nightmare: {
+      id: 'nightmare',
+      label: '惡夢',
+      lookahead: 4,
+      cpuMin: 16,
+      cpuMax: 36,
+      futureWeight: 0.96,
+      attackWeight: 1.85,
+      setupWeight: 2.05,
+      weakPopPenalty: 420,
+      buildBias: 1.4,
+      garbageDropCap: 30,
+      noise: 0,
+      allClearBonus: 1500,
+      flatnessWeight: 22,
+      counterWeight: 1.7,
+      triggerWeight: 1.45,
+      asyncPlan: true,
+      planBatch: 3,
+    },
+  };
+
+  function evaluatePlacement(board, placement, queue, depth, incomingGarbage, difficultyConfig) {
+    var diff = difficultyConfig || DIFFICULTIES.nightmare;
+    if (typeof diff === 'string') diff = DIFFICULTIES[diff] || DIFFICULTIES.nightmare;
+    var resolved = simulateLock(board, placement, GARBAGE_RATE);
+    var danger = boardDanger(resolved.board);
+    var incoming = incomingGarbage || 0;
+    var stackPenalty = danger * 11;
+    var attackValue = resolved.attack * 120 * diff.attackWeight;
+    var chainValue = resolved.chain * 180 + (resolved.chain >= 3 ? resolved.chain * 90 : 0);
+    var setupValue = resolved.setup * diff.setupWeight;
+    var triggerValue = nearTriggerScore(resolved.board) * (diff.triggerWeight || 0);
+    var flatPenalty = heightVariance(resolved.board) * (diff.flatnessWeight || 0);
+    var allClearValue =
+      resolved.chain > 0 && isBoardEmpty(resolved.board) ? diff.allClearBonus || 0 : 0;
+
+    // Keep building unless under pressure or already firing a real chain.
+    var panic = danger > 48 || incoming >= 12;
+    var weakPop = resolved.chain === 1 && resolved.attack <= 1;
+    var weakPenalty = (!panic && weakPop) ? diff.weakPopPenalty : 0;
+    var buildBonus = (!panic && resolved.chain === 0) ? resolved.setup * diff.buildBias * 18 : 0;
+
+    // Counter-attack timing: when garbage is queued, prefer chains that cancel or punish.
+    var counterWeight = diff.counterWeight || 0;
+    var counterBonus = 0;
+    if (incoming > 0 && counterWeight > 0) {
+      counterBonus = resolved.attack * 70 * counterWeight;
+      if (resolved.attack >= incoming) counterBonus += 220 * counterWeight;
+      else if (resolved.chain >= 2) counterBonus += 90 * counterWeight;
+      if (panic && resolved.chain === 0) counterBonus -= 140 * counterWeight;
+    }
+
+    var base = resolved.score
+      + attackValue
+      + resolved.cleared * 6
+      + chainValue
+      + setupValue
+      + triggerValue
+      + buildBonus
+      + allClearValue
+      + counterBonus
+      - stackPenalty
+      - flatPenalty
+      - weakPenalty
+      + (diff.noise ? (Math.random() * 2 - 1) * diff.noise : 0);
+
+    if (depth <= 1 || !queue || queue.length === 0) return base;
+    // Nested search keeps leftover incoming pressure only one ply (after we "spent" a turn).
+    var futureIncoming = Math.max(0, incoming - resolved.attack);
+    var future = bestPlacementFor(
+      resolved.board,
+      queue[0],
+      queue.slice(1),
+      depth - 1,
+      futureIncoming,
+      diff
+    );
+    return base + (future ? future.score * diff.futureWeight : 0);
+  }
+
+  function bestPlacementFor(board, pair, queue, depth, incomingGarbage, difficultyConfig) {
+    var diff = difficultyConfig || DIFFICULTIES.nightmare;
+    if (typeof diff === 'string') diff = DIFFICULTIES[diff] || DIFFICULTIES.nightmare;
+    var placements = enumeratePlacements(board, pair);
+    if (placements.length === 0) return null;
+
+    var bestPlacement = placements[0];
+    var bestScore = evaluatePlacement(board, placements[0], queue, depth, incomingGarbage, diff);
+    for (var i = 1; i < placements.length; i += 1) {
+      var score = evaluatePlacement(board, placements[i], queue, depth, incomingGarbage, diff);
+      if (score > bestScore) {
+        bestScore = score;
+        bestPlacement = placements[i];
+      }
+    }
+    return { placement: bestPlacement, score: bestScore };
+  }
+
   global.PuyoLogic = {
     COLS: COLS,
     ROWS: ROWS,
@@ -914,6 +1209,7 @@
     SPAWN_COL: SPAWN_COL,
     ALL_COLORS: ALL_COLORS,
     GARBAGE: GARBAGE,
+    GARBAGE_RATE: GARBAGE_RATE,
     ALL_CLEAR_BONUS: ALL_CLEAR_BONUS,
     createBoard: createBoard,
     cloneBoard: cloneBoard,
@@ -933,6 +1229,7 @@
     findGroups: findGroups,
     clearGroups: clearGroups,
     stepScore: stepScore,
+    calculateScore: calculateScore,
     chainPower: chainPower,
     groupBonus: groupBonus,
     isBoardEmpty: isBoardEmpty,
@@ -940,6 +1237,11 @@
     garbagePreviewIcons: garbagePreviewIcons,
     setupPotential: setupPotential,
     nearTriggerScore: nearTriggerScore,
+    resolveGarbageBuffer: resolveGarbageBuffer,
+    boardDanger: boardDanger,
+    DIFFICULTIES: DIFFICULTIES,
+    evaluatePlacement: evaluatePlacement,
+    bestPlacementFor: bestPlacementFor,
 
     // Vs-CPU career stats (pure helpers; localStorage I/O lives in main.js).
     STATS_KEY: STATS_KEY,

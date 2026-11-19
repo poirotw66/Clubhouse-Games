@@ -120,6 +120,24 @@ Clubhouse 數位版在標準 7×6／連四之外，加入 **PopOut**、**五子�
 - **五子勝**：改為先連成五枚者勝（常用於 9 列×7 行等較大盤）。（已實作）
 - 棋盤尺寸：5×4、8×7、8×8 等。（已實作 8×7／9×7）
 
+## 品質門檻對齊
+
+對照 [`docs/GAME-QUALITY-BAR.md`](../docs/GAME-QUALITY-BAR.md)：
+
+| 項目 | 本實作對齊狀態 |
+|------|----------------|
+| **模式／變體** | 3 種規則變體（經典 7×6、PopOut 底格抽取重力下墜、五子勝 9×7 連五勝出）；3 種棋盤規格（7×6、8×7、9×7）；系列賽先取勝場模式（先取 2、3、5 勝，和局不計分，進行中狀態完整持久化續玩）；10 道精心設計之「N 步必勝」戰術殘局謎題模式 |
+| **Replay hook & 戰績進程** | 戰績儲存於 `clubhouse:connect-four:stats:v1`，採「`變體:棋盤:難度`」三元分桶嚴格隔離（如 `popout:8x7:hard`），連勝、最佳連勝、勝負場與勝率互不干擾；進行中系列賽即時狀態存於 `clubhouse:connect-four:match:v1`，支援中途接關續玩；謎題破解進度與星級存於 `clubhouse:connect-four:puzzles:v1`；具備自動向後相容遷移機制；無破產懲罰，完整保存生涯數據 |
+| **對手 AI & 決策輔助** | 3 檔搜尋深度與失誤率階梯（簡單 depth 1/blunder 45%、普通 depth 3/blunder 12%、困難 depth 6/0% blunder）；3 種獨特戰術個性（衝刺手偏重中路攻勢、鐵壁優先嚴防死守、佈局師深算雙殺陷阱與 PopOut 盤面重組）；即時戰術提示（Hint，以困難＋佈局師演算法給予最佳落子建議）；無限步悔棋（Undo）；雙翼戰情座艙（左翼即時勝率震盪波示波器與中路控制力、右翼戰情檔案與對局分析）；動態棋力即時評估（絕殺勝勢、雙殺神之一手、關鍵鐵壁、先機銳攻、緩手失位、致命失誤、穩健推進）；致命殺局貫穿雷射（Threat Ray）與十字準心即時捕捉聽牌線路 |
+| **Feedback** | 3 款高質感壓克力立架主題外觀（賽博街機 Cyber Arcade、晶透壓克力 Crystal Acrylic、經典錦標賽 Tournament Classic）；原生 Web Audio 高保真合成器實時演算：依棋子落入孔槽深度調變之多階重力撞擊音（底層厚實低音至頂層清脆敲擊與微彈跳）、PopOut 彈性抽離音、致命絕殺威脅心跳搏動（Lub-Dub）、棋力戰術評價音效、開閘傾瀉瀑布聲；終局 Four-in-a-Row Overdrive 霓虹金芒高亮與環形光波；底部門閘彈簧機械釋放清盤演出；整合共享 ResultOverlay 勝負結算面板 |
+| **Touch & Keyboard** | 行動端支援手勢滑動即時導軌投影瞄準與離手精準投子；實體鍵盤完整覆蓋：<kbd>1</kbd>～<kbd>7</kbd>／<kbd>9</kbd> 數字鍵直接選直列投子、<kbd>←</kbd>／<kbd>→</kbd> 或 <kbd>A</kbd>／<kbd>D</kbd> 左右切換選列、<kbd>Enter</kbd>／<kbd>Space</kbd>／<kbd>↓</kbd>／<kbd>S</kbd> 確認落子、<kbd>Z</kbd>／<kbd>Backspace</kbd> 悔棋、<kbd>H</kbd> 提示、<kbd>P</kbd> 切換 PopOut 模式、<kbd>R</kbd> 開閘重新開局、<kbd>T</kbd> 切換立架外觀主題、<kbd>M</kbd> 靜音開關；無障礙 ARIA 標籤與 HUD 輔助語音讀屏友好標註 |
+| **Check & Lint** | `npm run lint -w connect-four`（`tsc --noEmit` 零錯誤）與 `npm run check -w connect-four`（vitest 測試套件全面深度覆蓋：系列賽 2/3/5 勝局進程、和局跳過與完整重置；PopOut 雙方同時達成連四時動作者勝裁定；8×7、9×7 大盤幾何不變量、重力堆疊與連五四向勝利線判定；即時威脅雷達、雙殺叉路與失誤送殺陷阱偵測；Web Audio 合成音效合約、深度音調調變與鍵盤導航 HUD 無障礙合約） |
+
+## 實作
+
+- 專案路徑：[Games/Connect-Four/](../Games/Connect-Four/)
+- 核心邏輯：`src/utils/connect4Logic.ts`、`src/utils/types.ts`、`src/utils/match.ts`、`src/utils/storage.ts`、`src/utils/puzzles.ts`、`src/utils/audioFx.ts`；UI：`src/App.tsx`
+
 ## 參考來源
 
 - Wikipedia: Connect Four

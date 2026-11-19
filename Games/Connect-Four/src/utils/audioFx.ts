@@ -20,8 +20,8 @@ class ArcadeAudioManager {
   }
 
   private getContext(): AudioContext | null {
-    if (typeof window === 'undefined') return null;
     if (this.isMuted) return null;
+    if (typeof window === 'undefined') return this.ctx;
 
     if (!this.ctx) {
       const AudioCtx =
@@ -202,9 +202,10 @@ class ArcadeAudioManager {
   public startHeartbeat(): void {
     if (this.heartbeatInterval !== null || this.isMuted) return;
     this.playHeartbeatOnce();
-    this.heartbeatInterval = window.setInterval(() => {
+    const intervalFn = typeof window !== 'undefined' ? window.setInterval : setInterval;
+    this.heartbeatInterval = intervalFn(() => {
       this.playHeartbeatOnce();
-    }, 1200);
+    }, 1200) as unknown as number;
   }
 
   public stopHeartbeat(): void {

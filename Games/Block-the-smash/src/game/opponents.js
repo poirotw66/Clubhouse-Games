@@ -34,6 +34,8 @@ import { pickFakeTell, pickSmashType } from './smashTypes.js';
  * @property {number} [spawnJitter]  spawn delay variance 0–1
  * @property {number} [heavyBias]  extra weight toward straight/body
  * @property {boolean} [altTempo]  alternate slow/fast wind-ups
+ * @property {number} [windupBonusSec]  tell/wind-up duration bonus in seconds (+0.02 = +20ms for touch fairness)
+ * @property {number} [goodWindowBonusMs]  tolerance window bonus in milliseconds for mobile touch reaction
  */
 
 /**
@@ -236,6 +238,8 @@ export const OPPONENTS = Object.freeze([
       spawnJitter: 0.25,
       heavyBias: 0.1,
       altTempo: true,
+      windupBonusSec: 0.02,
+      goodWindowBonusMs: 20,
     },
     style: {
       straight: 0.28,

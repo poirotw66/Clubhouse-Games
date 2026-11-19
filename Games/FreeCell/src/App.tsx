@@ -60,6 +60,7 @@ import {
 import { computeStreak, dailyBaseSeed, dateKey } from './utils/daily';
 import { CHALLENGES, evaluateChallenges, type ChallengeId } from './utils/challenges';
 import {
+  clampScore,
   classicTimeBonus,
   finishMoveDelta,
   initialScore,
@@ -263,7 +264,7 @@ export default function App() {
 
   const bumpScore = useCallback((delta: number) => {
     if (delta === 0) return;
-    setScore((s) => s + delta);
+    setScore((s) => clampScore(s + delta));
     setFlash({
       text: delta > 0 ? `+${delta}` : String(delta),
       tone: delta > 0 ? 'good' : 'bad',
@@ -480,7 +481,7 @@ export default function App() {
       setMoveCount(meta.moves);
       setUsedFreeCell(meta.usedFreeCell);
       // Apply undo tax on top of restored pre-move score.
-      const taxed = meta.score + pointsUndo();
+      const taxed = clampScore(meta.score + pointsUndo());
       setScore(taxed);
       setFlash({ text: String(pointsUndo()), tone: 'bad', key: Date.now() });
     } else {
@@ -762,10 +763,10 @@ export default function App() {
     if (!hasWon || resultRecorded) return;
     timerActiveRef.current = false;
 
-    let finalScore = scoreRef.current;
+    let finalScore = clampScore(scoreRef.current);
     const moveDelta = finishMoveDelta(moveRef.current, parMoves);
     if (moveDelta !== 0) {
-      finalScore += moveDelta;
+      finalScore = clampScore(finalScore + moveDelta);
       setFlash({
         text: moveDelta > 0 ? `破標準 +${moveDelta}` : `超標準 ${moveDelta}`,
         tone: moveDelta > 0 ? 'good' : 'bad',
@@ -778,6 +779,7 @@ export default function App() {
         finalScore += bonus;
       }
     }
+    finalScore = clampScore(finalScore);
     setScore(finalScore);
 
     const cleared = evaluateChallenges({
