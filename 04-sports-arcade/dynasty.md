@@ -326,6 +326,19 @@ src/game/
   engine.ts       階段推進與決策解析
 ```
 
+## 品質門檻對齊
+
+對照 [`docs/GAME-QUALITY-BAR.md`](../docs/GAME-QUALITY-BAR.md)：
+
+| 項目 | 本實作規範與對齊內容 | 相關實作檔案連結 |
+|------|----------------------|------------------|
+| **模式／變體** | 自由遊玩模式（自由自訂 8 碼世界種子碼 `?seed=` 或隨機開局，CPBL 六大球團自由擇一：南方猛獅、桃園天使、台中巨砲、台南飛鷹、新北海豚、高雄火山，初始戰力與財務狀況各異）與專屬「生涯挑戰（Career Challenges）」關卡包模式（6 組固定種子與特殊通關條件，依序解鎖通關）；每年季前提供董事會 4 大期望協商等級（重建、站穩、進季後賽、拚冠）。 | [`src/game/challenges.ts`](../Games/Dynasty/src/game/challenges.ts)<br>[`src/game/config.ts`](../Games/Dynasty/src/game/config.ts)<br>[`src/game/board.ts`](../Games/Dynasty/src/game/board.ts) |
+| **重玩誘因** | 歷代總管名冊（`clubhouse:dynasty:archive`：記錄完賽十季歷程、總冠軍數、勝率、王朝評級）、球團紀錄牆（`clubhouse:dynasty:records`：六大球團各自最佳王朝分數、生涯里程碑計數：撐完任期／奪冠／名總管／王朝締造者）、生涯挑戰解鎖進度（`clubhouse:dynasty:challenges`：循序解鎖與通關標記）、本局自動存檔與活動中挑戰續玩（`clubhouse:dynasty:save`、`clubhouse:dynasty:active-challenge`）。 | [`src/game/records.ts`](../Games/Dynasty/src/game/records.ts)<br>[`src/game/storage.ts`](../Games/Dynasty/src/game/storage.ts)<br>[`src/game/challenges.ts`](../Games/Dynasty/src/game/challenges.ts) |
+| **對手／決策輔助與撤銷** | 對手 AI：CPBL 其餘 5 隊具備自主戰力演化、例行賽競爭與季後賽對戰、交易截止日多動機估值提案（爭冠／重建／清薪資）、休賽季自由球員暗標競標。決策撤銷（Undo）：支援 <kbd>Backspace</kbd> / 撤銷按鈕安全回溯上一步誤選（基於未擲骰前之決策快照還原，不影響決定論隨機數流）。決策輔助（Hint）：雙翼作戰中心（Front Office War Room）即時呈現薪資空間與豪華稅試算、董事會信任天秤紅黃綠警戒（< 20 倒數解僱防線）、即時王朝分數評級進度條與農場新秀保護提醒。 | [`src/game/trades.ts`](../Games/Dynasty/src/game/trades.ts)<br>[`src/game/season.ts`](../Games/Dynasty/src/game/season.ts)<br>[`src/game/engine.ts`](../Games/Dynasty/src/game/engine.ts)<br>[`src/game/warRoomStats.ts`](../Games/Dynasty/src/game/warRoomStats.ts) |
+| **手感與回饋** | **永久 ～**（誠實標註：依據 `docs/GAME-QUALITY-BAR.md` 明定，十年任期總結是一份包含十年賽季軌跡、排名、財務明細、培養球星與王朝等級之長篇完整結算畫面 `SummaryScreen`，不適合硬塞短版彈窗 `ResultOverlay`；完整契約對齊歷代總管名冊與重玩流程）。關鍵場次文字比賽精華（`HighlightReel`，季後賽與重要區塊動態文字轉播）、原生 WebAudio 多層次合成音效引擎（決策審批、抽屜展開、重要事件、奪冠號角、危機警報）、雙翼球團戰略作戰中心動態儀表與狀態流光。 | [`src/components/SummaryScreen.tsx`](../Games/Dynasty/src/components/SummaryScreen.tsx)<br>[`src/components/HighlightReel.tsx`](../Games/Dynasty/src/components/HighlightReel.tsx)<br>[`src/game/highlights.ts`](../Games/Dynasty/src/game/highlights.ts) |
+| **觸控與無障礙** | 完整觸控駕駛支援：常駐頂部行動端戰術速報條（Tactical Quick Bar），一鍵「🧭 戰略沙盤」呼出全屏雙翼作戰中心彈窗抽屜；決策卡審批選項卡與一二軍抽屜皆符合行動端最小 44×44 px 點擊範圍；全桌機快捷鍵導航（<kbd>1</kbd>–<kbd>9</kbd> 快速審批、<kbd>Backspace</kbd> 撤銷誤選、<kbd>W</kbd> 開關沙盤、<kbd>R</kbd> 名單抽屜、<kbd>Enter</kbd> 確認）；深色高對比運動數據排版並支援 `prefers-reduced-motion` 無障礙平滑降級。 | [`src/App.tsx`](../Games/Dynasty/src/App.tsx)<br>[`src/components/PlayScreen.tsx`](../Games/Dynasty/src/components/PlayScreen.tsx)<br>[`src/components/WarRoomModal.tsx`](../Games/Dynasty/src/components/WarRoomModal.tsx) |
+| **自我驗證腳本** | 深度自動化測試腳本：`Games/Dynasty/scripts/self-check.ts`（>1,350 行，涵蓋 10 年任期決定論、董事會期望協商與信任危機處置、球探 ABCD 精度與選秀迷霧、工資帽奢侈稅與票價彈性模型、球員老化曲線／傷病機制與季後賽勝率公式、挑戰解鎖、紀錄累計等 34 項驗證）。執行指令：`npm run check -w dynasty`（0 errors）、`npm run lint -w dynasty`（0 errors）。 | [`scripts/self-check.ts`](../Games/Dynasty/scripts/self-check.ts) |
+
 ## 備註
 
 - **首局引導**：首次進入標題頁顯示三步上手疊層（`clubhouse:dynasty:howto-seen`）；關閉後可從「操作教學」再開。CTA 為「知道了」，避免與「接下總管職務」衝突。

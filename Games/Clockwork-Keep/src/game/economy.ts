@@ -111,3 +111,44 @@ export interface ScoreInputs {
 export function calculateScore({ killScore, lives, unspentGold }: ScoreInputs): number {
   return killScore + lives * SCORE_PER_LIFE + unspentGold * SCORE_PER_UNSPENT_GOLD;
 }
+
+/**
+ * Calculates scrap recycling yield when dismantling or salvaging a tower.
+ * Default 70% refund rate, with mechanical wear discounting salvage value.
+ */
+export function calculateScrapRecycleYield(investedGold: number, wearRatio: number = 0): number {
+  const clampedWear = Math.max(0, Math.min(1, wearRatio));
+  const effectiveRate = SELL_REFUND_RATE * (1 - clampedWear * 0.5);
+  return Math.floor(Math.max(0, investedGold) * effectiveRate);
+}
+
+/**
+ * Calculates repair cost for damaged gear fortifications.
+ * Base repair factor is 35% of total invested gold scaled by damage percentage.
+ */
+export function calculateTowerRepairCost(investedGold: number, damageRatio: number): number {
+  const clampedDamage = Math.max(0, Math.min(1, damageRatio));
+  return Math.ceil(Math.max(0, investedGold) * 0.35 * clampedDamage);
+}
+
+/**
+ * Computes raw DPS output per invested gold coin (brass cog efficiency).
+ */
+export function calculateDpsPerGold(stats: TowerLevelStats, investedGold: number): number {
+  if (investedGold <= 0) return 0;
+  const nominalDps = stats.damage * stats.fireRate;
+  return nominalDps / investedGold;
+}
+
+/**
+ * Evaluates whether repairing a damaged fortification or recycling it for scrap is optimal.
+ */
+export function evaluateScrapRecycleDecision(
+  investedGold: number,
+  repairCost: number,
+  replacementCost: number,
+): 'repair' | 'recycle' {
+  const scrapYield = calculateScrapRecycleYield(investedGold);
+  const netReplacementCost = Math.max(0, replacementCost - scrapYield);
+  return repairCost <= netReplacementCost ? 'repair' : 'recycle';
+}

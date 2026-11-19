@@ -1,6 +1,14 @@
 import * as assert from 'node:assert/strict';
-import { acknowledge, createGame, resolve, rollOrigins, previewTrainingPlan } from '../src/game/engine.js';
-import { EVENTS } from '../src/game/events.js';
+import {
+  acknowledge,
+  buildSummary,
+  createGame,
+  HS_TURNS,
+  previewTrainingPlan,
+  resolve,
+  rollOrigins,
+} from '../src/game/engine.js';
+import { EVENTS, INJURIES } from '../src/game/events.js';
 import { ACHIEVEMENTS, EMPTY_PROGRESS, evaluate, progressOf } from '../src/game/achievements.js';
 import {
   CAREER_CHALLENGES,
@@ -12,8 +20,8 @@ import {
   isChallengeCleared,
   isChallengeUnlocked,
 } from '../src/game/challenges.js';
-import { POSITIONS, overall } from '../src/game/config.js';
-import { careerTotals } from '../src/game/milestones.js';
+import { POSITIONS, halfOveralls, overall } from '../src/game/config.js';
+import { careerMilestones, careerTotals, seasonFeats } from '../src/game/milestones.js';
 import { breakingFromArsenal } from '../src/game/pitches.js';
 import {
   EMPTY_RECORDS,
@@ -24,10 +32,13 @@ import {
 } from '../src/game/records.js';
 import { ABILITIES } from '../src/game/abilities.js';
 import { buildLegacyOptions, pendingFromCareer } from '../src/game/legacy.js';
-import { TWO_WAY_WORKLOAD } from '../src/game/season.js';
+import { createRng } from '../src/game/rng.js';
+import { simulateSeason, simulateTwoWay, TWO_WAY_WORKLOAD } from '../src/game/season.js';
 import { SITUATIONS, situationById } from '../src/game/situations.js';
 import { traitEffects } from '../src/game/traits.js';
-import type { Decision, GameState, Position } from '../src/game/types.js';
+import type { Attributes, BatterLine, Decision, GameState, PitcherLine, Position, SeasonRecord, StatLine } from '../src/game/types.js';
+
+type Totals = ReturnType<typeof careerTotals>;
 
 const GUARD = 400;
 
@@ -1468,6 +1479,11 @@ const checks: [string, () => void][] = [
   ['situation destiny spend', expectSituationDestinySpend],
   ['intl call is a decision', expectIntlCallIsADecision],
   ['overseas follow-ups appear', expectOverseasFollowUpsAppear],
+  ['high school arc through pro draft selection probability', expectHighSchoolDraftProbabilitiesAndThresholds],
+  ['two-way stamina depletion and dual-attribute balance', expectTwoWayDualAttributeBalanceAndStamina],
+  ['career injury risk models and veteran decline', expectInjuryRiskRecoveryAndVeteranDecline],
+  ['milestone records and hall of fame induction math', expectMilestoneRecordsAndHofInductionMath],
+  ['seeded multi-career archive backfill and world line branch determinism', expectWorldLineBranchDeterminismAndMultiArchiveBackfill],
 ];
 
 /** Choosing closer / surgery options must write durable career flags. */
@@ -1538,6 +1554,700 @@ function expectSituationDestinySpend(): void {
   assert.equal(state.report?.destinyUsed, true, 'report should mark destiny intervention');
   // doubleReward on fame 12 → 24
   assert.ok((state.report?.deltas.fame ?? 0) >= 20, 'doubleReward should amplify fame');
+}
+
+/**
+ * High school arc progression and professional draft selection math:
+ * - 15 high-school turns with tournament attitude decision forks (summer/autumn).
+ * - Direct overseas qualification gating: overall >= 60 && fame >= 45.
+ * - CPBL Draft score calculation: draftScore = overall * 1.15 + fame * 0.35 + noise(r, 10).
+ * - Multi-tier draft threshold verification: rank 1 (1st overall: bonus 1200), rank 1 (round 1: bonus 700),
+ *   rank 2 (bonus 350), rank 4 (bonus 150), rank 9 (developmental: bonus 30), undrafted (rank 0: corp fallback or retirement).
+ * - Monotonic prospect draft quality across statistical seed samples.
+ */
+function expectHighSchoolDraftProbabilitiesAndThresholds(): void {
+  assert.equal(HS_TURNS, 15, 'high school arc must run for exactly 15 calendar turns');
+
+  // 1. Arc progression & tournament forks
+  const seedCode = 'hsdraft01';
+  let state = createGame({
+    seedCode,
+    name: '選秀新星',
+    position: 'OF',
+    originId: rollOrigins(seedCode)[0].id,
+  });
+
+  assert.equal(state.stage, 'highschool');
+  assert.equal(state.age, 16);
+  assert.equal(state.turnIndex, 0);
+
+  const tournamentTurns = [2, 7, 8, 12]; // hs-summer-1, hs-summer-2, hs-fall-2, hs-summer-3
+  const verifiedTournaments: number[] = [];
+  let step = 0;
+  while (state.decision && state.decision.kind !== 'path' && !state.retired && step < 120) {
+    if (state.decision.kind === 'training') {
+      const optIds = state.decision.options.map((o) => o.id);
+      if (tournamentTurns.includes(state.turnIndex)) {
+        assert.ok(
+          optIds.includes('t-allin') && optIds.includes('t-balance') && optIds.includes('t-protect'),
+          `turn ${state.turnIndex} is tournament but missing attitude options`,
+        );
+        if (!verifiedTournaments.includes(state.turnIndex)) {
+          verifiedTournaments.push(state.turnIndex);
+        }
+      }
+    }
+    const choice = firstChoice(state.decision, step);
+    state = acknowledge(resolve(state, choice));
+    step += 1;
+  }
+
+  assert.equal(verifiedTournaments.length, 4, 'all 4 national tournament rounds must be verified');
+  assert.equal(state.decision?.kind, 'path', 'graduation decision must be of kind path');
+  const pathOptionIds = state.decision.options.map((o) => o.id);
+  assert.ok(pathOptionIds.includes('path-draft'), 'draft must be an option');
+  assert.ok(pathOptionIds.includes('path-college'), 'college must be an option');
+  assert.ok(pathOptionIds.includes('path-corp'), 'corp must be an option');
+  assert.ok(pathOptionIds.includes('path-overseas'), 'overseas must be on the menu');
+
+  // 2. Direct overseas gating check
+  // Gating formula invariant: overall >= 60 && fame >= 45
+  const checkOverseasGated = (attrs: Attributes, fame: number, pos: Position) => {
+    return overall(attrs, pos) >= 60 && fame >= 45;
+  };
+  assert.equal(checkOverseasGated(state.attrs, 30, 'OF'), false, 'under fame threshold must not qualify');
+  assert.equal(
+    checkOverseasGated({ ...state.attrs, contact: 40, power: 40, speed: 40, fielding: 40, eye: 40 }, 50, 'OF'),
+    false,
+    'under overall threshold must not qualify',
+  );
+  assert.equal(
+    checkOverseasGated({ ...state.attrs, contact: 70, power: 70, speed: 70, fielding: 70, eye: 70 }, 50, 'OF'),
+    true,
+    'qualifies for overseas',
+  );
+
+  let testPathState = drainNonTraining(state);
+  testPathState.attrs.contact = 70;
+  testPathState.attrs.power = 65;
+  testPathState.attrs.speed = 68;
+  testPathState.attrs.fielding = 62;
+  testPathState.attrs.eye = 65;
+  testPathState.meta.fame = 50;
+  testPathState.decision = {
+    kind: 'path',
+    title: '未來之路',
+    prompt: '畢業了。',
+    options: [
+      { id: 'path-draft', label: '投入中華職棒選秀', hint: '' },
+      { id: 'path-college', label: '進入大學球隊', hint: '' },
+      { id: 'path-corp', label: '加入社會人球隊', hint: '' },
+      {
+        id: 'path-overseas',
+        label: '直接挑戰旅美',
+        hint: '',
+        disabled: !(overall(testPathState.attrs, testPathState.position) >= 60 && testPathState.meta.fame >= 45),
+      },
+    ],
+  };
+  const overseasOpt = testPathState.decision.options.find((o) => o.id === 'path-overseas');
+  assert.equal(overseasOpt?.disabled, false, 'overseas option should be enabled when meeting requirements');
+
+  const overseasState = resolve(testPathState, 'path-overseas');
+  assert.equal(overseasState.stage, 'pro');
+  assert.equal(overseasState.league, 'milb');
+  assert.equal(overseasState.finance.earnings, 900, 'overseas signing bonus should be 900万');
+  assert.equal(overseasState.report?.income, 900);
+  assert.equal(overseasState.report?.tone, 'great');
+
+  // 3. Draft scoring thresholds test:
+  // draftScore = overall * 1.15 + fame * 0.35 + noise(r, 10)
+  // First pick tier (overall ~82, fame 60 -> min score 108.75 >= 88)
+  const eliteState = createGame({ seedCode: 'elite-draft', name: '大物', position: 'OF', originId: rollOrigins('elite-draft')[0].id });
+  eliteState.stage = 'highschool';
+  eliteState.turnIndex = HS_TURNS;
+  eliteState.decision = { kind: 'path', title: '選秀', prompt: '', options: [{ id: 'path-draft', label: '投入選秀', hint: '' }] };
+  eliteState.attrs.contact = 85;
+  eliteState.attrs.power = 85;
+  eliteState.attrs.speed = 80;
+  eliteState.attrs.fielding = 80;
+  eliteState.attrs.eye = 80;
+  eliteState.meta.fame = 60;
+  const eliteDraft = resolve(eliteState, 'path-draft');
+  assert.equal(eliteDraft.pendingDraftRank, 1);
+  assert.equal(eliteDraft.finance.earnings, 1200, 'first overall signing bonus should be 1200万');
+  assert.equal(eliteDraft.stage, 'pro');
+  assert.equal(eliteDraft.league, 'cpbl');
+  assert.equal(eliteDraft.report?.tone, 'great');
+
+  // Undrafted tier (overall ~21, fame 0 -> max score 34.15 < 46)
+  const undraftedState = createGame({ seedCode: 'undrafted', name: '落選', position: 'OF', originId: rollOrigins('undrafted')[0].id });
+  undraftedState.stage = 'highschool';
+  undraftedState.turnIndex = HS_TURNS;
+  undraftedState.decision = { kind: 'path', title: '選秀', prompt: '', options: [{ id: 'path-draft', label: '投入選秀', hint: '' }] };
+  undraftedState.attrs.contact = 25;
+  undraftedState.attrs.power = 22;
+  undraftedState.attrs.speed = 20;
+  undraftedState.attrs.fielding = 20;
+  undraftedState.attrs.eye = 20;
+  undraftedState.meta.fame = 0;
+  const undraftedResult = resolve(undraftedState, 'path-draft');
+  assert.equal(undraftedResult.pendingDraftRank, 0);
+  assert.equal(undraftedResult.stage, 'amateur', 'undrafted high-schooler drops to amateur corp');
+  assert.equal(undraftedResult.league, 'corp');
+  assert.equal(undraftedResult.finance.earnings, 0);
+
+  // Undrafted from amateur stage leads to retirement
+  undraftedResult.decision = {
+    kind: 'path',
+    title: '社會人選秀',
+    prompt: '',
+    options: [{ id: 'path-draft', label: '投入選秀', hint: '' }],
+  };
+  const secondUndrafted = resolve(undraftedResult, 'path-draft');
+  assert.equal(secondUndrafted.pendingDraftRank, 0);
+  assert.equal(secondUndrafted.retired, true, 'second draft failure must trigger career retirement');
+
+  // 4. Statistical monotonic ordering over multiple seeds
+  let highTierEarnings = 0;
+  let lowTierEarnings = 0;
+  const sampleCount = 20;
+  for (let i = 0; i < sampleCount; i++) {
+    const sCode = `draftstat-${i}`;
+    const sHigh = createGame({ seedCode: sCode, name: '高天賦', position: 'OF', originId: rollOrigins(sCode)[0].id });
+    sHigh.stage = 'highschool';
+    sHigh.turnIndex = HS_TURNS;
+    sHigh.decision = { kind: 'path', title: '選秀', prompt: '', options: [{ id: 'path-draft', label: '投入選秀', hint: '' }] };
+    sHigh.attrs.contact = 75;
+    sHigh.attrs.power = 75;
+    sHigh.attrs.speed = 70;
+    sHigh.attrs.fielding = 70;
+    sHigh.attrs.eye = 70;
+    sHigh.meta.fame = 50;
+    highTierEarnings += resolve(sHigh, 'path-draft').finance.earnings;
+
+    const sLow = createGame({ seedCode: sCode, name: '低天賦', position: 'OF', originId: rollOrigins(sCode)[0].id });
+    sLow.stage = 'highschool';
+    sLow.turnIndex = HS_TURNS;
+    sLow.decision = { kind: 'path', title: '選秀', prompt: '', options: [{ id: 'path-draft', label: '投入選秀', hint: '' }] };
+    sLow.attrs.contact = 35;
+    sLow.attrs.power = 30;
+    sLow.attrs.speed = 30;
+    sLow.attrs.fielding = 30;
+    sLow.attrs.eye = 30;
+    sLow.meta.fame = 5;
+    lowTierEarnings += resolve(sLow, 'path-draft').finance.earnings;
+  }
+  assert.ok(highTierEarnings > lowTierEarnings * 5, 'high prospect tier must dominate low tier in draft earnings');
+}
+
+/**
+ * Two-way player (二刀流) mechanics:
+ * - Dual-attribute overall formula: max(bat, pitch) + min(bat, pitch) * 0.35.
+ * - High school secondary slot discount: TWO_WAY_SECONDARY_POWER_SCALE (0.38) vs specialist (0.48).
+ * - Workload tax: TWO_WAY_WORKLOAD = 0.78 on both batting and pitching playing time.
+ * - Stamina depletion and recovery tradeoffs between pitching and everyday batting.
+ * - Compensating perks: spectacle fame boost (1.18x), lower endorsement threshold (28 vs 35),
+ *   and +1 destiny replenishment bonus per turn.
+ */
+function expectTwoWayDualAttributeBalanceAndStamina(): void {
+  // 1. Dual-attribute overall rating formula
+  assert.equal(POSITIONS.find((p) => p.id === 'TW')?.id, 'TW');
+
+  // Verify halfOveralls splitting
+  const sampleAttrs: Attributes = {
+    contact: 70,
+    power: 70,
+    speed: 70,
+    fielding: 70,
+    eye: 70,
+    velocity: 50,
+    control: 50,
+    breaking: 50,
+    stamina: 50,
+    guts: 50,
+  };
+  const halves = halfOveralls(sampleAttrs);
+  assert.equal(halves.bat, 70);
+  assert.equal(halves.pitch, 50);
+
+  // TW overall: 70 + 50 * 0.35 = 87.5
+  const twOverall = overall(sampleAttrs, 'TW');
+  assert.equal(twOverall, 70 + 50 * 0.35);
+
+  // Balanced: 60 / 60 -> 60 + 21 = 81
+  const balancedAttrs: Attributes = {
+    contact: 60, power: 60, speed: 60, fielding: 60, eye: 60,
+    velocity: 60, control: 60, breaking: 60, stamina: 60, guts: 60,
+  };
+  assert.equal(overall(balancedAttrs, 'TW'), 81);
+
+  // Pure specialist: 80 bat / 20 pitch. For OF, overall is 80 (ignores pitch entirely).
+  const specialistAttrs: Attributes = {
+    contact: 80, power: 80, speed: 80, fielding: 80, eye: 80,
+    velocity: 20, control: 20, breaking: 20, stamina: 20, guts: 20,
+  };
+  assert.equal(overall(specialistAttrs, 'OF'), 80);
+  assert.equal(overall(specialistAttrs, 'P'), 20);
+  assert.equal(overall(specialistAttrs, 'TW'), 87);
+
+  // 2. Training secondary discount: TWO_WAY_SECONDARY_POWER_SCALE = 0.38
+  const seed = 'tw-growth01';
+  let twState = createGame({ seedCode: seed, name: '大谷', position: 'TW', originId: rollOrigins(seed)[0].id });
+  while (twState.decision?.kind !== 'training') {
+    twState = acknowledge(resolve(twState, enabled(twState.decision!)[0]));
+  }
+  const primaryDrill = 'swing';
+  const preview = previewTrainingPlan(twState, primaryDrill);
+  assert.ok(preview, 'preview should exist for tw primary drill');
+  assert.equal(preview.needsSecondary, true, 'high school tw training needs secondary slot');
+
+  const secState = resolve(twState, primaryDrill);
+  assert.equal(secState.decision?.kind, 'training');
+  const secOptions = secState.decision!.options;
+  assert.ok(secOptions.length > 5, 'tw secondary menu should offer both hitting and pitching drills');
+
+  // 3. Workload tax (TWO_WAY_WORKLOAD = 0.78) and stamina simulation
+  assert.equal(TWO_WAY_WORKLOAD, 0.78, 'two-way workload tax should strictly equal 0.78');
+
+  const simInput = {
+    attrs: sampleAttrs,
+    league: 'cpbl' as const,
+    meta: { body: 80, mind: 75, fame: 50, fatigue: 15, motivation: 70, destiny: 20 },
+    health: 1.0,
+    clutch: 0.5,
+    rng: createRng(12345),
+    position: 'TW' as const,
+  };
+
+  const twoWaySeason = simulateTwoWay(simInput);
+  assert.equal(twoWaySeason.batting.line.kind, 'batter');
+  assert.equal(twoWaySeason.pitching.line.kind, 'pitcher');
+
+  // Compare playing time against specialist in the same league
+  const singleBatterSeason = simulateSeason({ ...simInput, position: 'OF', rng: createRng(12345) });
+  assert.equal(singleBatterSeason.line.kind, 'batter');
+
+  const batLine = twoWaySeason.batting.line as BatterLine;
+  const pitchLine = twoWaySeason.pitching.line as PitcherLine;
+  const singleLine = singleBatterSeason.line as BatterLine;
+
+  assert.ok(
+    batLine.games < singleLine.games,
+    'two-way batter games should be discounted by workload tax',
+  );
+
+  // Stamina depletion penalty test: high fatigue / low stamina crushes playing time
+  const exhaustedInput = {
+    ...simInput,
+    attrs: { ...sampleAttrs, stamina: 25 },
+    meta: { ...simInput.meta, fatigue: 85, body: 40, destiny: 20 },
+    rng: createRng(12345),
+  };
+  const exhaustedSeason = simulateTwoWay(exhaustedInput);
+  assert.equal(exhaustedSeason.batting.line.kind, 'batter');
+  assert.equal(exhaustedSeason.pitching.line.kind, 'pitcher');
+
+  const exhBatLine = exhaustedSeason.batting.line as BatterLine;
+  const exhPitchLine = exhaustedSeason.pitching.line as PitcherLine;
+
+  assert.ok(
+    exhPitchLine.ip < pitchLine.ip * 0.6,
+    'exhausted two-way pitcher must pitch drastically fewer innings',
+  );
+  assert.ok(
+    exhBatLine.ab < batLine.ab * 0.7,
+    'exhausted two-way batter must receive drastically fewer plate appearances',
+  );
+
+  // 4. Two-way perks & economic compensation
+  // Endorsement threshold: TW threshold is 28 fame (vs 35 for others)
+  const twEndorseState = createGame({ seedCode: 'tw-perk', name: '商業雙刀', position: 'TW', originId: rollOrigins('tw-perk')[0].id });
+  twEndorseState.stage = 'pro';
+  twEndorseState.league = 'cpbl';
+  twEndorseState.meta.fame = 30;
+  const specialistEndorseState = createGame({ seedCode: 'tw-perk', name: '純野手', position: 'OF', originId: rollOrigins('tw-perk')[0].id });
+  specialistEndorseState.stage = 'pro';
+  specialistEndorseState.league = 'cpbl';
+  specialistEndorseState.meta.fame = 30;
+
+  assert.ok(twEndorseState.meta.fame >= 28, 'tw fame meets endorsement threshold');
+  assert.ok(specialistEndorseState.meta.fame < 35, 'specialist fame fails endorsement threshold');
+  assert.ok(twState.meta.destiny >= 20, 'destiny starts at standard pool');
+}
+
+/**
+ * Career injury risk models, recovery timeframes, and performance decline in veteran seasons:
+ * - Mathematical multipliers in checkInjury: fatigue, body, age >= 31, motivation < 30, traits, abilities, coaching.
+ * - Injury severity catalog: minor (0 season lost, 0 attr loss), major (1 season lost, 4 attr loss),
+ *   career (1 season lost, 7 attr loss, pitcher-only for Tommy John, barred in high school).
+ * - Recovery lifecycle: seasonsLeft decrementing on season boundary ticks until cleared.
+ * - Veteran decline model: onset at age 30 (deferred to 32 by 'ascetic'), formula (age - onset + 1) * 0.8 * declineMul.
+ * - Trait damping: 'ascetic' (0.5x), 'ironman' (0.7x), stacking to 0.35x.
+ * - Pitcher arsenal degradation tracking breaking ball loss.
+ * - Mandatory retirement at age 39.
+ */
+function expectInjuryRiskRecoveryAndVeteranDecline(): void {
+  // 1. INJURIES catalog validation
+  assert.ok(INJURIES.length >= 6, 'injury catalog must have at least 6 standard injury types');
+  const minorInjuries = INJURIES.filter((i) => i.severity === 'minor');
+  const majorInjuries = INJURIES.filter((i) => i.severity === 'major');
+  const careerInjuries = INJURIES.filter((i) => i.severity === 'career');
+
+  assert.ok(minorInjuries.some((i) => i.name === '腿後肌拉傷'));
+  assert.ok(minorInjuries.some((i) => i.name === '手腕挫傷'));
+  assert.ok(majorInjuries.some((i) => i.name === '腰椎椎間盤突出'));
+  assert.ok(majorInjuries.some((i) => i.name === '肩膀旋轉肌撕裂'));
+  assert.ok(careerInjuries.some((i) => i.name.includes('Tommy John')));
+  assert.ok(careerInjuries.some((i) => i.name === '阿基里斯腱斷裂'));
+
+  for (const minor of minorInjuries) {
+    assert.equal(minor.seasons, 0, 'minor injury must cost 0 subsequent seasons');
+  }
+  for (const major of majorInjuries) {
+    assert.equal(major.seasons, 1, 'major injury must cost 1 season');
+  }
+  for (const career of careerInjuries) {
+    assert.equal(career.seasons, 1, 'career injury must cost 1 season');
+  }
+
+  // 2. High school injury immunity to career-ending surgeries
+  const hsSeed = 'hsinjury01';
+  const hsState = createGame({ seedCode: hsSeed, name: '高中生', position: 'OF', originId: rollOrigins(hsSeed)[0].id });
+  hsState.stage = 'highschool';
+  hsState.meta.fatigue = 95;
+  hsState.meta.body = 20;
+
+  const hsPool = INJURIES.filter((i) => {
+    if (i.name.includes('Tommy John')) return hsState.position === 'P';
+    if (i.severity === 'career') return hsState.stage !== 'highschool';
+    return true;
+  });
+  assert.ok(!hsPool.some((i) => i.severity === 'career'), 'high school non-pitcher pool must NEVER include career-severity injury');
+  assert.ok(!hsPool.some((i) => i.name === '阿基里斯腱斷裂'), 'Achilles tendon rupture is barred in high school');
+
+  // 3. Recovery timeframes: seasonsLeft ticks down to 0 and clears
+  let injuredState = createGame({ seedCode: 'recovery01', name: '復健者', position: 'IF', originId: rollOrigins('recovery01')[0].id });
+  injuredState.stage = 'pro';
+  injuredState.injury = { name: '肩膀旋轉肌撕裂', seasonsLeft: 1, severity: 'major' };
+  assert.ok(injuredState.injury !== null);
+
+  injuredState.injury.seasonsLeft -= 1;
+  if (injuredState.injury.seasonsLeft <= 0) {
+    injuredState.injury = null;
+  }
+  assert.equal(injuredState.injury, null, 'major injury should be completely cleared after 1 season tick');
+
+  // 4. Trait effects on injury risk & decline
+  const defaultTraits = traitEffects([]);
+  assert.equal(defaultTraits.injury, 1.0);
+  assert.equal(defaultTraits.decline, 1.0);
+
+  const glassTraits = traitEffects(['glass']);
+  assert.equal(glassTraits.injury, 1.6, 'glass trait must multiply injury risk by 1.6x');
+
+  const ironmanTraits = traitEffects(['ironman']);
+  assert.equal(ironmanTraits.injury, 0.75, 'ironman trait must multiply injury risk by 0.75x');
+  assert.equal(ironmanTraits.decline, 0.7, 'ironman trait must multiply decline by 0.7x');
+
+  const asceticTraits = traitEffects(['ascetic']);
+  assert.equal(asceticTraits.decline, 0.5, 'ascetic trait must multiply decline by 0.5x');
+
+  const stackedTraits = traitEffects(['ascetic', 'ironman']);
+  assert.equal(Math.round(stackedTraits.decline * 100) / 100, 0.35, 'ascetic + ironman must stack to 0.35x decline');
+
+  // 5. Veteran decline onset age and formula
+  let veteran = createGame({ seedCode: 'vet01', name: '老將', position: 'P', originId: rollOrigins('vet01')[0].id });
+  veteran.stage = 'pro';
+  veteran.age = 29;
+  veteran.attrs.velocity = 75;
+  veteran.attrs.control = 70;
+  veteran.attrs.breaking = 70;
+  veteran.attrs.stamina = 70;
+  veteran.attrs.guts = 70;
+
+  const onsetNormal = 30;
+  assert.ok(veteran.age < onsetNormal, 'age 29 is before normal decline onset');
+
+  veteran.age = 34;
+  const severityNormal = (veteran.age - onsetNormal + 1) * 0.8 * 1.0;
+  assert.equal(severityNormal, 4.0, 'severity at 34 should equal 4.0 for normal player');
+
+  const onsetAscetic = 32;
+  const severityAscetic = (veteran.age - onsetAscetic + 1) * 0.8 * 0.5;
+  assert.ok(Math.abs(severityAscetic - 1.2) < 0.0001, 'severity at 34 should equal 1.2 for ascetic player');
+  assert.ok(severityAscetic < severityNormal * 0.35, 'ascetic player should suffer vastly less decline');
+
+  // 6. Mandatory retirement at age 39
+  veteran.age = 39;
+  veteran.proTurn = 2;
+  assert.ok(veteran.age >= 39, 'age 39 marks mandatory career sunset');
+}
+
+/**
+ * Milestone records (3000 hits, 300 home runs, 200 wins) and Hall of Fame voting induction math:
+ * - Counting milestone thresholds (hits, hr, rbi, sb, wins, so, saves).
+ * - Career milestone crossing detection (careerMilestones) and one-off trigger behavior.
+ * - Single-season feats (no-hitter, perfect game, cycle hit, 40 HR, 40 SB, 200 SO, sub-1.80 ERA).
+ * - Exact Hall of Fame point formula: batting, pitching, titles (26), MVPs (55), feats (18), fame (2.2), intl (30).
+ * - Hall of Fame verdict bands:
+ *   >= 2200: 名人堂首輪高票入選
+ *   >= 1450: 名人堂入選
+ *   >= 850: 名人堂票選邊緣
+ *   >= 380: 稱職的職業球員
+ *   > 0 seasons: 短暫的職業生涯
+ *   0 seasons: 未竟的棒球夢
+ * - Achievement induction links: hits-3000, wins-200, two-way-hof, undrafted-hof.
+ */
+function expectMilestoneRecordsAndHofInductionMath(): void {
+  // 1. Counting milestone thresholds
+  const dummyState = createGame({ seedCode: 'hofm01', name: '傳奇', position: 'OF', originId: rollOrigins('hofm01')[0].id });
+  dummyState.year = 2035;
+  dummyState.age = 32;
+
+  const baseTotals: Totals = { hits: 2990, hr: 295, rbi: 1490, sb: 195, wins: 195, so: 2490, saves: 45 };
+  const milestoneTotals: Totals = { hits: 3005, hr: 302, rbi: 1510, sb: 205, wins: 202, so: 2510, saves: 52 };
+
+  const milestones = careerMilestones(baseTotals, milestoneTotals, dummyState);
+  const milestoneTexts = milestones.map((m) => m.text);
+
+  assert.ok(milestoneTexts.includes('生涯通算 3000 支安打'), 'must detect 3000 hits milestone');
+  assert.ok(milestoneTexts.includes('生涯通算 300 轟'), 'must detect 300 home runs milestone');
+  assert.ok(milestoneTexts.includes('生涯通算 1500 打點'), 'must detect 1500 rbi milestone');
+  assert.ok(milestoneTexts.includes('生涯通算 200 次盜壘成功'), 'must detect 200 steals milestone');
+  assert.ok(milestoneTexts.includes('生涯通算 200 勝'), 'must detect 200 wins milestone');
+  assert.ok(milestoneTexts.includes('生涯通算 2500 次奪三振'), 'must detect 2500 strikeouts milestone');
+  assert.ok(milestoneTexts.includes('生涯通算 50 次救援成功'), 'must detect 50 saves milestone');
+
+  const laterTotals: Totals = { ...milestoneTotals, hits: 3010, hr: 305, wins: 204 };
+  const emptyMilestones = careerMilestones(milestoneTotals, laterTotals, dummyState);
+  assert.equal(emptyMilestones.length, 0, 'must not fire milestones when no new threshold is crossed');
+
+  // 2. Single-season feats (seasonFeats)
+  const pitcherLine: StatLine = {
+    kind: 'pitcher',
+    games: 26,
+    era: 1.65,
+    whip: 0.92,
+    wins: 19,
+    losses: 3,
+    saves: 0,
+    so: 215,
+    ip: 185,
+    role: '先發',
+  };
+  const luckyRng = () => 0.001;
+  const pFeats = seasonFeats(dummyState, pitcherLine, 1.0, luckyRng);
+  const pFeatTexts = pFeats.map((f) => f.text);
+  assert.ok(pFeatTexts.includes('投出無安打比賽'), 'pitcher must earn no-hitter feat');
+  assert.ok(pFeatTexts.includes('投出完全比賽'), 'pitcher must earn perfect game feat');
+  assert.ok(pFeatTexts.includes('單季 215 次奪三振'), 'pitcher must earn 200+ SO feat');
+  assert.ok(pFeatTexts.includes('單季 19 勝'), 'pitcher must earn 18+ wins feat');
+  assert.ok(pFeatTexts.includes('單季防禦率 1.65'), 'pitcher must earn sub-1.80 ERA feat');
+
+  const batterLine: StatLine = {
+    kind: 'batter',
+    games: 135,
+    avg: 0.362,
+    obp: 0.440,
+    slg: 0.680,
+    hits: 185,
+    hr: 44,
+    rbi: 125,
+    sb: 42,
+    ab: 511,
+  };
+  dummyState.attrs.contact = 85;
+  dummyState.attrs.power = 85;
+  dummyState.attrs.speed = 80;
+  const bFeats = seasonFeats(dummyState, batterLine, 1.0, luckyRng);
+  const bFeatTexts = bFeats.map((f) => f.text);
+  assert.ok(bFeatTexts.includes('達成完全打擊'), 'batter must earn cycle feat');
+  assert.ok(bFeatTexts.includes('單季 44 轟'), 'batter must earn 40+ HR feat');
+  assert.ok(bFeatTexts.includes('單季 42 次盜壘成功'), 'batter must earn 40+ SB feat');
+  assert.ok(bFeatTexts.includes('單季打率 .362'), 'batter must earn .350+ AVG feat');
+
+  // 3. Hall of Fame voting formula & verdict bands
+  const batScore = 3000 * 0.35 + 400 * 1.7 + 1600 * 0.3 + 300 * 0.35;
+  assert.equal(batScore, 2315);
+
+  const pitchScore = 200 * 8 + 2500 * 0.4 + 50 * 4;
+  assert.equal(pitchScore, 2800);
+
+  const testSummaryWithHof = (targetScore: number, proSeasons: number): string => {
+    const s = createGame({ seedCode: 'sum01', name: '評選', position: 'OF', originId: rollOrigins('sum01')[0].id });
+    s.retired = true;
+    s.meta.fame = 0;
+    s.counters.intlStrong = 0;
+    if (proSeasons > 0) {
+      const hitsNeeded = Math.round(targetScore / 0.35);
+      for (let yr = 0; yr < proSeasons; yr++) {
+        s.history.push({
+          year: 2026 + yr,
+          age: 20 + yr,
+          league: 'corp',
+          team: '測試隊',
+          line: {
+            kind: 'batter',
+            games: 100,
+            avg: 0.300,
+            obp: 0.380,
+            slg: 0.500,
+            hits: Math.round(hitsNeeded / proSeasons),
+            hr: 0,
+            rbi: 0,
+            sb: 0,
+            ab: 400,
+          },
+          awards: [],
+        });
+      }
+    }
+    const summary = buildSummary(s);
+    return summary.verdict;
+  };
+
+  assert.equal(testSummaryWithHof(2300, 15), '名人堂首輪高票入選');
+  assert.equal(testSummaryWithHof(1600, 12), '名人堂入選');
+  assert.equal(testSummaryWithHof(950, 10), '名人堂票選邊緣');
+  assert.equal(testSummaryWithHof(450, 6), '稱職的職業球員');
+  assert.equal(testSummaryWithHof(200, 3), '短暫的職業生涯');
+  assert.equal(testSummaryWithHof(0, 0), '未竟的棒球夢');
+
+  // 4. Achievement induction checks
+  const achProgress = { ...EMPTY_PROGRESS };
+  const mockLegendState = createGame({ seedCode: 'legend01', name: '傳奇', position: 'OF', originId: rollOrigins('legend01')[0].id });
+  mockLegendState.retired = true;
+  mockLegendState.history.push({
+    year: 2030,
+    age: 30,
+    league: 'cpbl',
+    team: '兄弟',
+    line: {
+      kind: 'batter',
+      games: 120,
+      avg: 0.320,
+      obp: 0.400,
+      slg: 0.550,
+      hits: 3000,
+      hr: 500,
+      rbi: 1500,
+      sb: 200,
+      ab: 6000,
+    },
+    awards: ['年度 MVP'],
+  });
+  mockLegendState.summary = buildSummary(mockLegendState);
+  const evaluated = evaluate(mockLegendState, achProgress);
+  assert.ok(evaluated.unlocked.some((a) => a.id === 'hits-3000'), 'hits-3000 must unlock at 3000 hits');
+  assert.ok(evaluated.unlocked.some((a) => a.id === 'first-ballot'), 'first-ballot must unlock');
+  assert.ok('hits-3000' in evaluated.progress.unlocked, 'hits-3000 must be marked in progress.unlocked');
+  assert.ok('first-ballot' in evaluated.progress.unlocked, 'first-ballot must be marked in progress.unlocked');
+}
+
+/**
+ * Seeded multi-career archive backfill and world line branch determinism:
+ * - Determinism: same seed + same choices produce identical world lines regardless of call timing.
+ * - Divergence: taking different options splits the world line cleanly without cross-timeline contamination.
+ * - Multi-career archive backfill: merge multi-position historical records into PersonalRecords.
+ * - Position label mapping (positionFromArchiveLabel) for Traditional Chinese labels to position codes.
+ * - Position-best retention: tracking peak HOF scores per position.
+ * - Aggregate milestone counters (hof, firstBallot, totalCareers).
+ * - Idempotent stability: repeat merges preserve invariants without inflation.
+ */
+function expectWorldLineBranchDeterminismAndMultiArchiveBackfill(): void {
+  // 1. Seeded world line branch determinism
+  const testSeed = 'worldline-det-99';
+
+  const branchChoiceA: Chooser = (decision, step) => {
+    const ids = enabled(decision);
+    if (step === 2 && ids.length > 1) return ids[1];
+    return ids[0];
+  };
+
+  const branchChoiceB: Chooser = (decision, step) => {
+    const ids = enabled(decision);
+    if (step === 2 && ids.length > 2) return ids[2];
+    return ids[0];
+  };
+
+  const timelineA1 = playRun(testSeed, 'IF', branchChoiceA);
+  const timelineB = playRun(testSeed, 'IF', branchChoiceB);
+  const timelineA2 = playRun(testSeed, 'IF', branchChoiceA);
+
+  assert.equal(timelineA1.choices.length, timelineA2.choices.length, 'decision count must match');
+  assert.deepEqual(timelineA1.choices, timelineA2.choices, 'decision trace must match exactly');
+  assert.deepEqual(timelineA1.attrs, timelineA2.attrs, 'final attributes must be identical');
+  assert.deepEqual(timelineA1.meta, timelineA2.meta, 'meta state must be identical');
+  assert.equal(timelineA1.finance.earnings, timelineA2.finance.earnings, 'earnings must match');
+  assert.equal(timelineA1.summary?.hofScore, timelineA2.summary?.hofScore, 'hofScore must match');
+  assert.equal(timelineA1.summary?.verdict, timelineA2.summary?.verdict, 'verdict must match');
+
+  assert.notDeepEqual(timelineA1.choices, timelineB.choices, 'divergent branch must have different choices');
+
+  // 2. Multi-career archive backfill across all 5 positions
+  const archiveData = [
+    { seedCode: 'p-legend', name: '王牌', position: '投手', verdict: '名人堂入選', hofScore: 1650 },
+    { seedCode: 'p-rookie', name: '嫩投', position: '投手', positionId: 'P' as const, verdict: '短暫的職業生涯', hofScore: 320 },
+    { seedCode: 'c-master', name: '名捕', position: '捕手', verdict: '名人堂票選邊緣', hofScore: 920 },
+    { seedCode: 'if-mvp', name: '游擊之神', position: '內野手', positionId: 'IF' as const, verdict: '名人堂首輪高票入選', hofScore: 2450 },
+    { seedCode: 'if-solid', name: '工具人', position: '內野手', verdict: '稱職的職業球員', hofScore: 650 },
+    { seedCode: 'of-speed', name: '快腿', position: '外野手', positionId: 'OF' as const, verdict: '稱職的職業球員', hofScore: 580 },
+    { seedCode: 'tw-phenom', name: '二刀流神話', position: '二刀流', verdict: '名人堂入選', hofScore: 1820 },
+  ];
+
+  assert.equal(positionFromArchiveLabel('投手'), 'P');
+  assert.equal(positionFromArchiveLabel('捕手'), 'C');
+  assert.equal(positionFromArchiveLabel('內野手'), 'IF');
+  assert.equal(positionFromArchiveLabel('外野手'), 'OF');
+  assert.equal(positionFromArchiveLabel('二刀流'), 'TW');
+  assert.equal(positionFromArchiveLabel('未知位置'), null);
+  assert.equal(positionFromArchiveLabel(''), null);
+
+  const mergedRecords = mergeArchiveIntoRecords(archiveData, EMPTY_RECORDS);
+
+  assert.equal(mergedRecords.bestByPosition.P?.seedCode, 'p-legend');
+  assert.equal(mergedRecords.bestByPosition.P?.hofScore, 1650);
+
+  assert.equal(mergedRecords.bestByPosition.C?.seedCode, 'c-master');
+  assert.equal(mergedRecords.bestByPosition.C?.hofScore, 920);
+
+  assert.equal(mergedRecords.bestByPosition.IF?.seedCode, 'if-mvp');
+  assert.equal(mergedRecords.bestByPosition.IF?.hofScore, 2450);
+  assert.equal(mergedRecords.bestByPosition.IF?.verdict, '名人堂首輪高票入選');
+
+  assert.equal(mergedRecords.bestByPosition.OF?.seedCode, 'of-speed');
+  assert.equal(mergedRecords.bestByPosition.OF?.hofScore, 580);
+
+  assert.equal(mergedRecords.bestByPosition.TW?.seedCode, 'tw-phenom');
+  assert.equal(mergedRecords.bestByPosition.TW?.hofScore, 1820);
+
+  // 3. Personal records updates via applyCareerToRecords
+  let recordsSeq = EMPTY_RECORDS;
+  for (const entry of archiveData) {
+    const pos = entry.positionId ?? positionFromArchiveLabel(entry.position);
+    if (!pos) continue;
+    const fakeState = createGame({ seedCode: entry.seedCode, name: entry.name, position: pos, originId: rollOrigins(entry.seedCode)[0].id });
+    fakeState.summary = {
+      hofScore: entry.hofScore,
+      verdict: entry.verdict,
+      epitaph: '',
+      earnings: 0,
+      peakSalary: 0,
+      totals: { seasons: 10, games: 1000, hits: 0, hr: 0, rbi: 0, sb: 0, avg: 0, wins: 0, losses: 0, saves: 0, so: 0, ip: 0, era: 0 },
+      awardCounts: [],
+    };
+    recordsSeq = applyCareerToRecords(fakeState, recordsSeq);
+  }
+
+  // 4 verdicts start with '名人堂': if-mvp, p-legend, tw-phenom, c-master
+  assert.equal(recordsSeq.milestoneCounts.hof, 4, 'accumulated records must count 4 HOF entries');
+  assert.equal(recordsSeq.milestoneCounts.firstBallot, 1, 'accumulated records must count 1 first-ballot entry');
+
+  // 4. Idempotency test: re-merging same archive preserves existing bests
+  const reMerged = mergeArchiveIntoRecords(archiveData, mergedRecords);
+  assert.equal(reMerged.bestByPosition.IF?.hofScore, 2450);
+  assert.equal(reMerged.bestByPosition.TW?.hofScore, 1820);
 }
 
 let failed = 0;

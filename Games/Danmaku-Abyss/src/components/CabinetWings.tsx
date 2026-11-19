@@ -238,7 +238,7 @@ export function CabinetRightWing({
           <span className="font-mono text-fuchsia-300">[Shift] 判定點縮小</span>
         </div>
         <div className="flex justify-between items-center text-[11px]">
-          <span className="text-slate-400">機體特技</span>
+          <span className="text-slate-400">專屬特技</span>
           <span className="font-mono text-teal-300">[X] 冷卻技</span>
         </div>
         <div className="flex justify-between items-center text-[11px]">

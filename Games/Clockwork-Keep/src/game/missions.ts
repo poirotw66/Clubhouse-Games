@@ -37,6 +37,13 @@ export interface MissionRunConfig {
   winAtWave: number;
 }
 
+export interface MissionSecondaryConstraint {
+  id: string;
+  label: string;
+  description: string;
+  check: (state: GameState) => boolean;
+}
+
 export interface MissionDef {
   id: string;
   /** Traditional Chinese display name. */
@@ -47,6 +54,8 @@ export interface MissionDef {
   goalLabel: string;
   goal: MissionGoal;
   run: MissionRunConfig;
+  /** Secondary constraints for bonus mastery / achievements. */
+  secondaryConstraints?: MissionSecondaryConstraint[];
 }
 
 /**
@@ -68,6 +77,14 @@ export const MISSION_PACK: readonly MissionDef[] = [
       allowSell: true,
       winAtWave: TOTAL_WAVES,
     },
+    secondaryConstraints: [
+      {
+        id: 'flawless',
+        label: '無損防守',
+        description: '通關時保留全部 20 點生命（完美無損）',
+        check: (s) => s.lives >= 20,
+      },
+    ],
   },
   {
     id: 'corridor-harsh',
@@ -83,6 +100,14 @@ export const MISSION_PACK: readonly MissionDef[] = [
       allowSell: true,
       winAtWave: TOTAL_WAVES,
     },
+    secondaryConstraints: [
+      {
+        id: 'iron-survival',
+        label: '極限生還',
+        description: '嚴苛難度下通關保留至少 5 點生命',
+        check: (s) => s.lives >= 5,
+      },
+    ],
   },
   {
     id: 'dual-tower',
@@ -98,6 +123,14 @@ export const MISSION_PACK: readonly MissionDef[] = [
       allowSell: true,
       winAtWave: TOTAL_WAVES,
     },
+    secondaryConstraints: [
+      {
+        id: 'minimalist',
+        label: '精工陣列',
+        description: '全場部署不超過 12 座防禦塔通關',
+        check: (s) => s.towers.length <= 12,
+      },
+    ],
   },
   {
     id: 'no-sell',
@@ -113,6 +146,14 @@ export const MISSION_PACK: readonly MissionDef[] = [
       allowSell: false,
       winAtWave: TOTAL_WAVES,
     },
+    secondaryConstraints: [
+      {
+        id: 'brass-reserve',
+        label: '黃銅儲備',
+        description: '通關時結存金幣達 150 ⚙ 以上',
+        check: (s) => s.gold >= 150,
+      },
+    ],
   },
   {
     id: 'endless-thirty',
@@ -128,6 +169,14 @@ export const MISSION_PACK: readonly MissionDef[] = [
       allowSell: true,
       winAtWave: 30,
     },
+    secondaryConstraints: [
+      {
+        id: 'deep-fortress',
+        label: '深淵長征',
+        description: '在無盡模式撐過第 32 波',
+        check: (s) => s.wave >= 32,
+      },
+    ],
   },
   {
     id: 'harsh-splash',
@@ -143,6 +192,14 @@ export const MISSION_PACK: readonly MissionDef[] = [
       allowSell: true,
       winAtWave: TOTAL_WAVES,
     },
+    secondaryConstraints: [
+      {
+        id: 'combo-frenzy',
+        label: '連擊狂潮',
+        description: '單局達成 8 連擊以上',
+        check: (s) => (s.maxCombo || 0) >= 8,
+      },
+    ],
   },
   {
     id: 'fork-standard',
@@ -158,6 +215,14 @@ export const MISSION_PACK: readonly MissionDef[] = [
       allowSell: true,
       winAtWave: TOTAL_WAVES,
     },
+    secondaryConstraints: [
+      {
+        id: 'balanced-lanes',
+        label: '雙翼齊全',
+        description: '通關時保留至少 15 點生命',
+        check: (s) => s.lives >= 15,
+      },
+    ],
   },
   {
     id: 'islands-harsh',
@@ -173,6 +238,14 @@ export const MISSION_PACK: readonly MissionDef[] = [
       allowSell: true,
       winAtWave: TOTAL_WAVES,
     },
+    secondaryConstraints: [
+      {
+        id: 'archipelago-bastion',
+        label: '群島要塞',
+        description: '嚴苛難度下通關保留至少 8 點生命',
+        check: (s) => s.lives >= 8,
+      },
+    ],
   },
   {
     id: 'dual-standard',
@@ -188,6 +261,14 @@ export const MISSION_PACK: readonly MissionDef[] = [
       allowSell: true,
       winAtWave: TOTAL_WAVES,
     },
+    secondaryConstraints: [
+      {
+        id: 'high-scorer',
+        label: '精密計分',
+        description: '通關結算總分達到 1,200 分以上',
+        check: (s) => s.score >= 1200,
+      },
+    ],
   },
   {
     id: 'gauntlet-hammer',
@@ -203,6 +284,14 @@ export const MISSION_PACK: readonly MissionDef[] = [
       allowSell: true,
       winAtWave: TOTAL_WAVES,
     },
+    secondaryConstraints: [
+      {
+        id: 'overdrive-mastery',
+        label: '超頻碾壓',
+        description: '單局內啟動發條超頻達 2 次以上',
+        check: (s) => (s.overdriveCount || 0) >= 2,
+      },
+    ],
   },
 ];
 
@@ -369,4 +458,73 @@ export function assertMissionConfigs(): void {
   if (MISSION_PACK.length < 4 || MISSION_PACK.length > 12) {
     throw new Error(`mission pack size ${MISSION_PACK.length} outside 4–12`);
   }
+}
+
+export interface MissionAchievement {
+  id: string;
+  name: string;
+  description: string;
+  evaluate: (progress: MissionProgress, state?: GameState) => boolean;
+}
+
+export const MISSION_ACHIEVEMENTS: readonly MissionAchievement[] = [
+  {
+    id: 'master-mechanic',
+    name: '機關大宗師',
+    description: '通關任務包全部 10 則任務',
+    evaluate: (p) => p.clearedCount >= 10,
+  },
+  {
+    id: 'iron-cog',
+    name: '不拔齒輪',
+    description: '通關全部 3 則嚴苛難度任務（窄廊嚴苛、嚴苛濺射、群島嚴苛）',
+    evaluate: (p) => Boolean(p.cleared['corridor-harsh'] && p.cleared['harsh-splash'] && p.cleared['islands-harsh']),
+  },
+  {
+    id: 'clockwork-purist',
+    name: '發條原教旨',
+    description: '通關一鏡到底任務且結算金幣達 150 ⚙',
+    evaluate: (p, s) => Boolean(p.cleared['no-sell'] && (s?.missionId === 'no-sell' ? s.gold >= 150 : true)),
+  },
+  {
+    id: 'endless-legend',
+    name: '永動奇蹟',
+    description: '在無盡三十任務中達到或超越 32 波',
+    evaluate: (p) => (p.bestWave['endless-thirty'] ?? 0) >= 32,
+  },
+  {
+    id: 'overdrive-maestro',
+    name: '超頻演奏家',
+    description: '在任務中單局啟動發條超頻達 2 次以上',
+    evaluate: (_p, s) => Boolean(s && (s.overdriveCount || 0) >= 2),
+  },
+  {
+    id: 'combo-artisan',
+    name: '連擊工匠',
+    description: '在任務中達成 8 連擊以上',
+    evaluate: (_p, s) => Boolean(s && (s.maxCombo || 0) >= 8),
+  },
+];
+
+export function evaluateMissionSecondaryConstraints(
+  mission: MissionDef,
+  state: GameState,
+): { allMet: boolean; results: Array<{ id: string; label: string; met: boolean }> } {
+  if (!mission.secondaryConstraints || mission.secondaryConstraints.length === 0) {
+    return { allMet: true, results: [] };
+  }
+  const results = mission.secondaryConstraints.map((c) => ({
+    id: c.id,
+    label: c.label,
+    met: c.check(state),
+  }));
+  const allMet = results.every((r) => r.met);
+  return { allMet, results };
+}
+
+export function evaluateBranchingAchievements(
+  progress: MissionProgress,
+  state?: GameState,
+): string[] {
+  return MISSION_ACHIEVEMENTS.filter((a) => a.evaluate(progress, state)).map((a) => a.id);
 }

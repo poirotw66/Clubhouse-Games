@@ -1148,7 +1148,8 @@ test('clockwork-keep: map unlocks, branch panel, and mission pack size', async (
   // Select placed tower → shared upgrade → exclusive branch chooser.
   await page.mouse.click(box.x + box.width * 0.35, box.y + box.height * 0.45);
   await activate(page.getByRole('button', { name: /基礎升級/ }), isMobile);
-  await page.mouse.click(box.x + box.width * 0.35, box.y + box.height * 0.45);
+  const curBox = (await canvas.boundingBox()) ?? box;
+  await page.mouse.click(curBox.x + curBox.width * 0.35, curBox.y + curBox.height * 0.45);
   await expect(page.getByRole('button', { name: /穿甲釘/ })).toBeVisible();
   await expect(page.getByRole('button', { name: /連射弦/ })).toBeVisible();
   await activate(page.getByRole('button', { name: /穿甲釘/ }), isMobile);

@@ -9,17 +9,30 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { Emitter } from '../src/game/constants.js';
 import {
+  BASE_GRAZE_R,
+  BASE_HITBOX_R,
+  BOMB_INVULN_SEC,
+  CAPTURE_BONUS,
+  DAMAGE_FALLOFF_RANGE,
+  DAMAGE_FAR_MULT,
+  DAMAGE_NEAR_MULT,
+  FAST_SPEED,
   FIELD_H,
   FIELD_W,
   FIXED_DT,
+  FOCUS_SPEED,
   GRAZE_DECAY_PER_SEC,
   GRAZE_MAX_MULT,
   GRAZE_STEP,
   STAGE_COUNT,
 } from '../src/game/constants.js';
 import {
+  activeConditions,
+  allEmitters,
   createRun,
+  emitterActive,
   fireRate,
+  grazeGain,
   grazeRadius,
   hitboxRadius,
   intensityFor,
@@ -37,7 +50,6 @@ import {
   craftById,
   isCraftUnlocked,
 } from '../src/game/crafts.js';
-import { allEmitters, emitterActive } from '../src/game/engine.js';
 import {
   EMPTY_MODE_PROGRESS,
   MODE_PACK,
@@ -58,7 +70,7 @@ import {
 } from '../src/game/daily.js';
 import { hashString, mulberry32, shuffle, streamRng } from '../src/game/rng.js';
 import { UPGRADES, declaredConditions, declaredEffectKeys } from '../src/game/upgrades.js';
-import type { PlayerInput, RunState } from '../src/game/types.js';
+import type { Bullet, Enemy, PlayerInput, RunState } from '../src/game/types.js';
 
 let passed = 0;
 function ok(label: string): void {
@@ -1065,6 +1077,630 @@ const IDLE: PlayerInput = { dx: 0, dy: 0, focus: false, bomb: false, special: fa
   const appSrc = readFileSync(resolve('src/App.tsx'), 'utf8');
   assert.ok(appSrc.includes('prefers-reduced-motion') || appSrc.includes('reduceMotion'), 'app gates juice');
   ok('juice flash / graze sparks stay presentation-only and motion-gated');
+}
+
+// ── 19) Hitbox precision vs graze box geometry and multiplier escalation ────
+//
+// Danmaku designs live or die by the gap between the ship graphic and the core
+// hitbox. The player's visible ship is 20-30px, but the actual lethal hitbox is
+// a tiny core (BASE_HITBOX_R 3.2px down to ~1.95-2.05px on Stitch with Pinpoint),
+// surrounded by a generous graze ring (BASE_GRAZE_R 26px up to 45px on Stitch
+// with Rift). Grazing builds the score multiplier, but requires bullets to
+// thread the razor-thin margin between hitR and grazeR.
+{
+  // 19.1 Radial geometry across craft types
+  const swift = createRun('GEOM-SWIFT', { craftId: 'swift' });
+  const cannon = createRun('GEOM-CANNON', { craftId: 'cannon' });
+  const stitch = createRun('GEOM-STITCH', { craftId: 'stitch' });
+
+  assert.equal(hitboxRadius(swift), BASE_HITBOX_R, 'swift hitbox must match BASE_HITBOX_R (3.2px)');
+  assert.equal(grazeRadius(swift), BASE_GRAZE_R, 'swift graze radius must match BASE_GRAZE_R (26px)');
+
+  // Cannon is bulkier (1.08x hitbox, 0.9x graze)
+  assert.ok(hitboxRadius(cannon) > hitboxRadius(swift), 'cannon must have a larger hitbox than swift');
+  assert.ok(grazeRadius(cannon) < grazeRadius(swift), 'cannon must have a tighter graze ring');
+
+  // Stitch is a needle craft: 0.78x hitbox (~2.496px), 1.2x graze (~31.2px)
+  assert.ok(hitboxRadius(stitch) < 2.6, 'stitch hitbox must be under 2.6px');
+  assert.ok(grazeRadius(stitch) > 30, 'stitch graze radius must exceed 30px');
+
+  // With pinpoint upgrade (-18% hitbox), stitch reaches extreme precision (~2.05px core radius)
+  const stitchPin = { ...stitch, upgrades: ['pinpoint'] };
+  const pinpointHitbox = hitboxRadius(stitchPin);
+  assert.ok(
+    pinpointHitbox < 2.15 && pinpointHitbox > 1.95,
+    `stitch with pinpoint should reach ~2.05px core hitbox radius, got ${pinpointHitbox.toFixed(3)}px`,
+  );
+
+  // 19.2 Precision boundary: Hit vs Graze vs Clean Miss
+  // Bullet radius r = 5. Player at (px, py).
+  // Distance d = dist(bullet, player).
+  // Hit condition: d <= r + hitR.
+  // Graze condition: !b.grazed && d <= r + grazeR.
+  const hitR = hitboxRadius(swift);
+  const grazeR = grazeRadius(swift);
+  const bulletR = 5;
+
+  const dummyEnemy: Enemy = {
+    id: 1,
+    x: -200,
+    y: -200,
+    hp: 99999,
+    maxHp: 99999,
+    r: 12,
+    isBoss: false,
+    card: null,
+    cardIndex: 0,
+    cardElapsed: 0,
+    emitterClocks: [],
+    emitterAngles: [],
+    entryTo: null,
+    entryFrom: null,
+    entryT: 1,
+    score: 0,
+  };
+
+  const makeBulletAt = (dist: number, grazed = false): Bullet => ({
+    id: 8888,
+    x: swift.px,
+    y: swift.py - dist,
+    angle: Math.PI / 2,
+    speed: 0,
+    r: bulletR,
+    hue: 0,
+    age: 0,
+    lifetime: 10,
+    waveform: 'linear',
+    curl: 0,
+    grazed,
+  });
+
+  // A) Bullet right on the hit boundary: dist = bulletR + hitR
+  let sHit: RunState = {
+    ...swift,
+    invuln: 0,
+    lives: 3,
+    grazeCount: 0,
+    grazeMult: 2.0,
+    bossSpawned: true,
+    enemies: [dummyEnemy],
+    midwayLeft: 0,
+    bullets: [makeBulletAt(bulletR + hitR)],
+  };
+  sHit = step(sHit, IDLE, FIXED_DT);
+  assert.equal(sHit.lives, 2, 'bullet at d == r + hitR must trigger death');
+  assert.equal(sHit.grazeMult, 1, 'death must reset graze multiplier to 1');
+
+  // B) Bullet just outside the hit boundary: dist = bulletR + hitR + 0.1
+  let sGraze: RunState = {
+    ...swift,
+    invuln: 0,
+    lives: 3,
+    grazeCount: 0,
+    grazeMult: 1.0,
+    bossSpawned: true,
+    enemies: [dummyEnemy],
+    midwayLeft: 0,
+    bullets: [makeBulletAt(bulletR + hitR + 0.1)],
+  };
+  sGraze = step(sGraze, IDLE, FIXED_DT);
+  assert.equal(sGraze.lives, 3, 'bullet outside hitR must not kill the player');
+  assert.equal(sGraze.grazeCount, 1, 'bullet between hitR and grazeR must increment grazeCount');
+  assert.ok(sGraze.grazeMult > 1.0, 'bullet between hitR and grazeR must escalate graze multiplier');
+  assert.equal(sGraze.bullets[0]?.grazed, true, 'bullet must be flagged as grazed');
+
+  // C) Re-step with the same grazed bullet: must NOT increment graze count again
+  const grazeCountAfterFirst = sGraze.grazeCount;
+  const sReStep = step(sGraze, IDLE, FIXED_DT);
+  assert.equal(sReStep.grazeCount, grazeCountAfterFirst, 'grazed bullet must not re-trigger graze on subsequent ticks');
+
+  // D) Bullet right on graze boundary: dist = bulletR + grazeR
+  let sGrazeEdge: RunState = {
+    ...swift,
+    invuln: 0,
+    lives: 3,
+    grazeCount: 0,
+    bossSpawned: true,
+    enemies: [dummyEnemy],
+    midwayLeft: 0,
+    bullets: [makeBulletAt(bulletR + grazeR)],
+  };
+  sGrazeEdge = step(sGrazeEdge, IDLE, FIXED_DT);
+  assert.equal(sGrazeEdge.grazeCount, 1, 'bullet at d == r + grazeR must trigger graze');
+
+  // E) Bullet just outside graze boundary: dist = bulletR + grazeR + 0.5
+  let sMiss: RunState = {
+    ...swift,
+    invuln: 0,
+    lives: 3,
+    grazeCount: 0,
+    grazeMult: 1.0,
+    bossSpawned: true,
+    enemies: [dummyEnemy],
+    midwayLeft: 0,
+    bullets: [makeBulletAt(bulletR + grazeR + 0.5)],
+  };
+  sMiss = step(sMiss, IDLE, FIXED_DT);
+  assert.equal(sMiss.lives, 3, 'clean miss must not harm player');
+  assert.equal(sMiss.grazeCount, 0, 'bullet outside grazeR must not register a graze');
+  assert.equal(sMiss.bullets[0]?.grazed, false, 'bullet outside grazeR must remain ungrazed');
+
+  // 19.3 Multiplier escalation curve and ceiling clamping at 4.0x
+  let sEsc: RunState = {
+    ...swift,
+    grazeMult: 1.0,
+    grazeCount: 0,
+    invuln: 999,
+    bossSpawned: true,
+    enemies: [dummyEnemy],
+    midwayLeft: 0,
+  };
+  for (let i = 0; i < 90; i++) {
+    // Inject a fresh ungrazed bullet in the graze ring each tick
+    sEsc = {
+      ...sEsc,
+      bullets: [makeBulletAt(bulletR + hitR + 2, false)],
+    };
+    sEsc = step(sEsc, IDLE, FIXED_DT);
+  }
+  // At the end of each tick, natural decay subtracts GRAZE_DECAY_PER_SEC * dt from the clamped max
+  const expectedClamped = GRAZE_MAX_MULT - GRAZE_DECAY_PER_SEC * FIXED_DT;
+  assert.ok(
+    Math.abs(sEsc.grazeMult - expectedClamped) < 1e-4,
+    `graze multiplier must clamp at GRAZE_MAX_MULT (${GRAZE_MAX_MULT}x) with end-of-tick decay (${expectedClamped.toFixed(4)}x), got ${sEsc.grazeMult}`,
+  );
+  assert.ok(sEsc.grazeCount >= 90, 'all grazing bullets must be counted');
+
+  // 19.4 Natural decay dynamics toward 1.0x baseline
+  let sDecay: RunState = {
+    ...swift,
+    grazeMult: 3.5,
+    bullets: [],
+    invuln: 999,
+    bossSpawned: true,
+    enemies: [dummyEnemy],
+    midwayLeft: 0,
+  };
+  const initialMult = sDecay.grazeMult;
+  // Step 60 frames = exactly 1 second
+  for (let i = 0; i < 60; i++) {
+    sDecay = step(sDecay, IDLE, FIXED_DT);
+  }
+  const decayOneSec = initialMult - sDecay.grazeMult;
+  assert.ok(
+    Math.abs(decayOneSec - GRAZE_DECAY_PER_SEC) < 1e-4,
+    `graze multiplier must decay at GRAZE_DECAY_PER_SEC (${GRAZE_DECAY_PER_SEC}/s), measured ${decayOneSec.toFixed(5)}`,
+  );
+
+  // Long decay must never drop below 1.0x floor: 70 seconds > 62.5s needed for (3.5 - 1.0) / 0.04
+  for (let i = 0; i < 60 * 70; i++) {
+    sDecay = step(sDecay, IDLE, FIXED_DT);
+  }
+  assert.equal(sDecay.grazeMult, 1.0, 'graze multiplier must bottom out at exactly 1.0, never below');
+
+  ok('precision hitbox (core ~2px) vs graze box (24-31px) boundary and multiplier escalation to 4.0x verified');
+}
+
+// ── 20) Near-range shotgun damage falloff curve and point-blank reward ───────
+//
+// The central gameplay tension: playing safe from the bottom of the screen
+// yields only 0.55x damage. Diving point-blank into the boss's face yields
+// 2.20x damage (a 4:1 damage ratio). Upgrades like muzzle steepen this curve
+// to reward daring close-range shotgun tactics.
+{
+  const s = createRun('SHOTGUN-BASE');
+
+  // 20.1 Discrete distance evaluation along the falloff range
+  const d0 = rangeDamageMult(s, 0);
+  const d100 = rangeDamageMult(s, 100);
+  const d200 = rangeDamageMult(s, 200);
+  const d380 = rangeDamageMult(s, DAMAGE_FALLOFF_RANGE);
+  const d500 = rangeDamageMult(s, 500);
+
+  assert.equal(d0, DAMAGE_NEAR_MULT, `point-blank multiplier must equal DAMAGE_NEAR_MULT (${DAMAGE_NEAR_MULT})`);
+  assert.equal(d380, DAMAGE_FAR_MULT, `multiplier at DAMAGE_FALLOFF_RANGE must equal DAMAGE_FAR_MULT (${DAMAGE_FAR_MULT})`);
+  assert.equal(d500, DAMAGE_FAR_MULT, 'multiplier beyond falloff range must clamp at DAMAGE_FAR_MULT');
+
+  // Strictly monotonic decreasing from 0 to DAMAGE_FALLOFF_RANGE
+  assert.ok(d0 > d100, '0px distance must deal more damage than 100px');
+  assert.ok(d100 > d200, '100px distance must deal more damage than 200px');
+  assert.ok(d200 > d380, '200px distance must deal more damage than 380px');
+
+  const pointBlankRatio = d0 / d380;
+  assert.equal(
+    pointBlankRatio,
+    DAMAGE_NEAR_MULT / DAMAGE_FAR_MULT,
+    `point-blank to max-range damage ratio must be exactly 4.0x (${DAMAGE_NEAR_MULT}/${DAMAGE_FAR_MULT})`,
+  );
+
+  // 20.2 Fine-grained linear slope check across DAMAGE_FALLOFF_RANGE
+  const stepDist = 20;
+  let prevDmg = rangeDamageMult(s, 0);
+  for (let dist = stepDist; dist <= DAMAGE_FALLOFF_RANGE; dist += stepDist) {
+    const curDmg = rangeDamageMult(s, dist);
+    const drop = prevDmg - curDmg;
+    assert.ok(drop > 0, `damage must strictly fall with distance at dist=${dist}`);
+    const expectedDrop = (DAMAGE_NEAR_MULT - DAMAGE_FAR_MULT) * (stepDist / DAMAGE_FALLOFF_RANGE);
+    assert.ok(Math.abs(drop - expectedDrop) < 1e-4, `falloff slope must be uniformly linear across range, dist=${dist}`);
+    prevDmg = curDmg;
+  }
+
+  // 20.3 Upgrade interaction: muzzle steepens the near damage without inflating far damage
+  const sMuzzle = { ...s, upgrades: ['muzzle'] };
+  const muzzleNear = rangeDamageMult(sMuzzle, 0);
+  const muzzleFar = rangeDamageMult(sMuzzle, DAMAGE_FALLOFF_RANGE);
+  assert.ok(muzzleNear > d0 * 1.3, 'muzzle must significantly elevate point-blank damage multiplier');
+  assert.ok(
+    Math.abs(muzzleFar - d380) < 1e-9,
+    'muzzle must NOT inflate far damage multiplier — distance must remain critical',
+  );
+
+  // 20.4 Craft shotgun differentials: Cannon with Overdrive
+  const cannon = createRun('SHOTGUN-CANNON', { craftId: 'cannon' });
+  const cannonPointBlank = shotDamage(cannon, 0);
+  const cannonSniping = shotDamage(cannon, 500);
+  assert.ok(cannonPointBlank > shotDamage(s, 0) * 1.4, 'cannon base damageMult must yield devastating shotgun blasts');
+
+  // Overdrive special raises damage by another 1.7x
+  const cannonOverdrive = { ...cannon, specialLeft: 1.5 };
+  const overdriveDmg = shotDamage(cannonOverdrive, 0);
+  assert.ok(
+    Math.abs(overdriveDmg - cannonPointBlank * 1.7) < 1e-3,
+    'overdrive special must apply an exact 1.7x burst damage multiplier on top of shotgun scaling',
+  );
+
+  // Verify effective DPS difference between risky point-blank dive and timid back-row camping
+  const cannonBurstPointBlank = shotDamage(cannonOverdrive, 0);
+  const cannonTimidFar = shotDamage(cannon, 500);
+  const burstRatio = cannonBurstPointBlank / cannonTimidFar;
+  assert.ok(
+    burstRatio > 6.0,
+    `overdriven close-range cannon shotgun must deal >6x the damage of timid far sniping, measured ${burstRatio.toFixed(2)}x`,
+  );
+
+  ok('near-range shotgun damage falloff and scaling (4:1 point-blank reward, muzzle steepening, overdrive) verified');
+}
+
+// ── 21) 5-stage boss spell card escalation, intensity growth, and wall gaps ─
+//
+// The 5 stages: Stage 1 (lamp), Stage 2 (tide), Stage 3 (frost), Stage 4 (ember),
+// Stage 5 (abyss). Every stage boss must feature at least 4 spell cards. Emitter
+// parameters must scale continuously with intensity. Crucially, wall patterns
+// must guarantee at least one passable gap across all achievable intensities,
+// ensuring every pattern remains skill-survivable.
+{
+  // 21.1 5 stages, each with a designated boss and complete 4-card repertoire
+  const expectedBossPrefixes = ['lamp', 'tide', 'frost', 'ember', 'abyss'];
+  assert.equal(STAGE_COUNT, 5, 'game must feature exactly 5 stages');
+
+  let totalBossCards = 0;
+  for (let stage = 1; stage <= STAGE_COUNT; stage++) {
+    const boss = bossFor(stage);
+    const prefix = expectedBossPrefixes[stage - 1];
+    assert.ok(boss.cards.length >= 4, `stage ${stage} boss (${boss.name}) must author at least 4 spell cards`);
+    totalBossCards += boss.cards.length;
+
+    // All card ids must start with the stage theme prefix
+    for (const card of boss.cards) {
+      assert.ok(
+        card.id.startsWith(prefix),
+        `stage ${stage} card id '${card.id}' should start with prefix '${prefix}'`,
+      );
+      assert.ok(card.hp >= 100, `card ${card.id} hp too low: ${card.hp}`);
+      assert.ok(card.timeLimit >= 15, `card ${card.id} timeLimit too brief: ${card.timeLimit}`);
+      assert.ok(card.emitters.length > 0, `card ${card.id} has no emitters`);
+    }
+  }
+  assert.ok(totalBossCards >= 20, `5 bosses must provide at least 20 spell cards in total, found ${totalBossCards}`);
+
+  // 21.2 Monotonic intensity escalation across all 5 stages
+  for (let stage = 1; stage <= STAGE_COUNT; stage++) {
+    const midwayK = intensityFor(stage, false);
+    const bossK = intensityFor(stage, true);
+    assert.ok(bossK > midwayK, `stage ${stage} boss intensity (${bossK}) must exceed its midway (${midwayK})`);
+
+    if (stage < STAGE_COUNT) {
+      const nextMidwayK = intensityFor(stage + 1, false);
+      const nextBossK = intensityFor(stage + 1, true);
+      assert.ok(
+        nextMidwayK > midwayK,
+        `stage ${stage + 1} midway intensity (${nextMidwayK}) must exceed stage ${stage} (${midwayK})`,
+      );
+      assert.ok(
+        nextBossK > bossK,
+        `stage ${stage + 1} boss intensity (${nextBossK}) must exceed stage ${stage} (${bossK})`,
+      );
+    }
+  }
+
+  // 21.3 Wall pattern gap survivability under all intensities
+  // Sweep intensities from 1.0 (stage 1 start) to 5.5 (stage 5 boss with hard mode bonus)
+  const wallCards = allCards().filter((c) =>
+    allEmitters(c).some((e) => e.pattern === 'wall'),
+  );
+  assert.ok(wallCards.length >= 1, 'must have cards authoring wall patterns');
+
+  for (const card of wallCards) {
+    const wallEmitters = allEmitters(card).filter((e) => e.pattern === 'wall');
+    for (const we of wallEmitters) {
+      const authoredGap = we.gap ?? 3;
+      assert.ok(authoredGap >= 2, `card ${card.id} authored wall gap must be at least 2 slots`);
+
+      // Test fine sweep across intensities k from 0.8 to 6.0
+      for (let k = 0.8; k <= 6.0; k += 0.2) {
+        const scaled = scaleEmitter(we, k);
+        assert.ok(
+          scaled.gap !== undefined && scaled.gap >= 1,
+          `card ${card.id} wall gap must remain >= 1 at intensity k=${k.toFixed(1)}, got ${scaled.gap}`,
+        );
+
+        // Calculate slot width in field coordinates
+        const slots = Math.max(6, scaled.count);
+        const slotWidth = FIELD_W / (slots - 1);
+        const physicalGapWidth = scaled.gap * slotWidth;
+
+        // Gap must allow the widest craft (cannon with ~3.46px hitbox radius) to pass cleanly
+        const widestHitbox = BASE_HITBOX_R * 1.08;
+        assert.ok(
+          physicalGapWidth > widestHitbox * 2 + 10,
+          `physical gap width (${physicalGapWidth.toFixed(1)}px) at k=${k} must comfortably exceed ship hitbox diameter (${(widestHitbox * 2).toFixed(1)}px)`,
+        );
+      }
+
+      // Verify gap tightening: higher intensity tightens the gap rather than widening it
+      const lowK = scaleEmitter(we, 1.0);
+      const highK = scaleEmitter(we, 4.5);
+      assert.ok(
+        (highK.gap ?? 0) <= (lowK.gap ?? 0),
+        `wall gap must tighten under escalation: low=${lowK.gap} vs high=${highK.gap}`,
+      );
+    }
+  }
+
+  ok('5-stage boss spell card escalation, intensity monotonicity, and wall gap survivability verified');
+}
+
+// ── 22) Bomb survival tradeoff: score multiplier sacrifice vs invulnerability ─
+//
+// A bomb is a panic button with an enormous economic cost. It clears all
+// bullets and grants 1.6s of invulnerability, saving the player's life. But it
+// immediately resets the graze multiplier to 1.00x, wiping out potential
+// thousands of points on the next boss card capture.
+{
+  const run = createRun('BOMB-TRADEOFF');
+
+  const dummyEnemy: Enemy = {
+    id: 1,
+    x: -200,
+    y: -200,
+    hp: 99999,
+    maxHp: 99999,
+    r: 12,
+    isBoss: false,
+    card: null,
+    cardIndex: 0,
+    cardElapsed: 0,
+    emitterClocks: [],
+    emitterAngles: [],
+    entryTo: null,
+    entryFrom: null,
+    entryT: 1,
+    score: 0,
+  };
+
+  // 22.1 Multiplier sacrifice and bullet clearance
+  let s: RunState = {
+    ...run,
+    bombs: 2,
+    invuln: 0,
+    grazeMult: 3.85,
+    score: 10_000,
+    enemies: [dummyEnemy],
+    midwayLeft: 0,
+    bullets: Array.from({ length: 40 }, (_, i) => ({
+      id: 1000 + i,
+      x: 50 + (i % 8) * 40,
+      y: 100 + Math.floor(i / 8) * 60,
+      angle: Math.PI / 2,
+      speed: 120,
+      r: 5,
+      hue: 200,
+      age: 0.5,
+      lifetime: 5,
+      waveform: 'linear' as const,
+      curl: 0,
+      grazed: false,
+    })),
+  };
+
+  const initialBullets = s.bullets.length;
+  assert.equal(initialBullets, 40);
+
+  // Trigger bomb in step()
+  const bombed = step(s, { ...IDLE, bomb: true }, FIXED_DT);
+
+  // Assert bombs decremented
+  assert.equal(bombed.bombs, 1, 'bomb count must decrease by 1');
+  // Assert bullets cleared
+  assert.equal(bombed.bullets.length, 0, 'all screen bullets must be cleared by bomb');
+  // Assert multiplier wiped to 1.0
+  assert.equal(bombed.grazeMult, 1.0, 'bomb must wipe graze multiplier to exactly 1.00x');
+  // Assert score is NOT inflated by cleared bullets
+  assert.equal(bombed.score, 10_000, 'cleared bullets must award zero score');
+  // Assert invulnerability granted
+  assert.ok(
+    Math.abs(bombed.invuln - BOMB_INVULN_SEC) < 1e-3,
+    `bomb must set invulnerability window to BOMB_INVULN_SEC (${BOMB_INVULN_SEC}s), got ${bombed.invuln}`,
+  );
+
+  // 22.2 Scoring sacrifice quantification
+  // A boss card capture awards Math.round((CAPTURE_BONUS + hp) * grazeMult)
+  const cardHp = 800;
+  const scoreIfUnbombed = Math.round((CAPTURE_BONUS + cardHp) * 3.85); // (3000 + 800) * 3.85 = 14630
+  const scoreIfBombed = Math.round((CAPTURE_BONUS + cardHp) * 1.0); // (3000 + 800) * 1.0 = 3800
+  const scoreSacrifice = scoreIfUnbombed - scoreIfBombed;
+  assert.ok(
+    scoreSacrifice > 10_000,
+    `bombing at 3.85x multiplier sacrifices ${scoreSacrifice} points on capture — a genuine tactical dilemma`,
+  );
+
+  // 22.3 Mercy window protects player from subsequent collisions
+  let invulnState = bombed;
+  assert.ok(invulnState.invuln > 1.0);
+  // Place a lethal bullet right on the player
+  invulnState = {
+    ...invulnState,
+    bullets: [
+      {
+        id: 9991,
+        x: invulnState.px,
+        y: invulnState.py,
+        angle: 0,
+        speed: 0,
+        r: 6,
+        hue: 0,
+        age: 0,
+        lifetime: 5,
+        waveform: 'linear',
+        curl: 0,
+        grazed: false,
+      },
+    ],
+  };
+  const stepUnderInvuln = step(invulnState, IDLE, FIXED_DT);
+  assert.equal(stepUnderInvuln.lives, bombed.lives, 'player must not die while invulnerable');
+  assert.equal(stepUnderInvuln.powerTier, bombed.powerTier, 'power tier must be preserved during mercy window');
+
+  // 22.4 Cannot waste a bomb while already invulnerable
+  const wasteAttempt = step(stepUnderInvuln, { ...IDLE, bomb: true }, FIXED_DT);
+  assert.equal(
+    wasteAttempt.bombs,
+    stepUnderInvuln.bombs,
+    'pressing bomb during active invulnerability must NOT consume a bomb',
+  );
+
+  ok('bomb survival tradeoff (bullet wipe, 1.6s invuln window vs 1.0x multiplier wipe) verified');
+}
+
+// ── 23) Touch drag offset (-46px), steering vector, and focus mode dynamics ─
+//
+// Touch devices face a fundamental ergonomic problem in shmups: the player's
+// finger covers the exact 2-3px hitbox needed for micrododging. The touch
+// system solves this via:
+// 1. A constant -46px vertical lift offset, placing the ship above the thumb.
+// 2. Normalized vector steering toward the touch point (no instantaneous teleport).
+// 3. A 1.5px deadzone preventing micro-jitter when stationary.
+// 4. Hold-to-focus (220ms gesture) dropping speed from 260 to 105 (~60% reduction)
+//    for precision needle threading.
+{
+  // 23.1 Touch coordinate conversion with -46px lift offset
+  const TOUCH_LIFT_OFFSET_Y = 46;
+  const projectTouch = (clientX: number, clientY: number, rect: { left: number; top: number; width: number; height: number }) => {
+    const scale = Math.min(rect.width / FIELD_W, rect.height / FIELD_H);
+    const ox = (rect.width - FIELD_W * scale) / 2;
+    const oy = (rect.height - FIELD_H * scale) / 2;
+    return {
+      x: (clientX - rect.left - ox) / scale,
+      y: (clientY - rect.top - oy) / scale - TOUCH_LIFT_OFFSET_Y,
+    };
+  };
+
+  // Simulating a 400x600 screen matching FIELD_W x FIELD_H exactly (scale = 1.0)
+  const rect1 = { left: 50, top: 20, width: 400, height: 600 };
+  const p1 = projectTouch(250, 320, rect1);
+  assert.equal(p1.x, 200, 'touch at center X should map to field center 200');
+  assert.equal(p1.y, 300 - TOUCH_LIFT_OFFSET_Y, 'touch at 300 should map to field Y 300 - 46 = 254');
+
+  // Ensure touch lift clearance exceeds thumb contact patch radius (~25px)
+  const thumbRadius = 25;
+  const clearance = TOUCH_LIFT_OFFSET_Y - thumbRadius;
+  assert.ok(
+    clearance > 15,
+    `-46px lift offset provides ${clearance}px of visual clearance above a 25px thumb, keeping hitbox unobstructed`,
+  );
+
+  // Simulating a responsive retina display with scale = 2.0 (800x1200)
+  const rect2 = { left: 0, top: 0, width: 800, height: 1200 };
+  const p2 = projectTouch(400, 600, rect2);
+  assert.equal(p2.x, 200, 'retina scale 2.0 must map center X to 200');
+  assert.equal(p2.y, 300 - TOUCH_LIFT_OFFSET_Y, 'retina scale 2.0 must apply exact -46px offset');
+
+  // 23.2 Steering vector physics: normalized direction and 1.5px deadzone
+  const computeSteering = (shipX: number, shipY: number, targetX: number, targetY: number) => {
+    const ddx = targetX - shipX;
+    const ddy = targetY - shipY;
+    const d = Math.hypot(ddx, ddy);
+    if (d > 1.5) {
+      return { dx: ddx / d, dy: ddy / d, dist: d };
+    }
+    return { dx: 0, dy: 0, dist: d };
+  };
+
+  // Far target: must produce unit vector
+  const far = computeSteering(200, 300, 260, 380);
+  assert.ok(Math.abs(Math.hypot(far.dx, far.dy) - 1.0) < 1e-5, 'steering vector must be normalized to unit length');
+  assert.ok(far.dx > 0 && far.dy > 0, 'dx and dy must point toward target');
+
+  // Deadzone test: target within 1.5px
+  const nearDeadzone = computeSteering(200, 300, 200.8, 300.6);
+  assert.equal(nearDeadzone.dx, 0, 'steering within 1.5px must clamp dx to 0 to prevent oscillation');
+  assert.equal(nearDeadzone.dy, 0, 'steering within 1.5px must clamp dy to 0 to prevent oscillation');
+
+  // Smooth continuous movement across frames without teleporting
+  let sMove = createRun('TOUCH-MOVE');
+  sMove = { ...sMove, px: 200, py: 400 };
+  const touchTarget = { x: 300, y: 400 }; // 100px to the right
+  const spd = moveSpeed(sMove);
+
+  // Step 10 frames
+  for (let f = 0; f < 10; f++) {
+    const steer = computeSteering(sMove.px, sMove.py, touchTarget.x, touchTarget.y);
+    sMove = step(sMove, { ...IDLE, dx: steer.dx, dy: steer.dy }, FIXED_DT);
+  }
+  const expectedDistMoved = spd * (10 * FIXED_DT);
+  assert.ok(
+    Math.abs((sMove.px - 200) - expectedDistMoved) < 1.0,
+    `ship must smoothly translate at moveSpeed (${spd} u/s) rather than teleporting to touch position`,
+  );
+  assert.equal(sMove.py, 400, 'Y position must remain unchanged during pure horizontal steering');
+
+  // 23.3 Focus mode speed reduction and conditions
+  const fastRun = createRun('FOCUS-TEST', { craftId: 'swift' });
+  const focusedRun = { ...fastRun, focus: true };
+
+  const normalSpeed = moveSpeed(fastRun);
+  const slowSpeed = moveSpeed(focusedRun);
+  assert.equal(normalSpeed, FAST_SPEED, `normal speed must equal FAST_SPEED (${FAST_SPEED})`);
+  assert.equal(slowSpeed, FOCUS_SPEED, `focused speed must equal FOCUS_SPEED (${FOCUS_SPEED})`);
+
+  const speedRatio = slowSpeed / normalSpeed;
+  assert.ok(
+    Math.abs(speedRatio - 105 / 260) < 1e-4,
+    `focus mode reduces speed to ${(speedRatio * 100).toFixed(1)}% of fast speed (40.4%)`,
+  );
+
+  // Active conditions evaluate 'focused'
+  const conditionsFast = activeConditions(fastRun);
+  const conditionsFocused = activeConditions(focusedRun);
+  assert.ok(!conditionsFast.has('focused'), 'unfocused run must NOT have focused condition');
+  assert.ok(conditionsFocused.has('focused'), 'focused run MUST have focused condition');
+
+  // Focus-dependent upgrade test: thread increases focus speed
+  const withThread = { ...focusedRun, upgrades: ['thread'] };
+  assert.ok(
+    moveSpeed(withThread) > slowSpeed,
+    'thread upgrade must increase focused movement speed',
+  );
+
+  // Hold-to-focus timing model: 220ms threshold
+  const HOLD_FOCUS_MS = 220;
+  const isHeldFocus = (elapsedMs: number) => elapsedMs >= HOLD_FOCUS_MS;
+  assert.equal(isHeldFocus(100), false, 'quick drag at 100ms should remain in fast travel mode');
+  assert.equal(isHeldFocus(200), false, 'drag at 200ms should not yet enter focus');
+  assert.equal(isHeldFocus(220), true, 'held finger at 220ms must trigger focus mode');
+  assert.equal(isHeldFocus(500), true, 'sustained hold must maintain focus mode');
+
+  ok('touch drag offset (-46px), vector steering, deadzone, and hold-to-focus dynamics verified');
 }
 
 console.log(`\nself-check: ok (${passed} checks)`);

@@ -20,11 +20,14 @@ import {
 } from './game/engine.ts';
 import {
   EMPTY_MISSION_PROGRESS,
+  MISSION_ACHIEVEMENTS,
   MISSION_PACK,
   applyMissionResult,
   assertMissionConfigs,
   continueMissionIndex,
+  evaluateBranchingAchievements,
   evaluateMissionGoal,
+  evaluateMissionSecondaryConstraints,
   isMissionUnlocked,
   missionAt,
   missionById,
@@ -228,6 +231,118 @@ assert.deepEqual(missionById('gauntlet-hammer')?.run.allowedTowers, ['hammer', '
       assert.ok(TOWER_DEFS[t], `mission ${mission.id} references unknown tower ${t}`);
     }
   }
+}
+
+// ── Secondary constraints verification across all 10 missions ───────────────
+{
+  assert.equal(MISSION_PACK.length, 10);
+  for (const mission of MISSION_PACK) {
+    assert.ok(
+      mission.secondaryConstraints && mission.secondaryConstraints.length > 0,
+      `mission ${mission.id} must define at least one secondary constraint`,
+    );
+    for (const sc of mission.secondaryConstraints) {
+      assert.ok(sc.id.length > 0);
+      assert.ok(sc.label.length > 0);
+      assert.ok(sc.description.length > 0);
+    }
+  }
+
+  // 1) Test Flawless secondary constraint on corridor-standard
+  const m1 = missionById('corridor-standard');
+  assert.ok(m1);
+  const baseWon = {
+    ...createInitialState(m1.run.difficulty, m1.run.mapId, false, { missionId: m1.id }),
+    phase: 'won',
+    wave: 20,
+    lives: 20,
+    gold: 200,
+    score: 1500,
+  };
+  const sc1Pass = evaluateMissionSecondaryConstraints(m1, baseWon);
+  assert.equal(sc1Pass.allMet, true);
+  assert.equal(sc1Pass.results[0].met, true);
+
+  const sc1Fail = evaluateMissionSecondaryConstraints(m1, { ...baseWon, lives: 19 });
+  assert.equal(sc1Fail.allMet, false);
+  assert.equal(sc1Fail.results[0].met, false);
+
+  // 2) Test Minimalist tower count on dual-tower (allowed <= 12)
+  const m3 = missionById('dual-tower');
+  assert.ok(m3);
+  const towersFew = Array.from({ length: 8 }, (_, i) => ({ id: i, type: 'crossbow', x: i, y: 1, level: 0, branch: null, investedGold: 40, cooldown: 0 }));
+  const sc3Pass = evaluateMissionSecondaryConstraints(m3, { ...baseWon, missionId: m3.id, towers: towersFew });
+  assert.equal(sc3Pass.allMet, true);
+
+  const towersMany = Array.from({ length: 14 }, (_, i) => ({ id: i, type: 'crossbow', x: i, y: 1, level: 0, branch: null, investedGold: 40, cooldown: 0 }));
+  const sc3Fail = evaluateMissionSecondaryConstraints(m3, { ...baseWon, missionId: m3.id, towers: towersMany });
+  assert.equal(sc3Fail.allMet, false);
+
+  // 3) Test Brass Reserve on no-sell (gold >= 150)
+  const m4 = missionById('no-sell');
+  assert.ok(m4);
+  assert.equal(evaluateMissionSecondaryConstraints(m4, { ...baseWon, gold: 160 }).allMet, true);
+  assert.equal(evaluateMissionSecondaryConstraints(m4, { ...baseWon, gold: 140 }).allMet, false);
+
+  // 4) Test Overdrive Mastery on gauntlet-hammer (overdriveCount >= 2)
+  const m10 = missionById('gauntlet-hammer');
+  assert.ok(m10);
+  assert.equal(evaluateMissionSecondaryConstraints(m10, { ...baseWon, overdriveCount: 2 }).allMet, true);
+  assert.equal(evaluateMissionSecondaryConstraints(m10, { ...baseWon, overdriveCount: 1 }).allMet, false);
+}
+
+// ── Branching achievements evaluation ────────────────────────────────────────
+{
+  assert.ok(MISSION_ACHIEVEMENTS.length >= 6);
+  for (const ach of MISSION_ACHIEVEMENTS) {
+    assert.ok(ach.id.length > 0);
+    assert.ok(ach.name.length > 0);
+    assert.ok(ach.description.length > 0);
+  }
+
+  // Empty progress: 0 achievements unlocked
+  const none = evaluateBranchingAchievements(EMPTY_MISSION_PROGRESS);
+  assert.equal(none.length, 0);
+
+  // Clearing all 3 harsh missions unlocks iron-cog
+  const harshProgress = {
+    ...EMPTY_MISSION_PROGRESS,
+    cleared: {
+      'corridor-harsh': true,
+      'harsh-splash': true,
+      'islands-harsh': true,
+    },
+  };
+  const harshAchs = evaluateBranchingAchievements(harshProgress);
+  assert.ok(harshAchs.includes('iron-cog'), 'clearing all 3 harsh missions must unlock iron-cog achievement');
+
+  // Clearing no-sell with 150 gold unlocks clockwork-purist
+  const puristProgress = {
+    ...EMPTY_MISSION_PROGRESS,
+    cleared: { 'no-sell': true },
+  };
+  const puristAchs = evaluateBranchingAchievements(puristProgress, {
+    ...createInitialState('standard', 'open', false),
+    missionId: 'no-sell',
+    gold: 180,
+  });
+  assert.ok(puristAchs.includes('clockwork-purist'));
+
+  // Reaching wave 35 on endless-thirty unlocks endless-legend
+  const legendProgress = {
+    ...EMPTY_MISSION_PROGRESS,
+    bestWave: { 'endless-thirty': 35 },
+  };
+  const legendAchs = evaluateBranchingAchievements(legendProgress);
+  assert.ok(legendAchs.includes('endless-legend'));
+
+  // Completing all 10 missions unlocks master-mechanic
+  const fullProgress = {
+    ...EMPTY_MISSION_PROGRESS,
+    clearedCount: 10,
+  };
+  const fullAchs = evaluateBranchingAchievements(fullProgress);
+  assert.ok(fullAchs.includes('master-mechanic'));
 }
 
 console.log(`ok  check-missions (${MISSION_PACK.length} missions)`);

@@ -1,4 +1,4 @@
-import { LOWEST_CARD_ID, cardLabel, isDeuce, rankLabel, sortCards } from './cards';
+import { LOWEST_CARD_ID, cardLabel, isDeuce, power, rankLabel, sortCards } from './cards';
 import { personalityForSeat, turnsToEmpty } from './cpu';
 import { unseenBy } from './memory';
 import { TYPE_LABEL } from './plays';
@@ -7,6 +7,7 @@ import type {
   Card,
   CardId,
   GameState,
+  Outcome,
   Play,
   Rank,
   Seat,
@@ -333,5 +334,59 @@ export function computeTacticalRadar(
     humanTurns,
     strategyLabel,
     masterTip,
+  };
+}
+
+/**
+ * Whether the seat immediately following `seat` holds exactly 1 card,
+ * triggering the anti-collusion "頂大" (Ding Da) defense requirement.
+ */
+export function isDingDaSituation(state: GameState, seat: Seat = state.turn): boolean {
+  const nextSeat = ((seat + 1) % SEATS) as Seat;
+  return state.hands[nextSeat]?.length === 1;
+}
+
+/**
+ * Check whether a played single violates the Taiwanese "頂大" (Ding Da) anti-collusion rule.
+ *
+ * When the next player holds only 1 card and the current player plays a single card,
+ * the current player MUST play their highest single card. Failing to do so is a
+ * violation that triggers the full penalty buyout ("包賠") if the next player finishes.
+ */
+export function isDingDaViolation(
+  hand: readonly Card[],
+  played: Play,
+  nextPlayerCount: number,
+): boolean {
+  if (nextPlayerCount !== 1) return false;
+  if (played.type !== 'single') return false;
+  const playedPower = power(played.cards[0]);
+  return hand.some((c) => power(c) > playedPower);
+}
+
+export interface DingDaPenaltyResult {
+  deltas: number[];
+  violator: Seat;
+  totalPaid: number;
+}
+
+/**
+ * Enforce the Taiwanese "包賠" (full penalty buyout) rule for a 頂大 violation.
+ *
+ * When a player commits a Ding Da violation and the next seat wins on their final card,
+ * all innocent non-winning seats pay 0 chips, and the violator is liable for the entire
+ * pot owed to the winner. Zero-sum balance across all seats is strictly preserved.
+ */
+export function enforceDingDaPenalty(
+  result: Outcome,
+  violatorSeat: Seat,
+): DingDaPenaltyResult {
+  const deltas = result.scores.map(() => 0);
+  deltas[result.winner] = result.pot;
+  deltas[violatorSeat] = -result.pot;
+  return {
+    deltas,
+    violator: violatorSeat,
+    totalPaid: result.pot,
   };
 }

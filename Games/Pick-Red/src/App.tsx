@@ -971,23 +971,25 @@ export default function App(): React.ReactElement {
                   <div className="flex gap-1 shrink-0 pt-0.5">
                     <button
                       type="button"
+                      aria-label="復原"
                       onClick={handleUndo}
                       disabled={!canUndo}
                       className="min-h-[44px] min-w-[44px] px-2 rounded-lg border border-slate-700 hover:bg-slate-800 disabled:opacity-40 touch-manipulation text-sm font-bold flex items-center gap-1"
                       title="復原 (Z)"
                     >
                       <span>復原</span>
-                      <kbd className="text-[10px] text-slate-400 font-mono hidden sm:inline">Z</kbd>
+                      <kbd aria-hidden="true" className="text-[10px] text-slate-400 font-mono hidden sm:inline">Z</kbd>
                     </button>
                     <button
                       type="button"
+                      aria-label="提示"
                       onClick={handleHint}
                       disabled={!waitingOnHuman}
                       className="min-h-[44px] min-w-[44px] px-2 rounded-lg border border-slate-700 hover:bg-slate-800 disabled:opacity-40 touch-manipulation text-sm font-bold flex items-center gap-1"
                       title="提示 (H)"
                     >
                       <span>提示</span>
-                      <kbd className="text-[10px] text-slate-400 font-mono hidden sm:inline">H</kbd>
+                      <kbd aria-hidden="true" className="text-[10px] text-slate-400 font-mono hidden sm:inline">H</kbd>
                     </button>
                   </div>
                 </div>

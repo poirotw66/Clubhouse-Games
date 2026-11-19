@@ -80,6 +80,32 @@
 - **成績**：總分 = 擊破分 × 擦彈倍率 + 符卡 Capture 加成 + 剩餘殘機與靈擊的結算分。
 - **紀錄**：自由遊玩最佳分數保存在 `danmaku-abyss:best`；模式／關卡包另有分模式最佳與通關進度（見〈模式／關卡包〉）。
 
+## 品質門檻對齊
+
+對照 [`docs/GAME-QUALITY-BAR.md`](../docs/GAME-QUALITY-BAR.md)：
+
+| 項目 | 本實作規範與對齊成果 |
+|---|---|
+| **模式／變體** | 自由遊玩（Free Play，五階段深淵，Roguelike 32 種強化三選一升級構築，種子決定論重現）／挑戰關卡包（Mode Pack，10 關手編固定種子闖關階梯：演習模式 `practice-lamp`、`practice-tide`、`practice-frost`；高難五階段全通 `hard-abyss` 強度 +0.55、殘機與靈擊各 2；指定符卡 Capture 挑戰 `spell-frost-rain`、`spell-abyss-gaze`、`spell-frost-duet`、`spell-abyss-rift`、`spell-lamp-beacon`、`spell-ember-bloom`，具備循序漸進解鎖機制）／可選機體陣容（3 款特性機體：迅羽 Swift 均衡扇射＋羽閃、重炮 Cannon 寬幅重擊＋過載暴傷、縫影 Stitch 細針集火＋微型判定＋縫隙，生涯通關累積解鎖）／台北每日挑戰（Daily Challenge，依 Asia/Taipei 台北時區曆法產生決定性固定日期種子 `DYYYYMMDD`，獨立記錄當日最佳成績與一鍵複製分享文案）。相關實作請見：[`src/game/modes.ts`](../Games/Danmaku-Abyss/src/game/modes.ts)、[`src/game/crafts.ts`](../Games/Danmaku-Abyss/src/game/crafts.ts)、[`src/game/daily.ts`](../Games/Danmaku-Abyss/src/game/daily.ts)、[`src/game/cards.ts`](../Games/Danmaku-Abyss/src/game/cards.ts)。 |
+| **重玩誘因** | 多軌獨立 `localStorage` 持久化架構，遵循嚴格不可互相覆寫與欄位級防禦解析規範：`danmaku-abyss:best`（自由遊玩歷史最佳總分）、`danmaku-abyss:progress-v1`（生涯通關次數、各機體最佳分、20 張符卡 Capture 收集圖鑑、當前選用機體）、`danmaku-abyss:modes-v1`（模式包 10 關解鎖進度 `clearedCount`、各關通關旗標與各關歷史最高分）、`danmaku-abyss:daily-v1`（每日挑戰嘗試次數、當日最佳得分、通關狀態、使用機體與 Capture 數）、`danmaku-abyss:howto-seen`（首局三步引導標記）。相關實作請見：[`src/game/crafts.ts`](../Games/Danmaku-Abyss/src/game/crafts.ts)、[`src/game/modes.ts`](../Games/Danmaku-Abyss/src/game/modes.ts)、[`src/game/daily.ts`](../Games/Danmaku-Abyss/src/game/daily.ts)、[`src/components/FirstRunGuide.tsx`](../Games/Danmaku-Abyss/src/components/FirstRunGuide.tsx)。 |
+| **盤面／卡牌對手與提示** | 彈幕射擊環境對手（5 大階段首領各 4 張符卡，共 20 張獨特符卡資料驅動發射器，單調 `intensity` 難度曲線驅動彈數、間隔、彈速與自機狙微轉向，血量閾值觸發多階段進化）。輔助提示與雙翼座艙：桌面端展開左右雙翼戰術座艙（Arcade Cabinet Wings）提供左翼機體規格藍圖、精準核心判定（3.2px / 2.5px）與擦彈半徑（26px / 31.2px）、特技冷卻計與當前已啟用之 Roguelike 強化詞條清單；右翼首領威脅雷達提供首領血條、符卡名、Capture 倒數計時與 50,000 PTS 獎勵儀、擦彈超載倍率儀（Graze Overdrive 1.00x～4.00x）與全套鍵盤操作手冊；戰場內貼身動態戰術光弧（Tactical Proximity Arc）依據與最近目標距離即時投影貼臉極限區（<135px）赤金光弧與 `POINT-BLANK / ×2.20 MAX` 增傷徽標；集中模式（Focus Mode）長按或按住 Shift 即時切換低速穿針（速度由 260 降至 105）並高亮機身核心微型判定點。相關實作請見：[`src/game/engine.ts`](../Games/Danmaku-Abyss/src/game/engine.ts)、[`src/components/CabinetWings.tsx`](../Games/Danmaku-Abyss/src/components/CabinetWings.tsx)、[`src/components/GameCanvas.tsx`](../Games/Danmaku-Abyss/src/components/GameCanvas.tsx)。 |
+| **手感回饋** | 完整整合 `@clubhouse/shared/ResultOverlay` 結算面板（清晰展示勝負結果、最終得分、抵達階段、Capture 符卡數、擦彈次數、最高擦彈倍率、種子碼與今日最佳成績，具備再挑戰、再刷今日、回標題與複製分享文案功能）；原生 Web Audio 合成音效引擎全面整合 `@clubhouse/shared/synthAudio`（`playImpact` 子彈命中與被擊、`playCombo` 連擊與擦彈累加、`playCapture` 符卡 Capture 成功慶祝、`playWin` 全通勝利和弦、`playLose` 墜機失敗音效）；多巴胺回饋包含被擊微震（整合 `@clubhouse/shared/juice` 之 `haptic`）、全螢幕闃光閃爍（Juice Flash）、擦彈微粒火花噴濺、首領重擊短暫 hit-stop；完全遵守 `prefers-reduced-motion` 無障礙減敏降級。相關實作請見：[`src/App.tsx`](../Games/Danmaku-Abyss/src/App.tsx)、[`src/game/juice.ts`](../Games/Danmaku-Abyss/src/game/juice.ts)、[`src/components/GameCanvas.tsx`](../Games/Danmaku-Abyss/src/components/GameCanvas.tsx)。 |
+| **觸控與操作** | 行動端極致手感調校：自適應直向戰場並設有 **46px 固定垂直抬升偏移（drag offset）**，戰機與微型判定點永遠懸浮於手指觸控點上方，徹底解決拇指遮蔽核心判定點之痛點；拖曳平滑向量導向（Steering Vector）杜絕暴力瞬移與邊界穿透，距離 ≤ 1.5px 自動煞停無抖動；長按 220ms 自動啟動集中微操模式（Hold-to-Focus）；螢幕底部安全區配置獨立觸控操作列（Touch bar）點擊「特技 X」與「靈擊 Z」，杜絕飛行閃避時誤觸；行動端專屬強化抽屜（Mobile Upgrades Drawer）一鍵隨時滑出檢視本局 Roguelike 強化構築。相關實作請見：[`src/App.tsx`](../Games/Danmaku-Abyss/src/App.tsx)、[`src/components/GameCanvas.tsx`](../Games/Danmaku-Abyss/src/components/GameCanvas.tsx)。 |
+| **驗證腳本** | `npm run lint -w danmaku-abyss`（TypeScript 嚴格型別檢查 0 錯誤）與 `npm run check -w danmaku-abyss` → [`scripts/self-check.ts`](../Games/Danmaku-Abyss/scripts/self-check.ts)（無瀏覽器依賴純邏輯驗證，深度擴充至 >1,250 行）：覆蓋微型核心判定盒（2.0px～3.2px）vs 擦彈盒（24px～31.2px）精密幾何判斷、邊界像素精確命中／擦彈／完全未受波及三態分類、擦彈計數單發不重複；擦彈倍率升降動力學（連續擦彈平滑單調遞增至 4.0x 上限封頂不溢位、平靜期 0.04/s 線性衰減至 1.0x 下限保底不掉穿）；貼臉霰彈傷害衰減與非線性曲線（近距 2.2x 到 380px 遠距 0.55x 的 4:1 陡峭收益曲線、近身增傷詞條 steepen 強化加成、重炮與過載特技加權）；五階段首領符卡階梯與發射器單調性（5 位首領共 20 張符卡、道中與首領強度 intensity 曲線逐級單調遞增、全強度區間發射器係數連續平滑無階躍突變、高難度下障礙壁 wall 縫隙 gap >= 1 絕對保證生還通路）；靈擊保命代價取捨（即時清彈＋1.6s 無敵視窗 vs 擦彈倍率歸 1 嚴苛犧牲高達數千分結算加成、無敵期間免疫傷害且防重複投彈）；觸控座標偏移與集中模式動力學（-46px 拇指抬升幾何換算、向量跟隨死區防震顫、260 vs 105 高低速比與 focused 條件判定觸發）；種子決定論、狀態純函數不變量、32 種 Roguelike 強化與條件鍵 100% 引擎接線率、模式包與機庫進度持久化。 |
+
+## 實作結構
+
+- 專案根目錄：[`Games/Danmaku-Abyss/`](../Games/Danmaku-Abyss/)
+- 遊戲核心與物理引擎：[`src/game/engine.ts`](../Games/Danmaku-Abyss/src/game/engine.ts)、[`src/game/constants.ts`](../Games/Danmaku-Abyss/src/game/constants.ts)、[`src/game/types.ts`](../Games/Danmaku-Abyss/src/game/types.ts)
+- 符卡題庫與首領階段：[`src/game/cards.ts`](../Games/Danmaku-Abyss/src/game/cards.ts)
+- 機體特性與技能：[`src/game/crafts.ts`](../Games/Danmaku-Abyss/src/game/crafts.ts)、[`src/components/CraftHangarModal.tsx`](../Games/Danmaku-Abyss/src/components/CraftHangarModal.tsx)
+- Roguelike 強化詞條：[`src/game/upgrades.ts`](../Games/Danmaku-Abyss/src/game/upgrades.ts)
+- 關卡包與每日挑戰：[`src/game/modes.ts`](../Games/Danmaku-Abyss/src/game/modes.ts)、[`src/game/daily.ts`](../Games/Danmaku-Abyss/src/game/daily.ts)
+- 手感與震動回饋：[`src/game/juice.ts`](../Games/Danmaku-Abyss/src/game/juice.ts)
+- 街機雙翼座艙與 Canvas 渲染：[`src/components/CabinetWings.tsx`](../Games/Danmaku-Abyss/src/components/CabinetWings.tsx)、[`src/components/GameCanvas.tsx`](../Games/Danmaku-Abyss/src/components/GameCanvas.tsx)、[`src/components/FirstRunGuide.tsx`](../Games/Danmaku-Abyss/src/components/FirstRunGuide.tsx)
+- 主應用程式介面：[`src/App.tsx`](../Games/Danmaku-Abyss/src/App.tsx)
+- 深度自我驗證腳本：[`scripts/self-check.ts`](../Games/Danmaku-Abyss/scripts/self-check.ts)
+
 ## 平衡量測
 
 本作的模擬層為**固定時間步長的純函數**：整趟遊戲是 `(種子, 輸入序列)` 的函數，因此可重播、可無頭模擬。平衡工具與遊戲同時存在，而不是等問題出現才補。要量的是：

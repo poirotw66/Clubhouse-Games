@@ -3,6 +3,7 @@ import {
   LOWEST_CARD_ID,
   buildDeck,
   cardLabel,
+  isDeuce,
   power,
   rankStrength,
   shuffle,
@@ -64,8 +65,11 @@ import { buildHandReview } from '../src/game/review.js';
 import {
   computeTacticalRadar,
   dangerLevelForCount,
+  enforceDingDaPenalty,
   evaluateMonsterThreat,
   inferPasses,
+  isDingDaSituation,
+  isDingDaViolation,
   trackDeuces,
 } from '../src/game/tactics.js';
 import {
@@ -84,6 +88,7 @@ import type {
   HandRecord,
   HouseRules,
   MatchState,
+  Outcome,
   Play,
   SeatScore,
   StraightRule,
@@ -1065,20 +1070,458 @@ function expectTacticalRadar(): void {
   assert.ok(seat1Passes.some((p) => p.includes('單張 9')));
 }
 
+/**
+ * Deep verification of straight comparisons under standard Taiwanese rules (topCard)
+ * and sequence rules, including A-2-3-4-5 vs 2-3-4-5-6 vs 10-J-Q-K-A and suit tiebreakers.
+ */
+function expectStraightVariationsDeep(): void {
+  // Test Taiwanese standard rules (topCard)
+  // In Taiwanese Big-Two (topCard convention):
+  // - A-2-3-4-5 tops out at 5 (rank 5) -> rank 0 (lowest)
+  // - 3-4-5-6-7 tops out at 7 -> rank 1
+  // - ...
+  // - 10-J-Q-K-A tops out at A -> rank 8 (second highest)
+  // - 2-3-4-5-6 tops out at 2 -> rank 9 (highest straight, contains the deuce!)
+  const straight_A2345 = detectPlay(hand('♠A', '♥2', '♦3', '♣4', '♠5'), 'topCard')!;
+  const straight_23456 = detectPlay(hand('♠2', '♥3', '♦4', '♣5', '♠6'), 'topCard')!;
+  const straight_34567 = detectPlay(hand('♠3', '♥4', '♦5', '♣6', '♠7'), 'topCard')!;
+  const straight_910JQK = detectPlay(hand('♠9', '♥10', '♦J', '♣Q', '♠K'), 'topCard')!;
+  const straight_10JQKA = detectPlay(hand('♠10', '♥J', '♦Q', '♣K', '♠A'), 'topCard')!;
+
+  assert.equal(straight_A2345.type, 'straight');
+  assert.equal(straight_23456.type, 'straight');
+  assert.equal(straight_34567.type, 'straight');
+  assert.equal(straight_910JQK.type, 'straight');
+  assert.equal(straight_10JQKA.type, 'straight');
+
+  // Assert Taiwanese hierarchy:
+  // 2-3-4-5-6 is the strongest straight
+  assert.ok(beats(straight_23456, straight_10JQKA), 'topCard: 2-3-4-5-6 must beat 10-J-Q-K-A');
+  assert.ok(beats(straight_23456, straight_910JQK), 'topCard: 2-3-4-5-6 must beat 9-10-J-Q-K');
+  assert.ok(beats(straight_23456, straight_34567), 'topCard: 2-3-4-5-6 must beat 3-4-5-6-7');
+  assert.ok(beats(straight_23456, straight_A2345), 'topCard: 2-3-4-5-6 must beat A-2-3-4-5');
+
+  // 10-J-Q-K-A is second strongest, beats all others except 2-3-4-5-6
+  assert.ok(beats(straight_10JQKA, straight_910JQK), 'topCard: 10-J-Q-K-A must beat 9-10-J-Q-K');
+  assert.ok(beats(straight_10JQKA, straight_34567), 'topCard: 10-J-Q-K-A must beat 3-4-5-6-7');
+  assert.ok(beats(straight_10JQKA, straight_A2345), 'topCard: 10-J-Q-K-A must beat A-2-3-4-5');
+  assert.ok(!beats(straight_10JQKA, straight_23456), 'topCard: 10-J-Q-K-A must not beat 2-3-4-5-6');
+
+  // A-2-3-4-5 is the weakest straight
+  assert.ok(beats(straight_34567, straight_A2345), 'topCard: 3-4-5-6-7 must beat A-2-3-4-5');
+  assert.ok(!beats(straight_A2345, straight_34567), 'topCard: A-2-3-4-5 must not beat 3-4-5-6-7');
+  assert.ok(!beats(straight_A2345, straight_23456), 'topCard: A-2-3-4-5 must not beat 2-3-4-5-6');
+
+  // Test sequence convention (A-2-3-4-5 < 2-3-4-5-6 < 3-4-5-6-7 < ... < 10-J-Q-K-A)
+  const seq_A2345 = detectPlay(hand('♠A', '♥2', '♦3', '♣4', '♠5'), 'sequence')!;
+  const seq_23456 = detectPlay(hand('♠2', '♥3', '♦4', '♣5', '♠6'), 'sequence')!;
+  const seq_34567 = detectPlay(hand('♠3', '♥4', '♦5', '♣6', '♠7'), 'sequence')!;
+  const seq_10JQKA = detectPlay(hand('♠10', '♥J', '♦Q', '♣K', '♠A'), 'sequence')!;
+
+  assert.ok(beats(seq_23456, seq_A2345), 'sequence: 2-3-4-5-6 must beat A-2-3-4-5');
+  assert.ok(beats(seq_34567, seq_23456), 'sequence: 3-4-5-6-7 must beat 2-3-4-5-6');
+  assert.ok(beats(seq_10JQKA, seq_23456), 'sequence: 10-J-Q-K-A must beat 2-3-4-5-6');
+  assert.ok(beats(seq_10JQKA, seq_34567), 'sequence: 10-J-Q-K-A must beat 3-4-5-6-7');
+
+  // Test suit tiebreaker for same sequence:
+  // For 2-3-4-5-6, the highest card is 2. The suit of 2 determines the winner.
+  const spades2_run = detectPlay(hand('♠2', '♣3', '♣4', '♣5', '♦6'), 'topCard')!;
+  const hearts2_run = detectPlay(hand('♥2', '♣3', '♣4', '♣5', '♦6'), 'topCard')!;
+  const diamonds2_run = detectPlay(hand('♦2', '♣3', '♣4', '♣5', '♦6'), 'topCard')!;
+  const clubs2_run = detectPlay(hand('♣2', '♣3', '♣4', '♣5', '♦6'), 'topCard')!;
+
+  assert.ok(beats(spades2_run, hearts2_run), '♠2 straight must beat ♥2 straight');
+  assert.ok(beats(hearts2_run, diamonds2_run), '♥2 straight must beat ♦2 straight');
+  assert.ok(beats(diamonds2_run, clubs2_run), '♦2 straight must beat ♣2 straight');
+
+  // For 10-J-Q-K-A, the highest card is A. The suit of A determines the winner.
+  const spadesA_run = detectPlay(hand('♣10', '♣J', '♣Q', '♦K', '♠A'), 'topCard')!;
+  const heartsA_run = detectPlay(hand('♣10', '♣J', '♣Q', '♦K', '♥A'), 'topCard')!;
+  assert.ok(beats(spadesA_run, heartsA_run), '♠A straight must beat ♥A straight');
+
+  // For A-2-3-4-5, the highest-power card in Big Two is the deuce (2). The suit of 2 determines the winner.
+  const spades2_A2345 = detectPlay(hand('♣A', '♠2', '♣3', '♦4', '♣5'), 'topCard')!;
+  const hearts2_A2345 = detectPlay(hand('♣A', '♥2', '♣3', '♦4', '♣5'), 'topCard')!;
+  assert.ok(beats(spades2_A2345, hearts2_A2345), '♠2 A2345 straight must beat ♥2 A2345 straight');
+
+  // Illegal wrap-arounds must be rejected as straights
+  assert.equal(detectPlay(hand('♣J', '♦Q', '♥K', '♠A', '♣2')), null, 'J-Q-K-A-2 must not be a straight');
+  assert.equal(detectPlay(hand('♣Q', '♦K', '♥A', '♠2', '♣3')), null, 'Q-K-A-2-3 must not be a straight');
+  assert.equal(detectPlay(hand('♣K', '♦A', '♥2', '♠3', '♣4')), null, 'K-A-2-3-4 must not be a straight');
+
+  // Unordered inputs should still detect correctly
+  const shuffled_23456 = detectPlay(hand('♦4', '♠2', '♣5', '♥3', '♠6'), 'topCard');
+  assert.equal(shuffled_23456?.type, 'straight');
+  assert.equal(shuffled_23456?.key, straight_23456.key);
+}
+
+/**
+ * Deep verification of flush comparisons:
+ * - Within same suit: highest card rank first, descending tiebreakers.
+ * - Cross-suit: suit hierarchy under standard Taiwanese rules (♠ > ♥ > ♦ > ♣).
+ * - Total ordering, hierarchy against straights/full houses/straight flushes.
+ */
+function expectFlushComparisonsDeep(): void {
+  // Same suit (Spades): highest card rank decides
+  // In Big-Two ranks: 2 > A > K > Q > J > 10 > 9 > 8 > 7 > 6 > 5 > 4 > 3
+  const spades_2_high = detectPlay(hand('♠2', '♠K', '♠Q', '♠J', '♠9'))!;
+  const spades_A_high = detectPlay(hand('♠A', '♠K', '♠Q', '♠J', '♠9'))!;
+  const spades_K_high = detectPlay(hand('♠K', '♠Q', '♠J', '♠10', '♠8'))!;
+  const spades_8_high = detectPlay(hand('♠8', '♠6', '♠5', '♠4', '♠3'))!;
+
+  assert.equal(spades_2_high.type, 'flush');
+  assert.equal(spades_A_high.type, 'flush');
+  assert.equal(spades_K_high.type, 'flush');
+  assert.equal(spades_8_high.type, 'flush');
+
+  // Highest card rank first within same suit
+  assert.ok(beats(spades_2_high, spades_A_high), 'same suit: 2-high flush must beat A-high flush');
+  assert.ok(beats(spades_A_high, spades_K_high), 'same suit: A-high flush must beat K-high flush');
+  assert.ok(beats(spades_K_high, spades_8_high), 'same suit: K-high flush must beat 8-high flush');
+
+  // Same suit, same highest card: second highest card rank decides
+  const spades_A_K_Q_J_9 = detectPlay(hand('♠A', '♠K', '♠Q', '♠J', '♠9'))!;
+  const spades_A_K_Q_J_8 = detectPlay(hand('♠A', '♠K', '♠Q', '♠J', '♠8'))!;
+  assert.ok(beats(spades_A_K_Q_J_9, spades_A_K_Q_J_8), 'same suit & top 4 cards: 9 must beat 8');
+
+  const spades_A_K_Q_10_8 = detectPlay(hand('♠A', '♠K', '♠Q', '♠10', '♠8'))!;
+  assert.ok(beats(spades_A_K_Q_J_8, spades_A_K_Q_10_8), 'same suit: J must beat 10 as 4th card');
+
+  // Cross-suit flushes under Taiwanese engine rules (suit precedence ♠ > ♥ > ♦ > ♣)
+  const hearts_2_high = detectPlay(hand('♥2', '♥K', '♥Q', '♥J', '♥9'))!;
+  const diamonds_2_high = detectPlay(hand('♦2', '♦K', '♦Q', '♦J', '♦9'))!;
+  const clubs_2_high = detectPlay(hand('♣2', '♣K', '♣Q', '♣J', '♣9'))!;
+
+  assert.ok(beats(spades_8_high, hearts_2_high), 'Taiwanese rule: ♠ flush beats ♥ flush');
+  assert.ok(beats(hearts_2_high, diamonds_2_high), 'Taiwanese rule: ♥ flush beats ♦ flush');
+  assert.ok(beats(diamonds_2_high, clubs_2_high), 'Taiwanese rule: ♦ flush beats ♣ flush');
+
+  // Hierarchy with other 5-card types
+  const straight = detectPlay(hand('♠2', '♥3', '♦4', '♣5', '♠6'))!; // strongest straight
+  const fullHouse = detectPlay(hand('♣3', '♦3', '♥3', '♠4', '♣4'))!; // weakest full house
+  const straightFlush = detectPlay(hand('♣3', '♣4', '♣5', '♣6', '♣7'))!; // straight flush
+
+  assert.ok(beats(clubs_2_high, straight), 'any flush must beat even the highest straight');
+  assert.ok(beats(fullHouse, spades_2_high), 'any full house must beat even the highest flush');
+  assert.ok(beats(straightFlush, spades_2_high), 'straight flush must beat flush');
+}
+
+/**
+ * Verification of the Taiwanese anti-collusion "頂大" (Ding Da) rule:
+ * - Detecting Ding Da situations (next player holds 1 card).
+ * - Violation check: when next player holds 1 card, playing a non-highest single is illegal.
+ * - Penalty enforcement ("包賠"): the violator pays for all losers; innocent seats pay 0.
+ */
+function expectAntiCollusionDingDa(): void {
+  // Test situation detection across all seats
+  const state = deal('ding-da-seed', 'normal');
+  // Seat 0's next player is seat 1
+  const normalState: GameState = {
+    ...state,
+    hands: [state.hands[0], state.hands[1], state.hands[2], state.hands[3]],
+  };
+  assert.equal(isDingDaSituation(normalState, 0), false);
+
+  // Set seat 1 to 1 card
+  const dingDaStateSeat0: GameState = {
+    ...state,
+    hands: [state.hands[0], [card('♦2')], state.hands[2], state.hands[3]],
+  };
+  assert.equal(isDingDaSituation(dingDaStateSeat0, 0), true);
+  assert.equal(isDingDaSituation(dingDaStateSeat0, 1), false); // next is seat 2 (many cards)
+  assert.equal(isDingDaSituation(dingDaStateSeat0, 3), false); // next is seat 0 (many cards)
+
+  // Seat 3's next player is seat 0
+  const dingDaStateSeat3: GameState = {
+    ...state,
+    hands: [[card('♠K')], state.hands[1], state.hands[2], state.hands[3]],
+  };
+  assert.equal(isDingDaSituation(dingDaStateSeat3, 3), true);
+  assert.equal(isDingDaSituation(dingDaStateSeat3, 0), false);
+
+  // Test violation logic: isDingDaViolation
+  const playerHand = hand('♠2', '♥K', '♦7', '♣3');
+  const playClub3 = detectPlay(hand('♣3'))!;
+  const playDiamond7 = detectPlay(hand('♦7'))!;
+  const playHeartK = detectPlay(hand('♥K'))!;
+  const playSpades2 = detectPlay(hand('♠2'))!;
+
+  // When next player has 1 card: MUST play highest single (♠2)
+  assert.equal(isDingDaViolation(playerHand, playClub3, 1), true, 'playing ♣3 when holding ♠2 violates 頂大');
+  assert.equal(isDingDaViolation(playerHand, playDiamond7, 1), true, 'playing ♦7 when holding ♠2 violates 頂大');
+  assert.equal(isDingDaViolation(playerHand, playHeartK, 1), true, 'playing ♥K when holding ♠2 violates 頂大');
+  assert.equal(isDingDaViolation(playerHand, playSpades2, 1), false, 'playing ♠2 satisfies 頂大');
+
+  // When next player has >1 card: no violation regardless of card played
+  assert.equal(isDingDaViolation(playerHand, playClub3, 2), false);
+  assert.equal(isDingDaViolation(playerHand, playDiamond7, 5), false);
+
+  // Multi-card plays (pairs, 5-card) do not violate single 頂大 rule
+  const pairHand = hand('♣3', '♦3', '♠2');
+  const playPair3 = detectPlay(hand('♣3', '♦3'))!;
+  assert.equal(isDingDaViolation(pairHand, playPair3, 1), false, 'pairs are not subject to single 頂大');
+
+  // Penalty enforcement ("包賠"): violator pays entire pot, other losers pay 0
+  const normalScores: SeatScore[] = [
+    { seat: 0, remaining: 0, base: 0, deuces: 0, penalty: 0 }, // winner
+    { seat: 1, remaining: 6, base: 6, deuces: 0, penalty: 6 },
+    { seat: 2, remaining: 8, base: 16, deuces: 1, penalty: 32 },
+    { seat: 3, remaining: 10, base: 30, deuces: 0, penalty: 30 },
+  ];
+  const totalPot = 6 + 32 + 30; // 68
+  const mockOutcome: Outcome = {
+    winner: 0,
+    scores: normalScores,
+    pot: totalPot,
+  };
+
+  // Normal settlement without violation
+  const normalDeltas = handDeltas(mockOutcome);
+  assert.deepEqual(normalDeltas, [68, -6, -32, -30]);
+  assert.equal(normalDeltas.reduce((a, b) => a + b, 0), 0);
+
+  // Seat 3 violated 頂大 and fed seat 0 the win -> Seat 3 pays for all!
+  const dingDaEnforced = enforceDingDaPenalty(mockOutcome, 3);
+  assert.equal(dingDaEnforced.violator, 3);
+  assert.equal(dingDaEnforced.totalPaid, totalPot);
+  // Seat 0 gets full pot (+68), seats 1 & 2 pay 0, seat 3 pays entire pot (-68)
+  assert.deepEqual(dingDaEnforced.deltas, [68, 0, 0, -68]);
+  // Zero-sum balance must hold strictly
+  assert.equal(dingDaEnforced.deltas.reduce((a, b) => a + b, 0), 0);
+
+  // Another test: seat 2 violates 頂大
+  const dingDaSeat2 = enforceDingDaPenalty(mockOutcome, 2);
+  assert.deepEqual(dingDaSeat2.deltas, [68, 0, -68, 0]);
+  assert.equal(dingDaSeat2.deltas.reduce((a, b) => a + b, 0), 0);
+}
+
+/**
+ * Deep verification of penalty calculation:
+ * - Card count size ladders: 1-7 (1x), 8-9 (2x Double), 10-12 (3x Triple), 13 (4x Quadruple).
+ * - Deuce multiplier escalation: 2^0=1x, 2^1=2x, 2^2=4x, 2^3=8x, 2^4=16x.
+ * - Comprehensive matrix of card counts and deuce holdings.
+ * - House rules permutations and zero-sum pot invariants.
+ */
+function expectPenaltyCalculationDeep(): void {
+  // Test every card count from 0 to 13 with sizeMultiplier
+  for (let c = 0; c <= 7; c++) {
+    assert.equal(sizeMultiplier(c, true), 1, `count ${c} should have 1x multiplier`);
+  }
+  assert.equal(sizeMultiplier(8, true), 2, 'count 8 should have 2x multiplier');
+  assert.equal(sizeMultiplier(9, true), 2, 'count 9 should have 2x multiplier');
+  assert.equal(sizeMultiplier(10, true), 3, 'count 10 should have 3x multiplier');
+  assert.equal(sizeMultiplier(11, true), 3, 'count 11 should have 3x multiplier');
+  assert.equal(sizeMultiplier(12, true), 3, 'count 12 should have 3x multiplier');
+  assert.equal(sizeMultiplier(13, true), 4, 'count 13 should have 4x multiplier');
+
+  // With sizeLadder disabled: always 1x
+  for (let c = 0; c <= 13; c++) {
+    assert.equal(sizeMultiplier(c, false), 1, `ladder disabled: count ${c} should be 1x`);
+  }
+
+  // Deuce multiplier combinations:
+  // Helper to build arbitrary card counts with specific deuce counts
+  const makeHand = (totalCards: number, deuceCount: number): Card[] => {
+    const deuces = DECK.filter((c) => c.rank === 2).slice(0, deuceCount);
+    const nonDeuces = DECK.filter((c) => c.rank !== 2).slice(0, totalCards - deuceCount);
+    return [...deuces, ...nonDeuces];
+  };
+
+  // 1-7 cards: base = count * 1
+  assert.equal(scoreSeat(makeHand(5, 0), 1).penalty, 5);
+  assert.equal(scoreSeat(makeHand(5, 1), 1).penalty, 5 * 2); // 10
+  assert.equal(scoreSeat(makeHand(5, 2), 1).penalty, 5 * 4); // 20
+
+  // 8-9 cards (Double): base = count * 2
+  assert.equal(scoreSeat(makeHand(8, 0), 1).base, 16);
+  assert.equal(scoreSeat(makeHand(8, 0), 1).penalty, 16);
+  assert.equal(scoreSeat(makeHand(8, 1), 1).penalty, 16 * 2); // 32
+  assert.equal(scoreSeat(makeHand(8, 2), 1).penalty, 16 * 4); // 64
+  assert.equal(scoreSeat(makeHand(8, 3), 1).penalty, 16 * 8); // 128
+  assert.equal(scoreSeat(makeHand(9, 0), 1).base, 18);
+  assert.equal(scoreSeat(makeHand(9, 2), 1).penalty, 18 * 4); // 72
+
+  // 10-12 cards (Triple): base = count * 3
+  assert.equal(scoreSeat(makeHand(10, 0), 1).base, 30);
+  assert.equal(scoreSeat(makeHand(10, 0), 1).penalty, 30);
+  assert.equal(scoreSeat(makeHand(10, 1), 1).penalty, 30 * 2); // 60
+  assert.equal(scoreSeat(makeHand(10, 2), 1).penalty, 30 * 4); // 120
+  assert.equal(scoreSeat(makeHand(10, 3), 1).penalty, 30 * 8); // 240
+  assert.equal(scoreSeat(makeHand(12, 0), 1).base, 36);
+  assert.equal(scoreSeat(makeHand(12, 1), 1).penalty, 36 * 2); // 72
+
+  // 13 cards (Quadruple / Shutout): base = 13 * 4 = 52
+  assert.equal(scoreSeat(makeHand(13, 0), 1).base, 52);
+  assert.equal(scoreSeat(makeHand(13, 0), 1).penalty, 52);
+  assert.equal(scoreSeat(makeHand(13, 1), 1).penalty, 52 * 2); // 104
+  assert.equal(scoreSeat(makeHand(13, 2), 1).penalty, 52 * 4); // 208
+  assert.equal(scoreSeat(makeHand(13, 3), 1).penalty, 52 * 8); // 416
+  assert.equal(scoreSeat(makeHand(13, 4), 1).penalty, 52 * 16); // 832 (Maximum possible penalty!)
+
+  // House rule toggles
+  const h13_4 = makeHand(13, 4);
+  assert.equal(scoreSeat(h13_4, 1, { sizeLadder: false, deuceDouble: false }).penalty, 13);
+  assert.equal(scoreSeat(h13_4, 1, { sizeLadder: true, deuceDouble: false }).penalty, 52);
+  assert.equal(scoreSeat(h13_4, 1, { sizeLadder: false, deuceDouble: true }).penalty, 13 * 16);
+
+  // Full outcome pot validation
+  const testState: GameState = {
+    seedCode: 'score-test',
+    rules: { straights: 'topCard', sizeLadder: true, deuceDouble: true },
+    difficulty: 'normal',
+    phase: 'over',
+    turn: 0,
+    hands: [
+      [], // winner (seat 0)
+      makeHand(8, 1), // 8 cards, 1 deuce -> base 16, penalty 32
+      makeHand(10, 2), // 10 cards, 2 deuces -> base 30, penalty 120
+      makeHand(13, 3), // 13 cards, 3 deuces -> base 52, penalty 416
+    ],
+    table: null,
+    tableOwner: null,
+    passed: [],
+    log: [],
+    winner: 0,
+  };
+  const testOutcome = outcome(testState)!;
+  assert.ok(testOutcome);
+  assert.equal(testOutcome.scores[0].penalty, 0, 'winner must pay 0');
+  assert.equal(testOutcome.scores[1].penalty, 32);
+  assert.equal(testOutcome.scores[2].penalty, 120);
+  assert.equal(testOutcome.scores[3].penalty, 416);
+  assert.equal(testOutcome.pot, 32 + 120 + 416); // 568
+  const testDeltas = handDeltas(testOutcome);
+  assert.deepEqual(testDeltas, [568, -32, -120, -416]);
+  assert.equal(testDeltas.reduce((a, b) => a + b, 0), 0);
+}
+
+/**
+ * Deep verification of:
+ * - AI hand evaluation & turnsToEmpty greedy partition efficiency.
+ * - Lead strategies (dumping low singles vs keeping combinations).
+ * - Taipei seed determinism (timezone shifts, streak preservation, reproducibility).
+ */
+function expectAiEvaluationLeadStrategiesAndTaipeiDeterminism(): void {
+  // Hand evaluation: turnsToEmpty
+  // A hand with two made 5-card straights, a pair, and one single should be 4 turns
+  const hand_4turns = hand(
+    '♣3', '♦4', '♥5', '♠6', '♣7', // straight 1 (5 cards)
+    '♦8', '♥9', '♠10', '♣J', '♦Q', // straight 2 (5 cards)
+    '♥K', '♠K',                    // pair (2 cards)
+    '♠A',                          // single (1 card)
+  );
+  assert.equal(turnsToEmpty(hand_4turns), 4, 'two 5-card hands, one pair, one single should be 4 turns');
+
+  // To ensure purely unconnected singles without flush or straight:
+  const pureSingles = hand('♣3', '♦5', '♥7', '♠9', '♣J', '♦K', '♥2');
+  assert.equal(turnsToEmpty(pureSingles), 7, '7 unconnected cards take 7 turns');
+
+  // Lead strategy verification:
+  // When CPU has lead (state.table === null), it should pick moves that do not inflate turnsToEmpty
+  const leadHand = hand(
+    '♣3', '♦4', '♥5', '♠6', '♣7', // straight
+    '♦9',                          // isolated low single
+    '♥K',                          // high single
+  );
+  const mockLeadState: GameState = {
+    seedCode: 'lead-test',
+    rules: { straights: 'topCard', sizeLadder: true, deuceDouble: true },
+    difficulty: 'hard',
+    phase: 'playing',
+    turn: 1, // CPU seat
+    hands: [
+      hand('♠2'),
+      leadHand,
+      hand('♠A', '♥A'),
+      hand('♦2', '♣2'),
+    ],
+    table: null,
+    tableOwner: null,
+    passed: [],
+    log: [
+      { seat: 0, play: detectPlay([card('♣3')]) },
+      { seat: 1, play: null },
+      { seat: 2, play: null },
+      { seat: 3, play: null },
+    ],
+    winner: null,
+  };
+  const chosenLead = chooseMove(mockLeadState)!;
+  assert.ok(chosenLead);
+  // The lead move must NOT break the made straight if another legal option exists
+  const afterLead = leadHand.filter((c) => !chosenLead.cards.some((x) => x.id === c.id));
+  assert.ok(turnsToEmpty(afterLead) <= turnsToEmpty(leadHand), 'lead move must not worsen hand efficiency');
+
+  // Personality distinctions on lead:
+  // Controller (Seat 2) avoids leading deuces when holding >4 cards
+  const controllerHand = hand('♠2', '♥2', '♦7', '♣8', '♥9', '♠10', '♣K');
+  const controllerState: GameState = {
+    ...mockLeadState,
+    turn: 2, // Seat 2 = controller
+    hands: [[], [], controllerHand, []],
+  };
+  const controllerMove = chooseMove(controllerState)!;
+  assert.ok(!controllerMove.cards.some(isDeuce), 'Controller must not lead a deuce early with >4 cards');
+
+  // Taipei Seed Determinism:
+  // Exact UTC boundaries:
+  // UTC 2026-03-31T15:59:59Z is Taipei 2026-03-31T23:59:59 (+08:00) -> 2026-03-31
+  const justBeforeMidnight = new Date('2026-03-31T15:59:59Z');
+  assert.equal(taipeiDateKey(justBeforeMidnight), '2026-03-31');
+
+  // UTC 2026-03-31T16:00:00Z is Taipei 2026-04-01T00:00:00 (+08:00) -> 2026-04-01
+  const atMidnight = new Date('2026-03-31T16:00:00Z');
+  assert.equal(taipeiDateKey(atMidnight), '2026-04-01');
+
+  // Year boundary: UTC 2026-12-31T16:00:00Z is Taipei 2027-01-01T00:00:00
+  const yearBoundary = new Date('2026-12-31T16:00:00Z');
+  assert.equal(taipeiDateKey(yearBoundary), '2027-01-01');
+
+  // Hand seed derivation stability: handSeed must produce distinct seeds for each index
+  const baseSeed = dailySeedCode('2026-04-01');
+  const seeds5 = Array.from({ length: DAILY_HANDS }, (_, i) => handSeed(baseSeed, i));
+  assert.equal(new Set(seeds5).size, DAILY_HANDS, 'each daily hand seed must be distinct');
+  for (let i = 0; i < DAILY_HANDS; i++) {
+    assert.equal(handSeed(baseSeed, i), handSeed(baseSeed, i), 'handSeed must be pure and reproducible');
+  }
+
+  // Daily streak computation over multi-day spans
+  const records = [
+    { date: '2026-03-29', bestChips: 10, completed: true, attempts: 1 },
+    { date: '2026-03-30', bestChips: 25, completed: true, attempts: 2 },
+    { date: '2026-03-31', bestChips: 15, completed: true, attempts: 1 },
+    { date: '2026-04-01', bestChips: 30, completed: true, attempts: 1 },
+  ];
+  assert.equal(computeDailyStreak(records, '2026-04-01'), 4);
+  // Missing a day in the sequence
+  const brokenRecords = [
+    { date: '2026-03-28', bestChips: 10, completed: true, attempts: 1 },
+    // 2026-03-29 missing
+    { date: '2026-03-30', bestChips: 25, completed: true, attempts: 2 },
+    { date: '2026-03-31', bestChips: 15, completed: true, attempts: 1 },
+  ];
+  assert.equal(computeDailyStreak(brokenRecords, '2026-03-31'), 2);
+}
+
 const CHECKS: [string, () => void][] = [
   ['card order (2 is highest)', expectCardOrder],
   ['play detection', expectPlayDetection],
   ['five-card type order', expectFiveCardTypeOrder],
   ['both straight conventions', expectStraightConventions],
+  ['straight variations and Taiwanese rules', expectStraightVariationsDeep],
+  ['flush comparisons and suit tiebreakers', expectFlushComparisonsDeep],
   ['comparison is a total order', expectTotalOrder],
   ['size must match', expectSizeMustMatch],
   ['the ♣3 opens', expectOpeningRule],
   ['trick resolution', expectTrickResolution],
   ['scoring ladder and deuces', expectScoring],
+  ['penalty calculation ladder and deuce multipliers', expectPenaltyCalculationDeep],
+  ['anti-collusion 頂大 rule and penalty buyout', expectAntiCollusionDingDa],
   ['deal is sound', expectDealIsSound],
   ['games finish cleanly', expectGamesFinishCleanly],
   ['determinism', expectDeterminism],
   ['turns to empty', expectTurnsToEmpty],
+  ['ai hand evaluation lead strategies and taipei determinism', expectAiEvaluationLeadStrategiesAndTaipeiDeterminism],
   ['difficulties differ', expectDifficultiesDiffer],
   ['difficulties are ordered, not just different', expectDifficultiesAreOrdered],
   ['stats tracking', expectStatsTracking],
@@ -1096,8 +1539,11 @@ const CHECKS: [string, () => void][] = [
 
 const QUICK_CORE = new Set([
   expectCardOrder, expectPlayDetection, expectFiveCardTypeOrder, expectStraightConventions,
+  expectStraightVariationsDeep, expectFlushComparisonsDeep,
   expectSizeMustMatch, expectOpeningRule, expectTrickResolution, expectScoring,
-  expectDealIsSound, expectTurnsToEmpty, expectStatsTracking, expectPersonalities,
+  expectPenaltyCalculationDeep, expectAntiCollusionDingDa,
+  expectDealIsSound, expectTurnsToEmpty, expectAiEvaluationLeadStrategiesAndTaipeiDeterminism,
+  expectStatsTracking, expectPersonalities,
   expectCardMemory, expectNamedOpponentLadder, expectTacticalRadar,
 ]);
 const selectedChecks: [string, () => void][] = TEST_PROFILE === 'quick'

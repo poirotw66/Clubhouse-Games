@@ -6,8 +6,12 @@
  */
 import assert from 'node:assert/strict';
 import {
+  calculateDpsPerGold,
   calculateScore,
+  calculateScrapRecycleYield,
+  calculateTowerRepairCost,
   cumulativeCost,
+  evaluateScrapRecycleDecision,
   overlapCallBonus,
   purchaseCost,
   sellRefund,
@@ -411,6 +415,76 @@ function simulateThroughWave(targetWave) {
   console.log(
     `check-economy: difficulties cost ${relaxed.lost}/${relaxed.startLives}, ` +
       `${standard.lost}/${standard.startLives}, ${harsh.lost}/${harsh.startLives} lives`,
+  );
+}
+
+// ── Scrap recycling yield and wear degradation ──────────────────────────────
+{
+  const invested = 100;
+  // 0% wear: standard 70% refund
+  assert.equal(calculateScrapRecycleYield(invested, 0), 70);
+
+  // 50% wear: 70% * (1 - 0.25) = 52.5% -> floors to 52
+  assert.equal(calculateScrapRecycleYield(invested, 0.5), 52);
+
+  // 100% wear: 70% * (1 - 0.5) = 35% -> floors to 35
+  assert.equal(calculateScrapRecycleYield(invested, 1.0), 35);
+
+  // Clamping: negative wear treated as 0%, excessive wear clamped to 1.0
+  assert.equal(calculateScrapRecycleYield(invested, -0.5), 70);
+  assert.equal(calculateScrapRecycleYield(invested, 2.0), 35);
+
+  // Monotonic property: yield never increases as wear grows
+  let prevYield = 100;
+  for (let wear = 0; wear <= 1.0; wear += 0.1) {
+    const y = calculateScrapRecycleYield(invested, wear);
+    assert.ok(y <= prevYield, `scrap yield must be non-increasing with wear: wear=${wear}, yield=${y}`);
+    assert.ok(y >= 35, 'scrap yield must not drop below minimum salvage floor (35%)');
+    prevYield = y;
+  }
+}
+
+// ── Fortification repair costs vs scrap recycling decisions ────────────────
+{
+  const invested = 200;
+
+  // 0% damage costs 0 to repair
+  assert.equal(calculateTowerRepairCost(invested, 0), 0);
+
+  // 20% damage: 200 * 0.35 * 0.20 = 14 gold
+  assert.equal(calculateTowerRepairCost(invested, 0.2), 14);
+
+  // 100% damage: 200 * 0.35 * 1.0 = 70 gold
+  assert.equal(calculateTowerRepairCost(invested, 1.0), 70);
+
+  // Decision rule:
+  // Case A: 10% damage -> repair cost = 7, replacement cost = 200, scrap salvage = 140
+  // Net replacement cost = 200 - 140 = 60. Since 7 <= 60, repair is strictly optimal.
+  const decisionA = evaluateScrapRecycleDecision(invested, 7, 200);
+  assert.equal(decisionA, 'repair');
+
+  // Case B: Severe damage / obsolescence where repair cost exceeds net replacement
+  // e.g. repair cost = 80 vs net replacement = 50 -> scrap recycling is preferred.
+  const decisionB = evaluateScrapRecycleDecision(invested, 80, 190);
+  assert.equal(decisionB, 'recycle');
+}
+
+// ── Brass cog efficiency: DPS per invested gold ─────────────────────────────
+{
+  // Crossbow stats:
+  // L0: damage 8, fireRate 2.2, cost 40 -> DPS = 17.6, DPS/gold = 17.6 / 40 = 0.44
+  // L1: damage 13, fireRate 2.4, cost 35 -> total 75 -> DPS = 31.2, DPS/gold = 31.2 / 75 = 0.416
+  // L2A: damage 18, fireRate 2.35, cost 55 -> total 130 -> DPS = 42.3, DPS/gold = 42.3 / 130 = 0.325
+  const dpsL0 = calculateDpsPerGold({ damage: 8, range: 2.6, fireRate: 2.2, cost: 40 }, 40);
+  const dpsL1 = calculateDpsPerGold({ damage: 13, range: 2.9, fireRate: 2.4, cost: 35 }, 75);
+  const dpsL2 = calculateDpsPerGold({ damage: 18, range: 3.15, fireRate: 2.35, cost: 55 }, 130);
+
+  assert.ok(dpsL0 > 0.4, `base crossbow DPS/gold should be > 0.4, got ${dpsL0}`);
+  // Diminishing returns: base level offers highest raw efficiency per coin spent,
+  // rewarding early wide placement, while higher tiers provide space density in tight corridors.
+  assert.ok(
+    dpsL0 > dpsL1 && dpsL1 > dpsL2,
+    `DPS per gold should exhibit diminishing marginal returns: L0=${dpsL0}, L1=${dpsL1}, L2=${dpsL2}`,
   );
 }
 

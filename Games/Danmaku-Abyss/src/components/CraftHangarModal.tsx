@@ -93,7 +93,7 @@ export function CraftHangarModal({
           <div className="rounded-xl border border-cyan-500/30 bg-[#070b18]/90 p-4 shadow-[inset_0_0_24px_rgba(34,211,238,0.06)]">
             <div className="flex items-center justify-between">
               <div>
-                <span className="font-display text-lg font-black text-slate-100">{activeCraft.name}</span>
+                <span className="font-display text-lg font-black text-slate-100">{activeCraft.id.toUpperCase()} 戰術規格</span>
                 <p className="text-xs text-slate-300 mt-0.5">{activeCraft.blurb}</p>
               </div>
               <div

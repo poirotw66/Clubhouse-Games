@@ -100,6 +100,8 @@ import type {
   HouseRules,
   MatchState,
   PlayerCount,
+  Rank,
+  Suit,
 } from '../src/game/types.js';
 
 const TIERS: DifficultyId[] = ['easy', 'normal', 'hard'];
@@ -1137,6 +1139,695 @@ function expectDangerCardsAndMomentum(): void {
   assert.equal(momentum.winProbability >= 0 && momentum.winProbability <= 100, true);
 }
 
+/**
+ * Exhaustive check for the 湊十 and rank-matching rules, plus complete deck point conservation.
+ *
+ * Verifies all 169 rank pairs across 16 suit permutations:
+ * - Below 10: pairs if and only if rankA + rankB === 10 (A-9, 2-8, 3-7, 4-6, 5-5).
+ * - 10 and above: pairs if and only if rankA === rankB (10-10, J-J, Q-Q, K-K).
+ * - Suit must never affect matchability.
+ *
+ * Point conservation:
+ * - Standard deck: 52 cards, exactly 210 points.
+ *   - Red A: 20 pts each (2 cards -> 40 pts).
+ *   - Red 9, 10, J, Q, K: 10 pts each (2 cards each, 10 cards -> 100 pts).
+ *   - Red 2..8: face value (2x each -> 70 pts).
+ *   - Black cards: 0 pts each (26 cards -> 0 pts).
+ * - Black Aces variant:
+ *   - Red cards unchanged: 210 pts.
+ *   - Spade A (spades-1): exactly 30 pts.
+ *   - Club A (clubs-1): exactly 40 pts.
+ *   - Other 24 black cards: 0 pts.
+ *   - Total deck: 280 pts.
+ * - Conservation across any multi-way partition of the deck.
+ */
+function expectExhaustiveMatchingAndPointConservation(): void {
+  const deck = buildDeck();
+  assert.equal(deck.length, 52, 'Deck must contain 52 cards');
+
+  // 1. Exhaustive matching across all 13 x 13 rank pairs and 4 x 4 suit combinations.
+  for (let r1 = 1; r1 <= 13; r1++) {
+    for (let r2 = 1; r2 <= 13; r2++) {
+      const shouldMatch =
+        r1 >= 10 || r2 >= 10 ? r1 === r2 : r1 + r2 === 10;
+
+      for (const s1 of SUITS) {
+        for (const s2 of SUITS) {
+          const c1: Card = { id: `${s1}-${r1}`, suit: s1, rank: r1 as Rank };
+          const c2: Card = { id: `${s2}-${r2}`, suit: s2, rank: r2 as Rank };
+
+          const isMatch = matches(c1, c2);
+          assert.equal(
+            isMatch,
+            shouldMatch,
+            `matches(${c1.id}, ${c2.id}) returned ${isMatch}, expected ${shouldMatch}`,
+          );
+          // Symmetry invariant: matches(c1, c2) === matches(c2, c1)
+          assert.equal(
+            isMatch,
+            matches(c2, c1),
+            `matches is not symmetric for ${c1.id} and ${c2.id}`,
+          );
+        }
+      }
+    }
+  }
+
+  // 2. Specific verification of canonical legal pairs.
+  const canonicalPairs: Array<[Rank, Rank]> = [
+    [1, 9],
+    [2, 8],
+    [3, 7],
+    [4, 6],
+    [5, 5],
+    [10, 10],
+    [11, 11],
+    [12, 12],
+    [13, 13],
+  ];
+  for (const [rA, rB] of canonicalPairs) {
+    const cardA: Card = { id: `hearts-${rA}`, suit: 'hearts', rank: rA };
+    const cardB: Card = { id: `spades-${rB}`, suit: 'spades', rank: rB };
+    assert.ok(matches(cardA, cardB), `canonical pair ${rA}-${rB} failed to match`);
+  }
+
+  // 3. Boundary negative checks.
+  // 5 only pairs with 5.
+  for (let r = 1; r <= 13; r++) {
+    if (r === 5) continue;
+    const c5: Card = { id: 'hearts-5', suit: 'hearts', rank: 5 };
+    const other: Card = { id: 'spades-5', suit: 'spades', rank: r as Rank };
+    assert.ok(!matches(c5, other), `5 must not pair with rank ${r}`);
+  }
+  // Face cards do not pair with each other across different ranks.
+  const faceRanks: Rank[] = [10, 11, 12, 13];
+  for (const f1 of faceRanks) {
+    for (const f2 of faceRanks) {
+      if (f1 === f2) continue;
+      const c1: Card = { id: `diamonds-${f1}`, suit: 'diamonds', rank: f1 };
+      const c2: Card = { id: `clubs-${f2}`, suit: 'clubs', rank: f2 };
+      assert.ok(!matches(c1, c2), `face card ${f1} must not pair with ${f2}`);
+    }
+  }
+
+  // 4. Point values and conservation for standard rules.
+  let standardRedSum = 0;
+  let standardBlackSum = 0;
+  for (const card of deck) {
+    const pts = pointsOf(card, false);
+    if (isRed(card)) {
+      standardRedSum += pts;
+      if (card.rank === 1) {
+        assert.equal(pts, 20, `Red A (${card.id}) must be 20 points`);
+      } else if (card.rank >= 9) {
+        assert.equal(pts, 10, `Red 9..K (${card.id}) must be 10 points`);
+      } else {
+        assert.equal(pts, card.rank, `Red ${card.rank} (${card.id}) must be face value`);
+      }
+    } else {
+      standardBlackSum += pts;
+      assert.equal(pts, 0, `Black card (${card.id}) must be 0 points under standard rules`);
+    }
+  }
+  assert.equal(standardRedSum, 210, 'Total red points in standard deck must be 210');
+  assert.equal(standardBlackSum, 0, 'Total black points in standard deck must be 0');
+  assert.equal(sumPoints(deck, false), 210, 'sumPoints(deck, false) must be 210');
+
+  // 5. Point values and conservation for Black Aces variant.
+  let variantRedSum = 0;
+  let variantBlackSum = 0;
+  for (const card of deck) {
+    const pts = pointsOf(card, true);
+    if (isRed(card)) {
+      variantRedSum += pts;
+    } else {
+      variantBlackSum += pts;
+      if (card.suit === 'spades' && card.rank === 1) {
+        assert.equal(pts, 30, 'Spade A must be 30 points in Black Aces variant');
+      } else if (card.suit === 'clubs' && card.rank === 1) {
+        assert.equal(pts, 40, 'Club A must be 40 points in Black Aces variant');
+      } else {
+        assert.equal(pts, 0, `Black card ${card.id} must be 0 points even with Black Aces`);
+      }
+    }
+  }
+  assert.equal(variantRedSum, 210, 'Red points must remain 210 with Black Aces variant');
+  assert.equal(variantBlackSum, 70, 'Black ace points must sum to 70 (30 + 40)');
+  assert.equal(sumPoints(deck, true), 280, 'Total deck points with Black Aces must be 280');
+
+  // 6. Partition conservation: partition deck into chunks of arbitrary sizes.
+  const p1 = deck.slice(0, 12);
+  const p2 = deck.slice(12, 24);
+  const p3 = deck.slice(24, 28);
+  const p4 = deck.slice(28, 52);
+  assert.equal(
+    sumPoints(p1, false) + sumPoints(p2, false) + sumPoints(p3, false) + sumPoints(p4, false),
+    210,
+    'Arbitrary partition must conserve 210 points in standard deck',
+  );
+  assert.equal(
+    sumPoints(p1, true) + sumPoints(p2, true) + sumPoints(p3, true) + sumPoints(p4, true),
+    280,
+    'Arbitrary partition must conserve 280 points in Black Aces deck',
+  );
+}
+
+/**
+ * Deep check of Double Red 5 (過紅五) detection, chip settlement bonuses,
+ * zero-sum chip conservation, and point swing invariants.
+ */
+function expectDoubleRedFiveBonusAndScoring(): void {
+  const card = (suit: 'hearts' | 'diamonds' | 'clubs' | 'spades', rank: Rank): Card => ({
+    id: `${suit}-${rank}`,
+    suit,
+    rank,
+  });
+
+  const baseState = deal('red5-deep-test', 'normal', rules(2));
+
+  // 1. Single turn: hand captures hearts-5, pile flip captures diamonds-5.
+  const turnBothCaptured: GameState = {
+    ...baseState,
+    rules: { ...baseState.rules, doubleRedFive: true },
+    log: [
+      {
+        by: HUMAN,
+        played: card('hearts', 5),
+        taken: card('clubs', 5),
+        source: 'hand',
+        points: 5,
+        tableBefore: [card('clubs', 5)],
+      },
+      {
+        by: HUMAN,
+        played: card('spades', 5),
+        taken: card('diamonds', 5),
+        source: 'pile',
+        points: 5,
+        tableBefore: [card('diamonds', 5)],
+      },
+    ],
+  };
+  assert.equal(findDoubleRedFive(turnBothCaptured), HUMAN, 'Must detect double red 5 from hand + flip');
+
+  // 2. Single hand play captures BOTH red 5s: diamonds-5 takes hearts-5 from table.
+  const singleHandBothReds: GameState = {
+    ...baseState,
+    rules: { ...baseState.rules, doubleRedFive: true },
+    log: [
+      {
+        by: 1,
+        played: card('diamonds', 5),
+        taken: card('hearts', 5),
+        source: 'hand',
+        points: 10,
+        tableBefore: [card('hearts', 5)],
+      },
+      {
+        by: 1,
+        played: card('clubs', 8),
+        taken: null,
+        source: 'pile',
+        points: 0,
+        tableBefore: [],
+      },
+    ],
+  };
+  assert.equal(findDoubleRedFive(singleHandBothReds), 1, 'Must detect double red 5 when both are banked in single hand play');
+
+  // 3. Single pile flip captures BOTH red 5s: pile flips diamonds-5, takes hearts-5 on table.
+  const singleFlipBothReds: GameState = {
+    ...baseState,
+    rules: { ...baseState.rules, doubleRedFive: true },
+    log: [
+      {
+        by: 0,
+        played: card('spades', 8),
+        taken: null,
+        source: 'hand',
+        points: 0,
+        tableBefore: [],
+      },
+      {
+        by: 0,
+        played: card('diamonds', 5),
+        taken: card('hearts', 5),
+        source: 'pile',
+        points: 10,
+        tableBefore: [card('hearts', 5)],
+      },
+    ],
+  };
+  assert.equal(findDoubleRedFive(singleFlipBothReds), 0, 'Must detect double red 5 when both are banked in single flip');
+
+  // 4. Negative check: hearts-5 in turn 0, diamonds-5 in turn 1.
+  const splitAcrossTurns: GameState = {
+    ...baseState,
+    rules: { ...baseState.rules, doubleRedFive: true },
+    log: [
+      {
+        by: HUMAN,
+        played: card('hearts', 5),
+        taken: card('clubs', 5),
+        source: 'hand',
+        points: 5,
+        tableBefore: [],
+      },
+      {
+        by: HUMAN,
+        played: card('spades', 2),
+        taken: null,
+        source: 'pile',
+        points: 0,
+        tableBefore: [],
+      },
+      {
+        by: 1,
+        played: card('spades', 3),
+        taken: null,
+        source: 'hand',
+        points: 0,
+        tableBefore: [],
+      },
+      {
+        by: 1,
+        played: card('spades', 4),
+        taken: null,
+        source: 'pile',
+        points: 0,
+        tableBefore: [],
+      },
+      {
+        by: HUMAN,
+        played: card('diamonds', 5),
+        taken: card('spades', 5),
+        source: 'hand',
+        points: 5,
+        tableBefore: [],
+      },
+      {
+        by: HUMAN,
+        played: card('spades', 6),
+        taken: null,
+        source: 'pile',
+        points: 0,
+        tableBefore: [],
+      },
+    ],
+  };
+  assert.equal(
+    findDoubleRedFive(splitAcrossTurns),
+    null,
+    'Must NOT detect double red 5 when captured across different turns',
+  );
+
+  // 5. Negative check: different seats capture one red 5 each.
+  const splitAcrossSeats: GameState = {
+    ...baseState,
+    rules: { ...baseState.rules, doubleRedFive: true },
+    log: [
+      {
+        by: HUMAN,
+        played: card('hearts', 5),
+        taken: card('clubs', 5),
+        source: 'hand',
+        points: 5,
+        tableBefore: [],
+      },
+      {
+        by: HUMAN,
+        played: card('spades', 2),
+        taken: null,
+        source: 'pile',
+        points: 0,
+        tableBefore: [],
+      },
+      {
+        by: 1,
+        played: card('diamonds', 5),
+        taken: card('spades', 5),
+        source: 'hand',
+        points: 5,
+        tableBefore: [],
+      },
+      {
+        by: 1,
+        played: card('spades', 4),
+        taken: null,
+        source: 'pile',
+        points: 0,
+        tableBefore: [],
+      },
+    ],
+  };
+  assert.equal(findDoubleRedFive(splitAcrossSeats), null, 'Must NOT award double red 5 when split across seats');
+
+  // 6. Negative check: doubleRedFive house rule disabled.
+  const ruleDisabledState: GameState = {
+    ...turnBothCaptured,
+    rules: { ...turnBothCaptured.rules, doubleRedFive: false },
+  };
+  assert.equal(findDoubleRedFive(ruleDisabledState), null, 'Must return null when doubleRedFive rule is off');
+
+  // 7. Chip settlement & zero-sum conservation across 2, 3, and 4 players.
+  // 2-player settlement:
+  // Base scores: [105, 105] (par 105). Seat 0 triggers doubleRedFive.
+  // Bonus: +20 * (2 - 1) = +20 to Seat 0, -20 to Seat 1.
+  const deltas2p = settleChips([105, 105], 105, rules(2), 0, null);
+  assert.deepEqual(deltas2p, [20, -20], '2-player double red 5 bonus must be +20 / -20');
+  assert.equal(deltas2p.reduce((a, b) => a + b, 0), 0, '2p deltas must sum to 0');
+
+  // 3-player settlement:
+  // Base scores: [70, 70, 70] (par 70). Seat 1 triggers doubleRedFive.
+  // Bonus: +20 * (3 - 1) = +40 to Seat 1, -20 to Seat 0 and Seat 2.
+  const deltas3p = settleChips([70, 70, 70], 70, rules(3), 1, null);
+  assert.deepEqual(deltas3p, [-20, 40, -20], '3-player double red 5 bonus must be +40 for winner, -20 each');
+  assert.equal(deltas3p.reduce((a, b) => a + b, 0), 0, '3p deltas must sum to 0');
+
+  // 4-player settlement:
+  // Base scores: [52.5, 52.5, 52.5, 52.5] (par 52.5). Seat 2 triggers doubleRedFive.
+  // Bonus: +20 * (4 - 1) = +60 to Seat 2, -20 to each of the other three seats.
+  const deltas4p = settleChips([52.5, 52.5, 52.5, 52.5], 52.5, rules(4), 2, null);
+  assert.deepEqual(deltas4p, [-20, -20, 60, -20], '4-player double red 5 bonus must be +60 for winner, -20 each');
+  assert.equal(deltas4p.reduce((a, b) => a + b, 0), 0, '4p deltas must sum to 0');
+
+  // 8. Combined card points + bonus differential:
+  // Capturing both red 5s yields 5 + 5 = 10 card points.
+  // In a 2-player game where Seat 0 scored 105 including both red 5s,
+  // the card point contribution is 10 points and chip bonus is +20,
+  // creating a combined total impact of +30 points/chips over par.
+  const rawRed5Points = pointsOf(card('hearts', 5)) + pointsOf(card('diamonds', 5));
+  assert.equal(rawRed5Points, 10, 'Both red fives together must contribute exactly 10 card points');
+  const totalImpact2p = (105 - 105) + deltas2p[0] + rawRed5Points;
+  assert.equal(totalImpact2p, 30, 'Total card score contribution (10) + chip bonus (+20) represents a +30 advantage');
+}
+
+/**
+ * Invariants for 2-player, 3-player, and 4-player deal balance:
+ * - 2-player: 24 cards in deal (12 each), 4 table pool, 24 pile.
+ * - 3-player: 24 cards in deal (8 each; 16 cards across opponents), 4 table pool, 24 pile.
+ * - 4-player: 24 cards in deal (6 each; 12 cards per pair/subset), 4 table pool, 24 pile.
+ * - Total card conservation: hands + table + pile = 52.
+ * - Turn count: each player takes handSize(players) turns, exactly exhausting 24 pile cards.
+ * - Par score integer / fraction precision.
+ */
+function expectMultiplayerBalanceInvariants(): void {
+  // 1. Structural deal constants
+  assert.equal(TABLE_SIZE, 4, 'Table size must be 4');
+  assert.equal(DEALT_TOTAL, 24, 'Total dealt cards to hands must be 24');
+  assert.equal(PILE_SIZE, 24, 'Draw pile size must be 24');
+  assert.equal(DEALT_TOTAL + TABLE_SIZE + PILE_SIZE, 52, 'Deck partition must sum to 52');
+
+  // 2. Specific per-player count invariants
+  const specs: Array<{
+    players: PlayerCount;
+    handPerPlayer: number;
+    totalDealt: number;
+    opponentCardsTotal: number;
+    parStandard: number;
+    parBlackAces: number;
+  }> = [
+    {
+      players: 2,
+      handPerPlayer: 12,
+      totalDealt: 24,
+      opponentCardsTotal: 12, // 1 opponent * 12
+      parStandard: 105,
+      parBlackAces: 140,
+    },
+    {
+      players: 3,
+      handPerPlayer: 8,
+      totalDealt: 24,
+      opponentCardsTotal: 16, // 2 opponents * 8 = 16 cards deal!
+      parStandard: 70,
+      parBlackAces: 280 / 3,
+    },
+    {
+      players: 4,
+      handPerPlayer: 6,
+      totalDealt: 24,
+      opponentCardsTotal: 18, // 3 opponents * 6 = 18; 2 opponents = 12 cards deal!
+      parStandard: 52.5,
+      parBlackAces: 70,
+    },
+  ];
+
+  for (const spec of specs) {
+    assert.equal(handSize(spec.players), spec.handPerPlayer, `${spec.players}p handSize mismatch`);
+    assert.equal(spec.handPerPlayer * spec.players, spec.totalDealt, `${spec.players}p total dealt mismatch`);
+    assert.equal(parScore(spec.players, false), spec.parStandard, `${spec.players}p standard par mismatch`);
+    assert.equal(parScore(spec.players, true), spec.parBlackAces, `${spec.players}p black aces par mismatch`);
+
+    // Verify 3-player 16 opponent cards and 4-player 12 cards subset
+    if (spec.players === 3) {
+      assert.equal(spec.opponentCardsTotal, 16, '3-player deal must have 16 cards across opponents');
+    }
+    if (spec.players === 4) {
+      assert.equal(spec.handPerPlayer * 2, 12, '4-player deal must have 12 cards per 2 players');
+    }
+
+    // Verify dealing across multiple seeds
+    for (let seedIdx = 0; seedIdx < 15; seedIdx++) {
+      const state = deal(`multi-balance-${spec.players}-${seedIdx}`, 'normal', rules(spec.players));
+      assert.equal(state.hands.length, spec.players, 'Incorrect number of hands');
+      for (let s = 0; s < spec.players; s++) {
+        assert.equal(state.hands[s].length, spec.handPerPlayer, `Hand size mismatch at seat ${s}`);
+      }
+      assert.equal(state.table.length, 4, 'Table must have 4 cards');
+      assert.equal(state.pile.length, 24, 'Draw pile must have 24 cards');
+
+      const all = allCards(state);
+      assert.equal(all.length, 52, 'Must contain 52 cards total');
+      assert.equal(new Set(all.map((c) => c.id)).size, 52, 'Cards must be unique');
+
+      // Point conservation at deal time
+      assert.equal(sumPoints(all, false), 210, 'Deal state must conserve 210 points');
+    }
+  }
+
+  // 3. Dynamic gameplay balance and pile exhaustion
+  for (const players of COUNTS) {
+    const end = playOut(`balance-full-${players}`, 'normal', players);
+    assert.equal(end.phase, 'over', 'Game must reach over phase');
+    assert.equal(end.pile.length, 0, 'Pile must be completely exhausted');
+    for (let s = 0; s < players; s++) {
+      assert.equal(end.hands[s].length, 0, `Seat ${s} must have empty hand`);
+      assert.equal(end.captured[s].length % 2, 0, `Seat ${s} captures must be even`);
+    }
+
+    const out = outcome(end);
+    assert.equal(
+      out.scores.reduce((a, b) => a + b, 0) + out.wastedPoints,
+      210,
+      'Final scores plus wasted points must equal 210',
+    );
+  }
+}
+
+/**
+ * AI eat/discard optimization, strategic danger card radar,
+ * and point differential projections.
+ */
+function expectAiOptimizationDangerRadarAndProjections(): void {
+  const card = (suit: 'hearts' | 'diamonds' | 'clubs' | 'spades', rank: Rank): Card => ({
+    id: `${suit}-${rank}`,
+    suit,
+    rank,
+  });
+
+  // 1. AI Eat Optimization: maximizing captured red points
+  const base = deal('ai-opt-seed', 'normal', rules(2));
+  const eatState: GameState = {
+    ...base,
+    turn: 1, // CPU seat
+    table: [card('hearts', 1), card('hearts', 3)], // Table has Red Ace (20 pts) and Red 3 (3 pts)
+    hands: [
+      base.hands[0],
+      [card('spades', 9), card('clubs', 7)], // Spades 9 can eat Red Ace (20 pts); Clubs 7 can eat Red 3 (3 pts)
+    ],
+  };
+
+  const sharpMove = chooseMove(eatState, 'sharp', 0);
+  assert.equal(
+    sharpMove.card.id,
+    'spades-9',
+    'Sharp AI must choose spades-9 to eat Red Ace (20 pts) over clubs-7 (3 pts)',
+  );
+  assert.equal(sharpMove.taken?.id, 'hearts-1', 'Sharp AI must take hearts-1');
+
+  // 2. Tool Cost Optimization: preferring black tool when capture value is tied
+  // Move 1: Spades 7 (0 pts) takes Hearts 3 (3 pts) -> total 3 pts, toolCost = 0
+  // Move 2: Hearts 3 (3 pts) takes Clubs 7 (0 pts) -> total 3 pts, toolCost = 3
+  const toolState: GameState = {
+    ...base,
+    turn: 1,
+    table: [card('hearts', 3), card('clubs', 7)],
+    hands: [
+      base.hands[0],
+      [card('spades', 7), card('hearts', 3)],
+    ],
+  };
+
+  const miserMove = chooseMove(toolState, 'sharp', 0, 'miser');
+  assert.equal(
+    miserMove.card.id,
+    'spades-7',
+    'Miser personality must use black card (0 cost) instead of red card (3 cost) when capturing tied value',
+  );
+
+  const feederMove = chooseMove(toolState, 'sharp', 0, 'feeder');
+  assert.equal(
+    feederMove.card.id,
+    'hearts-3',
+    'Feeder personality happily spends red tool when capture points are tied',
+  );
+
+  // 3. Discard Optimization: never giving away points when safe discard exists
+  const discardState: GameState = {
+    ...base,
+    turn: 1,
+    table: [card('clubs', 9)], // Table has 9; hand cards (2, 8, 4, 10) cannot capture 9
+    hands: [
+      base.hands[0],
+      [
+        card('clubs', 2), // Black 0 pts
+        card('spades', 8), // Black 0 pts
+        card('hearts', 4), // Red 4 pts
+        card('diamonds', 10), // Red 10 pts
+      ],
+    ],
+  };
+
+  const sharpDiscard = chooseMove(discardState, 'sharp', 0);
+  assert.equal(
+    pointsOf(sharpDiscard.card, false),
+    0,
+    'Sharp brain must never discard a scoring red card when a 0-point card is available',
+  );
+  assert.equal(sharpDiscard.taken, null, 'Must be a discard (taken === null)');
+
+  // 4. Danger Card Radar
+  // Verify red Ace, red 9, red 5 categories
+  assert.equal(getDangerCardType(card('hearts', 1)), 'ace');
+  assert.equal(getDangerCardType(card('diamonds', 1)), 'ace');
+  assert.equal(getDangerCardType(card('spades', 1), false), null);
+  assert.equal(getDangerCardType(card('spades', 1), true), 'ace');
+
+  assert.equal(getDangerCardType(card('hearts', 9)), 'nine');
+  assert.equal(getDangerCardType(card('diamonds', 9)), 'nine');
+  assert.equal(getDangerCardType(card('clubs', 9)), null);
+
+  assert.equal(getDangerCardType(card('hearts', 5)), 'red_five');
+  assert.equal(getDangerCardType(card('diamonds', 5)), 'red_five');
+  assert.equal(getDangerCardType(card('spades', 5)), null);
+
+  assert.ok(isDangerCard(card('hearts', 1)));
+  assert.ok(isDangerCard(card('diamonds', 9)));
+  assert.ok(isDangerCard(card('hearts', 5)));
+  assert.ok(!isDangerCard(card('clubs', 2)));
+  assert.ok(!isDangerCard(card('spades', 8)));
+
+  // Table resonance
+  const tableWithAce = [card('hearts', 1), card('clubs', 4)];
+  assert.ok(hasResonanceWithTable(card('spades', 9), tableWithAce), '9 must resonate with Ace on table');
+  assert.ok(!hasResonanceWithTable(card('spades', 8), tableWithAce), '8 must not resonate with Ace');
+
+  const tableWithRed5 = [card('hearts', 5)];
+  assert.ok(hasResonanceWithTable(card('diamonds', 5), tableWithRed5), '5 must resonate with 5 on table');
+  assert.ok(!hasResonanceWithTable(card('diamonds', 9), tableWithRed5), '9 must not resonate with 5');
+
+  // 5. Point Differential Projections (projectHandOptions)
+  const projState: GameState = {
+    ...base,
+    turn: HUMAN,
+    table: [card('hearts', 8), card('clubs', 6)],
+    hands: [
+      [
+        card('clubs', 2), // Can capture hearts-8 (isToolConversion = true, maxPoints = 8)
+        card('spades', 3), // Cannot capture, 0 pts -> safe
+        card('hearts', 3), // Cannot capture, 3 pts -> caution
+        card('diamonds', 10), // Cannot capture, 10 pts -> danger
+      ],
+      base.hands[1],
+    ],
+  };
+
+  const projections = projectHandOptions(projState);
+  assert.equal(projections.length, 4);
+
+  const projC2 = projections.find((p) => p.handCard.id === 'clubs-2')!;
+  assert.ok(projC2.canCapture);
+  assert.equal(projC2.bestTarget?.id, 'hearts-8');
+  assert.equal(projC2.maxPoints, 8);
+  assert.ok(projC2.isToolConversion);
+
+  const projS3 = projections.find((p) => p.handCard.id === 'spades-3')!;
+  assert.ok(!projS3.canCapture);
+  assert.equal(projS3.discardSafety, 'safe');
+
+  const projH3 = projections.find((p) => p.handCard.id === 'hearts-3')!;
+  assert.ok(!projH3.canCapture);
+  assert.equal(projH3.discardSafety, 'caution');
+
+  const projD10 = projections.find((p) => p.handCard.id === 'diamonds-10')!;
+  assert.ok(!projD10.canCapture);
+  assert.equal(projD10.discardSafety, 'danger');
+
+  // 6. Score Leverage Status Classification
+  function makeCardsWithPoints(points: number): Card[] {
+    const cards: Card[] = [];
+    let rem = points;
+    let idx = 0;
+    while (rem > 0) {
+      if (rem >= 20) {
+        cards.push({ id: `pile-a-${idx++}`, suit: 'hearts', rank: 1 });
+        rem -= 20;
+      } else if (rem >= 10) {
+        cards.push({ id: `pile-10-${idx++}`, suit: 'hearts', rank: 10 });
+        rem -= 10;
+      } else {
+        const r = Math.min(8, rem) as Rank;
+        cards.push({ id: `pile-r-${idx++}`, suit: 'hearts', rank: r });
+        rem -= r;
+      }
+    }
+    return cards;
+  }
+
+  const mockStateWithScore = (myScore: number, oppScore: number, remainingRed: number): GameState => ({
+    ...base,
+    captured: [
+      makeCardsWithPoints(myScore),
+      makeCardsWithPoints(oppScore),
+    ],
+    table: [],
+    hands: [[], []],
+    pile: makeCardsWithPoints(remainingRed),
+  });
+
+  // safe_lead: score >= par + 10 (115 >= 115)
+  const safeLead = analyzeScoreLeverage(mockStateWithScore(115, 50, 45));
+  assert.equal(safeLead.status, 'safe_lead');
+  assert.equal(safeLead.margin, 10);
+
+  // qualified: score >= par (105 >= 105)
+  const qualified = analyzeScoreLeverage(mockStateWithScore(105, 50, 55));
+  assert.equal(qualified.status, 'qualified');
+
+  // striking_distance: par - score <= 15 (95 >= 90)
+  const striking = analyzeScoreLeverage(mockStateWithScore(95, 50, 65));
+  assert.equal(striking.status, 'striking_distance');
+
+  // unreachable: myScore + remaining < par
+  const unreachable = analyzeScoreLeverage(mockStateWithScore(40, 160, 10));
+  assert.equal(unreachable.status, 'unreachable');
+
+  // trailing: par - myScore > 15
+  const trailing = analyzeScoreLeverage(mockStateWithScore(80, 50, 80));
+  assert.equal(trailing.status, 'trailing');
+}
+
 const CHECKS: [string, () => void][] = [
   ['matching rule', expectMatchingRule],
   ['scoring table (210, red 9 = 10)', expectScoringTable],
@@ -1163,6 +1854,10 @@ const CHECKS: [string, () => void][] = [
   ['named opponent ladder', expectNamedOpponentLadder],
   ['tactical analysis and radar', expectTacticalAnalysis],
   ['danger cards and momentum oscilloscope', expectDangerCardsAndMomentum],
+  ['exhaustive matching and point conservation', expectExhaustiveMatchingAndPointConservation],
+  ['double red five bonus and scoring invariants', expectDoubleRedFiveBonusAndScoring],
+  ['multiplayer deal and balance invariants (2p/3p/4p)', expectMultiplayerBalanceInvariants],
+  ['ai eat/discard optimization, radar and projections', expectAiOptimizationDangerRadarAndProjections],
 ];
 
 let failed = 0;

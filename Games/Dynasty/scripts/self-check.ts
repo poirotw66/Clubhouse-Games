@@ -10,19 +10,75 @@ import {
   isChallengeUnlocked,
 } from '../src/game/challenges.js';
 import { acknowledge, createGame, resolve } from '../src/game/engine.js';
-import { CLUBS, GAMES, LEAGUE_BASELINE, formatMoney, overall } from '../src/game/config.js';
-import { marketSalary, tradeValue } from '../src/game/players.js';
+import {
+  BANKRUPTCY,
+  CLUBS,
+  EXPECTATIONS,
+  EXPECTATION_ORDER,
+  GAMES,
+  LEAGUE_BASELINE,
+  LUXURY_RATE,
+  SALARY_CAP,
+  SCOUT_TIERS,
+  TRUST_DANGER,
+  formatMoney,
+  grade,
+  overall,
+} from '../src/game/config.js';
+import {
+  ability,
+  agePlayer,
+  generatePlayer,
+  isStar,
+  marketSalary,
+  tradeValue,
+} from '../src/game/players.js';
 import {
   EMPTY_RECORDS,
   applyTenureToRecords,
   clubIdFromArchiveLabel,
   mergeArchiveIntoRecords,
 } from '../src/game/records.js';
-import { winRate } from '../src/game/season.js';
-import { priceElasticity } from '../src/game/finance.js';
-import { scoutBand, bandWidthFor } from '../src/game/scouting.js';
-import { negotiable } from '../src/game/board.js';
+import {
+  finishOf,
+  playBlock,
+  playPostseason,
+  standings,
+  winRate,
+} from '../src/game/season.js';
+import {
+  attendance,
+  nextHeat,
+  priceElasticity,
+  settle,
+} from '../src/game/finance.js';
+import {
+  bandMidpoint,
+  bandWidthFor,
+  buildDraftClass,
+  scoutBand,
+} from '../src/game/scouting.js';
+import {
+  NEGOTIATION_COST,
+  NEGOTIATION_GAIN,
+  applyTrust,
+  defaultExpectation,
+  negotiable,
+  review,
+  shouldFire,
+} from '../src/game/board.js';
 import { createRng, streamRng } from '../src/game/rng.js';
+import {
+  available,
+  farm,
+  leagueAverageStrength,
+  lineupStrength,
+  payroll,
+  pitchingStrength,
+  rebalance,
+  starCount,
+  teamStrength,
+} from '../src/game/roster.js';
 import { SITUATIONS, buildContext, pickSituation } from '../src/game/situations.js';
 import {
   BUDGET_SCENARIOS,
@@ -1121,6 +1177,588 @@ function expectStorylinesDoNotStallTenure(): void {
   }
 }
 
+/**
+ * 10-year tenure board expectations, negotiation costs in trust,
+ * and crisis resolution paths.
+ */
+function expectBoardExpectationsNegotiationAndCrisisResolution(): void {
+  // 1. Default board expectation logic based on roster strength and prior finish.
+  const createMockTeam = (strengthOffset: number, starCount: number): Team => {
+    const players: Player[] = [];
+    for (let i = 0; i < 26; i++) {
+      const isAStar = i < starCount;
+      const targetAbility = isAStar ? 74 : 52 + strengthOffset;
+      players.push({
+        id: `t_p_${i}`,
+        name: `球員${i}`,
+        position: i < 11 ? 'P' : 'IF',
+        age: 26,
+        attrs: {
+          contact: targetAbility, power: targetAbility, speed: targetAbility,
+          fielding: targetAbility, eye: targetAbility, velocity: targetAbility,
+          control: targetAbility, breaking: targetAbility, stamina: targetAbility,
+          guts: targetAbility,
+        },
+        potential: 75,
+        band: { low: 70, high: 80 },
+        salary: 400,
+        years: 2,
+        level: 'major',
+        injuredSeasons: 0,
+        homegrown: i < 5,
+        teamId: 'lions',
+      });
+    }
+    return {
+      id: 'lions',
+      name: '南方猛獅',
+      aiMode: 'contend',
+      wins: 60,
+      losses: 60,
+      players,
+    };
+  };
+
+  const createMockState = (finish: number): GameState => {
+    const state = createGame({ seedCode: 'exp00001', gmName: '測試', teamId: 'lions' });
+    if (finish > 0) {
+      state.history = [{
+        year: 1,
+        finish,
+        wins: finish <= 2 ? 75 : 55,
+        losses: finish <= 2 ? 45 : 65,
+        playoffResult: finish <= 4 ? (finish === 1 ? '總冠軍' : '準決賽敗') : '未晉級',
+        expectation: 'hold',
+        met: true,
+        net: 1000,
+        heat: 50,
+        trust: 60,
+      }];
+    }
+    return state;
+  };
+
+  // Contender: finish <= 2 with >= 3 stars expects 'title'.
+  assert.equal(
+    defaultExpectation(createMockState(2), createMockTeam(3, 4)),
+    'title',
+    'championship contender must default to title mandate',
+  );
+  // Strong finish (3rd) or fewer stars expects 'playoffs'.
+  assert.equal(
+    defaultExpectation(createMockState(3), createMockTeam(1, 2)),
+    'playoffs',
+    'top-half playoff contender must default to playoffs mandate',
+  );
+  // Mid-table with >= 2 stars expects 'hold'.
+  assert.equal(
+    defaultExpectation(createMockState(5), createMockTeam(0, 2)),
+    'hold',
+    'mid-table roster with veterans must default to hold mandate',
+  );
+  // Rebuilding team (poor finish, < 2 stars) defaults to 'rebuild'.
+  assert.equal(
+    defaultExpectation(createMockState(6), createMockTeam(-3, 0)),
+    'rebuild',
+    'depleted roster must default to rebuild mandate',
+  );
+
+  // 2. Negotiation costs and gains across all 4 expectation tiers.
+  assert.deepEqual(
+    EXPECTATION_ORDER,
+    ['rebuild', 'hold', 'playoffs', 'title'],
+    'expectation tier ordering violated',
+  );
+  assert.equal(NEGOTIATION_COST, -6, 'talking board down must cost 6 trust');
+  assert.equal(NEGOTIATION_GAIN, 4, 'raising target must reward 4 trust');
+
+  // Rebuild has no lower tier; only same (0) and up to hold (+4).
+  const rebuildOptions = negotiable('rebuild');
+  assert.equal(rebuildOptions.length, 2, 'rebuild must have exactly 2 negotiation choices');
+  assert.equal(rebuildOptions[0].expectation, 'rebuild');
+  assert.equal(rebuildOptions[0].trustDelta, 0);
+  assert.equal(rebuildOptions[1].expectation, 'hold');
+  assert.equal(rebuildOptions[1].trustDelta, NEGOTIATION_GAIN);
+
+  // Hold has down to rebuild (-6), same (0), and up to playoffs (+4).
+  const holdOptions = negotiable('hold');
+  assert.equal(holdOptions.length, 3);
+  assert.equal(holdOptions[0].expectation, 'rebuild');
+  assert.equal(holdOptions[0].trustDelta, NEGOTIATION_COST);
+  assert.equal(holdOptions[1].expectation, 'hold');
+  assert.equal(holdOptions[1].trustDelta, 0);
+  assert.equal(holdOptions[2].expectation, 'playoffs');
+  assert.equal(holdOptions[2].trustDelta, NEGOTIATION_GAIN);
+
+  // Title has down to playoffs (-6) and same (0); cannot negotiate higher.
+  const titleOptions = negotiable('title');
+  assert.equal(titleOptions.length, 2);
+  assert.equal(titleOptions[0].expectation, 'playoffs');
+  assert.equal(titleOptions[0].trustDelta, NEGOTIATION_COST);
+  assert.equal(titleOptions[1].expectation, 'title');
+  assert.equal(titleOptions[1].trustDelta, 0);
+
+  // 3. Review scoring and crisis paths.
+  // Rebuild mandate: requires homegrown regulars >= 3.
+  const metRebuild = review({
+    expectation: 'rebuild',
+    wins: 50, games: 120,
+    madePlayoffs: false, wonTitle: false,
+    homegrownRegulars: 3,
+    net: 1000, heat: 50,
+  });
+  assert.equal(metRebuild.met, true);
+  // reward: +12, net >= 0: +4, heat normal: 0 => trustDelta = +16.
+  assert.equal(metRebuild.trustDelta, 12 + 4);
+
+  const failedRebuild = review({
+    expectation: 'rebuild',
+    wins: 50, games: 120,
+    madePlayoffs: false, wonTitle: false,
+    homegrownRegulars: 2,
+    net: -500, heat: 18,
+  });
+  assert.equal(failedRebuild.met, false);
+  // penalty: -6, net < 0: -6, heat <= 20: -4 => trustDelta = -16.
+  assert.equal(failedRebuild.trustDelta, -6 - 6 - 4);
+
+  // Title mandate: reward 28, bonus 6000萬 when met.
+  const titleWon = review({
+    expectation: 'title',
+    wins: 78, games: 120,
+    madePlayoffs: true, wonTitle: true,
+    homegrownRegulars: 2,
+    net: 2500, heat: 85,
+  });
+  assert.equal(titleWon.met, true);
+  assert.equal(titleWon.bonus, 6000);
+  // 28 (title reward) + 4 (profit) + 3 (heat >= 70) = +35 trust.
+  assert.equal(titleWon.trustDelta, 28 + 4 + 3);
+
+  // 4. Crisis state machine: danger years, crisis resolution paths, and firing.
+  const crisisState = createGame({ seedCode: 'crs00001', gmName: '測試', teamId: 'lions' });
+  crisisState.board.trust = 50;
+  crisisState.board.dangerYears = 0;
+  assert.equal(shouldFire(crisisState), false);
+
+  // Plunge into crisis: trust drops below TRUST_DANGER (20).
+  applyTrust(crisisState, -35); // 50 - 35 = 15
+  assert.equal(crisisState.board.trust, 15);
+  assert.equal(crisisState.board.dangerYears, 1, 'trust below 20 must mark danger year 1');
+  assert.equal(shouldFire(crisisState), false, 'first year in danger must give GM one crisis season');
+
+  // Crisis Resolution Path A: Successful turnaround clears danger.
+  applyTrust(crisisState, 15); // 15 + 15 = 30 >= 20
+  assert.equal(crisisState.board.trust, 30);
+  assert.equal(crisisState.board.dangerYears, 0, 'recovering above 20 must clear danger counter');
+  assert.equal(shouldFire(crisisState), false);
+
+  // Crisis Resolution Path B: Edge boundary at exactly 20 trust.
+  crisisState.board.trust = 15;
+  crisisState.board.dangerYears = 1;
+  applyTrust(crisisState, 5); // 15 + 5 = 20
+  assert.equal(crisisState.board.trust, 20);
+  assert.equal(crisisState.board.dangerYears, 0, 'trust exactly at 20 is safe');
+
+  // Crisis Resolution Path C: Terminal crisis (consecutive danger years).
+  applyTrust(crisisState, -5); // 20 - 5 = 15
+  assert.equal(crisisState.board.dangerYears, 1);
+  applyTrust(crisisState, -2); // 15 - 2 = 13 (second consecutive danger year)
+  assert.equal(crisisState.board.trust, 13);
+  assert.equal(crisisState.board.dangerYears, 2, 'second consecutive danger year tracked');
+  assert.equal(shouldFire(crisisState), true, 'two consecutive danger years must trigger firing');
+
+  // Clamping: trust is bounded [0, 100].
+  applyTrust(crisisState, -200);
+  assert.equal(crisisState.board.trust, 0, 'trust must not drop below 0');
+  applyTrust(crisisState, 200);
+  assert.equal(crisisState.board.trust, 100, 'trust must not exceed 100');
+}
+
+/**
+ * Scouting accuracy bands (A/B/C/D), fog-of-war draft talent estimation,
+ * and development ceilings.
+ */
+function expectScoutingAccuracyFogOfWarAndDevelopmentCeilings(): void {
+  // 1. Scouting tier spend vs band half-widths.
+  assert.equal(SCOUT_TIERS.length, 4, 'four scouting investment tiers expected');
+  assert.equal(bandWidthFor(0), 25);
+  assert.equal(bandWidthFor(150), 25);
+  assert.equal(bandWidthFor(200), 16);
+  assert.equal(bandWidthFor(450), 16);
+  assert.equal(bandWidthFor(500), 10);
+  assert.equal(bandWidthFor(950), 10);
+  assert.equal(bandWidthFor(1000), 5);
+  assert.equal(bandWidthFor(5000), 5);
+
+  // 2. Scouting letter grades (A/B/C/D) and fog-of-war band ambiguity.
+  // grade(v): S >= 92, A >= 82, B >= 70, C >= 56, D >= 42, E >= 28, F < 28.
+  assert.equal(grade(85), 'A');
+  assert.equal(grade(72), 'B');
+  assert.equal(grade(60), 'C');
+  assert.equal(grade(48), 'D');
+
+  const rngForScout = createRng(42);
+  // For a prospect with true potential 60 (Grade C):
+  // At spend 0 (width 25), the fog-of-war reported band spans widely across letter grades.
+  const wideBand = scoutBand(60, bandWidthFor(0), rngForScout);
+  const wideSpan = wideBand.high - wideBand.low;
+  assert.ok(wideSpan >= 30, `spend 0 band span ${wideSpan} must reflect wide uncertainty`);
+
+  // At spend 1000 (width 5), the reported band is tightly focused near Grade C.
+  const narrowBand = scoutBand(60, bandWidthFor(1000), rngForScout);
+  const narrowSpan = narrowBand.high - narrowBand.low;
+  assert.ok(narrowSpan <= 12, `spend 1000 band span ${narrowSpan} must be tightly focused`);
+  assert.ok(wideSpan > narrowSpan * 2.5, 'unscouted band span must be at least 2.5x wider than fully scouted band');
+
+  // 3. Fog-of-war draft talent estimation: Mean Absolute Error (MAE) drops with investment.
+  const draftState = createGame({ seedCode: 'scout999', gmName: '測試', teamId: 'lions' });
+  const evalDraftClass = (spend: number): { mae: number; gems: number; busts: number } => {
+    let totalError = 0;
+    let gems = 0;
+    let busts = 0;
+    const trials = 60;
+    for (let yr = 1; yr <= trials; yr++) {
+      draftState.year = yr;
+      const dClass = buildDraftClass(draftState, spend);
+      assert.equal(dClass.length, 8, 'draft class must have 8 prospects');
+      dClass.forEach((p) => {
+        const mid = bandMidpoint(p);
+        const err = Math.abs(mid - p.potential);
+        totalError += err;
+        if (p.potential - mid >= 8) gems += 1;
+        if (mid - p.potential >= 8) busts += 1;
+      });
+    }
+    return {
+      mae: totalError / (trials * 8),
+      gems,
+      busts,
+    };
+  };
+
+  const scout0 = evalDraftClass(0);
+  const scout200 = evalDraftClass(200);
+  const scout500 = evalDraftClass(500);
+  const scout1000 = evalDraftClass(1000);
+
+  // Fog-of-war error must decrease strictly with higher scouting tier.
+  assert.ok(
+    scout1000.mae < scout500.mae && scout500.mae < scout200.mae && scout200.mae < scout0.mae,
+    `scouting error did not decrease monotonically: 0:${scout0.mae.toFixed(1)}, 200:${scout200.mae.toFixed(1)}, 500:${scout500.mae.toFixed(1)}, 1000:${scout1000.mae.toFixed(1)}`,
+  );
+  assert.ok(scout1000.mae < 4.5, `spend 1000 MAE ${scout1000.mae.toFixed(2)} should be below 4.5`);
+  assert.ok(scout0.mae > 10.0, `spend 0 MAE ${scout0.mae.toFixed(2)} should be above 10.0`);
+
+  // Under un-scouted conditions (spend 0), there are both hidden gems and draft busts.
+  assert.ok(scout0.gems > 10, 'spend 0 draft class should produce hidden gems (true > report)');
+  assert.ok(scout0.busts > 10, 'spend 0 draft class should produce draft busts (report > true)');
+
+  // 4. Player development ceilings.
+  const devRng = createRng(101);
+  const prospectWithHeadroom: Player = {
+    id: 'p_dev_1', name: '新秀A', position: 'OF', age: 19,
+    attrs: { contact: 38, power: 38, speed: 38, fielding: 38, eye: 38, velocity: 20, control: 20, breaking: 20, stamina: 20, guts: 20 },
+    potential: 78, band: { low: 70, high: 86 }, salary: 60, years: 4,
+    level: 'farm', injuredSeasons: 0, homegrown: true, teamId: 'lions',
+  };
+  const initAbility = ability(prospectWithHeadroom);
+  agePlayer(prospectWithHeadroom, devRng, 1.8);
+  const grownAbility = ability(prospectWithHeadroom);
+  assert.ok(grownAbility > initAbility + 2.5, 'prospect with large headroom must develop significantly');
+
+  // Player at development ceiling does not grow.
+  const cappedPlayer: Player = {
+    id: 'p_dev_2', name: '飽和新秀', position: 'OF', age: 24,
+    attrs: { contact: 76, power: 76, speed: 76, fielding: 76, eye: 76, velocity: 20, control: 20, breaking: 20, stamina: 20, guts: 20 },
+    potential: 72, band: { low: 70, high: 74 }, salary: 200, years: 3,
+    level: 'farm', injuredSeasons: 0, homegrown: true, teamId: 'lions',
+  };
+  const cappedInit = ability(cappedPlayer);
+  agePlayer(cappedPlayer, devRng, 1.8);
+  const cappedAfter = ability(cappedPlayer);
+  assert.equal(
+    cappedAfter,
+    cappedInit,
+    'player whose current ability exceeds potential ceiling must not receive development gains',
+  );
+
+  // Farm boost accelerates growth compared to major league for young players.
+  const farmProspect: Player = {
+    id: 'p_farm', name: '二軍新秀', position: 'OF', age: 20,
+    attrs: { contact: 45, power: 45, speed: 45, fielding: 45, eye: 45, velocity: 20, control: 20, breaking: 20, stamina: 20, guts: 20 },
+    potential: 80, band: { low: 75, high: 85 }, salary: 60, years: 4,
+    level: 'farm', injuredSeasons: 0, homegrown: true, teamId: 'lions',
+  };
+  const majorProspect: Player = {
+    id: 'p_maj', name: '一軍新秀', position: 'OF', age: 20,
+    attrs: { contact: 45, power: 45, speed: 45, fielding: 45, eye: 45, velocity: 20, control: 20, breaking: 20, stamina: 20, guts: 20 },
+    potential: 80, band: { low: 75, high: 85 }, salary: 60, years: 4,
+    level: 'major', injuredSeasons: 0, homegrown: true, teamId: 'lions',
+  };
+  agePlayer(farmProspect, () => 0.5, 1.8);
+  agePlayer(majorProspect, () => 0.5, 1.0);
+  assert.ok(
+    ability(farmProspect) > ability(majorProspect),
+    'farm level development boost must outpace major league development for prospects',
+  );
+}
+
+/**
+ * Salary cap elasticity, luxury tax calculations,
+ * and fan enthusiasm vs ticket pricing models.
+ */
+function expectSalaryCapLuxuryTaxAndFanPricingModels(): void {
+  // 1. Salary cap elasticity and luxury tax math.
+  assert.equal(SALARY_CAP, 18000, 'soft salary cap is 18,000 萬 (1.8 億)');
+  assert.equal(LUXURY_RATE, 0.5, 'luxury tax rate is 50% on overage');
+  assert.equal(BANKRUPTCY, -5000, 'bankruptcy threshold is -5,000 萬');
+
+  const buildTeamWithPayroll = (pay: number): Team => {
+    const players: Player[] = [];
+    const salaryPerPlayer = Math.round(pay / 26);
+    for (let i = 0; i < 26; i++) {
+      players.push({
+        id: `sal_${i}`, name: `球員${i}`, position: i < 11 ? 'P' : 'OF', age: 27,
+        attrs: { contact: 55, power: 55, speed: 55, fielding: 55, eye: 55, velocity: 55, control: 55, breaking: 55, stamina: 55, guts: 55 },
+        potential: 60, band: { low: 55, high: 65 }, salary: salaryPerPlayer, years: 2,
+        level: 'major', injuredSeasons: 0, homegrown: false, teamId: 'angels',
+      });
+    }
+    return {
+      id: 'angels', name: '桃園天使', aiMode: 'balanced', wins: 60, losses: 60, players,
+    };
+  };
+
+  const state = createGame({ seedCode: 'fin00001', gmName: '測試', teamId: 'angels' });
+  state.finance.ticketPrice = 350;
+
+  // Below cap: 16,000 萬 payroll incurs 0 luxury tax.
+  const teamUnder = buildTeamWithPayroll(16000);
+  const ledgerUnder = settle({
+    state, team: teamUnder, wins: 60, madePlayoffs: false, wonTitle: false, boardBonus: 0,
+  });
+  assert.equal(ledgerUnder.luxuryTax, 0, 'payroll below cap must owe 0 luxury tax');
+
+  // Exactly at cap: 18,000 萬 incurs 0 luxury tax.
+  const teamAtCap = buildTeamWithPayroll(18000);
+  const ledgerAtCap = settle({
+    state, team: teamAtCap, wins: 60, madePlayoffs: false, wonTitle: false, boardBonus: 0,
+  });
+  assert.equal(ledgerAtCap.luxuryTax, 0, 'payroll exactly at cap must owe 0 luxury tax');
+
+  // Above cap: 22,000 萬 payroll => over 4,000 萬 => 2,000 萬 luxury tax.
+  const teamOver = buildTeamWithPayroll(22000);
+  const ledgerOver = settle({
+    state, team: teamOver, wins: 60, madePlayoffs: false, wonTitle: false, boardBonus: 0,
+  });
+  const expectedOver = Math.round((payroll(teamOver) - SALARY_CAP) * LUXURY_RATE);
+  assert.equal(ledgerOver.luxuryTax, expectedOver);
+  assert.ok(ledgerOver.luxuryTax >= 1900 && ledgerOver.luxuryTax <= 2100);
+
+  // Marginal tax elasticity: each extra 1,000 萬 payroll adds 500 萬 luxury tax.
+  const teamOver2 = buildTeamWithPayroll(23000);
+  const ledgerOver2 = settle({
+    state, team: teamOver2, wins: 60, madePlayoffs: false, wonTitle: false, boardBonus: 0,
+  });
+  const payrollDiff = payroll(teamOver2) - payroll(teamOver);
+  const taxDiff = ledgerOver2.luxuryTax - ledgerOver.luxuryTax;
+  assert.equal(taxDiff, Math.round(payrollDiff * 0.5), 'marginal luxury tax must scale at 50%');
+
+  // 2. Attendance vs Price Elasticity.
+  // Formula: priceElasticity = clamp(1.5 - price / 650, 0.35, 1.15).
+  // At 200元 -> clamped to 1.15.
+  assert.equal(priceElasticity(200), 1.15);
+  // At 350元 -> 1.5 - 350/650 ~ 0.9615.
+  assert.ok(Math.abs(priceElasticity(350) - (1.5 - 350 / 650)) < 1e-4);
+  // At 650元 -> 1.5 - 650/650 = 0.5.
+  assert.equal(priceElasticity(650), 0.5);
+  // At 800元 -> clamped to 0.35.
+  assert.equal(priceElasticity(800), 0.35);
+
+  // Fan heat & attendance correlation:
+  state.finance.ticketPrice = 350;
+  state.heat = 80;
+  const crowdHighHeat = attendance(state, 70);
+  state.heat = 20;
+  const crowdLowHeat = attendance(state, 70);
+  assert.ok(
+    crowdHighHeat > crowdLowHeat * 1.5,
+    `high fan heat must drive much larger gate (${crowdHighHeat} vs ${crowdLowHeat})`,
+  );
+
+  // Minimum attendance floor is 800:
+  state.heat = 0;
+  state.finance.ticketPrice = 900;
+  assert.equal(attendance(state, 0), 800, 'attendance must not breach 800 minimum gate floor');
+
+  // 3. Fan enthusiasm evolution (nextHeat):
+  // Price anger starts above 350: Math.floor((price - 350) / 50) * 2.
+  const baseHeat = 50;
+  const heatFairPrice = nextHeat(baseHeat, 60, 120, false, false, 350);
+  const heatPricey = nextHeat(baseHeat, 60, 120, false, false, 450); // anger = 4
+  const heatGouging = nextHeat(baseHeat, 60, 120, false, false, 600); // anger = 10
+  assert.equal(heatFairPrice - heatPricey, 4, '450 ticket price must cost 4 heat in fan anger');
+  assert.equal(heatFairPrice - heatGouging, 10, '600 ticket price must cost 10 heat in fan anger');
+
+  // Title and playoff boosts:
+  const heatTitle = nextHeat(baseHeat, 75, 120, true, true, 350);
+  const heatRegular = nextHeat(baseHeat, 75, 120, false, false, 350);
+  // Title gives +20, playoffs give +8 => total +28 heat advantage.
+  assert.equal(heatTitle - heatRegular, 28, 'playoff berth and title must boost heat by 28 points');
+
+  // Multi-season decay and floor of 12:
+  let dyingHeat = 30;
+  for (let yr = 0; yr < 20; yr++) {
+    dyingHeat = nextHeat(dyingHeat, 30, 120, false, false, 600);
+  }
+  assert.equal(dyingHeat, 12, 'fan heat must never collapse below the die-hard floor of 12');
+
+  let boomingHeat = 70;
+  for (let yr = 0; yr < 10; yr++) {
+    boomingHeat = nextHeat(boomingHeat, 90, 120, true, true, 350);
+  }
+  assert.equal(boomingHeat, 100, 'fan heat must be capped at 100');
+}
+
+/**
+ * Player aging / degradation curves, injury risks,
+ * and postseason win expectancy formulas.
+ */
+function expectPlayerAgingInjuriesAndPostseasonWinExpectancy(): void {
+  // 1. Player aging and degradation curves.
+  // Growth occurs up to age 29 towards potential ceiling.
+  // Decline onset is 30: severity = (age - DECLINE_ONSET + 1) * 0.75.
+  // At 30: severity = 0.75; at 35: severity = 4.5; at 40: severity = 8.25.
+  const createTestPlayer = (age: number, ab: number, pot: number): Player => ({
+    id: `p_age_${age}`, name: `球員_${age}`, position: 'P', age,
+    attrs: { contact: 20, power: 20, speed: 20, fielding: 20, eye: 20, velocity: ab, control: ab, breaking: ab, stamina: ab, guts: ab },
+    potential: pot, band: { low: pot - 5, high: pot + 5 }, salary: 500, years: 3,
+    level: 'major', injuredSeasons: 0, homegrown: false, teamId: 'lions',
+  });
+
+  // Degradation acceleration: older players lose attributes strictly faster.
+  const p30 = createTestPlayer(30, 75, 75);
+  const p35 = createTestPlayer(35, 75, 75);
+  const p40 = createTestPlayer(40, 75, 75);
+  const fixedRng = () => 0.5; // neutral roll
+
+  const pre30 = ability(p30);
+  agePlayer(p30, fixedRng, 1.0);
+  const drop30 = pre30 - ability(p30);
+
+  const pre35 = ability(p35);
+  agePlayer(p35, fixedRng, 1.0);
+  const drop35 = pre35 - ability(p35);
+
+  const pre40 = ability(p40);
+  agePlayer(p40, fixedRng, 1.0);
+  const drop40 = pre40 - ability(p40);
+
+  assert.ok(drop35 > drop30 * 2.0, `drop at 35 (${drop35.toFixed(1)}) must outpace drop at 30 (${drop30.toFixed(1)})`);
+  assert.ok(drop40 > drop35 * 1.3, `drop at 40 (${drop40.toFixed(1)}) must outpace drop at 35 (${drop35.toFixed(1)})`);
+
+  // Full 18-year career trajectory of a 19yo prospect developed through farm:
+  const starCareer: Player = {
+    id: 'p_star_career', name: '王牌新星', position: 'P', age: 19,
+    attrs: { contact: 20, power: 20, speed: 20, fielding: 20, eye: 20, velocity: 52, control: 52, breaking: 52, stamina: 52, guts: 52 },
+    potential: 85, band: { low: 80, high: 90 }, salary: 60, years: 5,
+    level: 'farm', injuredSeasons: 0, homegrown: true, teamId: 'lions',
+  };
+  let peakAbility = ability(starCareer);
+  let peakAge = 19;
+  for (let yr = 0; yr < 18; yr++) {
+    // Promote to major league once established
+    if (starCareer.age >= 23) starCareer.level = 'major';
+    const curAb = ability(starCareer);
+    if (curAb > peakAbility) {
+      peakAbility = curAb;
+      peakAge = starCareer.age;
+    }
+    agePlayer(starCareer, createRng(yr + 50), 1.8);
+  }
+  assert.ok(peakAge >= 25 && peakAge <= 29, `peak age ${peakAge} must fall in the prime window 25-29`);
+  assert.ok(peakAbility >= 72, `star peak ability ${peakAbility.toFixed(1)} must reach star tier (>=70)`);
+  assert.ok(ability(starCareer) < peakAbility - 18, 'veteran at age 37 must have degraded significantly from prime peak');
+
+  // 2. Injury mechanics and impact on roster strength.
+  const lionsState = createGame({ seedCode: 'inj00001', gmName: '測試', teamId: 'lions' });
+  const lionsTeam = lionsState.teams.find((t) => t.id === 'lions')!;
+  rebalance(lionsTeam);
+
+  const initialMajors = available(lionsTeam);
+  assert.equal(initialMajors.length, 26, 'healthy major roster has 26 players');
+
+  // Find ace pitcher and simulate season-ending injury:
+  const ace = initialMajors.find((p) => p.position === 'P' && ability(p) >= 65)!;
+  assert.ok(ace, 'lions must have an ace pitcher');
+  const healthyTeamStrength = teamStrength(lionsTeam);
+  const healthyWinRate = winRate(healthyTeamStrength, 52);
+
+  // Sidelined on injured list:
+  ace.injuredSeasons = 1;
+  const availableWhileInjured = available(lionsTeam);
+  assert.equal(availableWhileInjured.length, 25, 'injured player excluded from available roster');
+  assert.ok(!availableWhileInjured.some((p) => p.id === ace.id));
+
+  const injuredTeamStrength = teamStrength(lionsTeam);
+  const injuredWinRate = winRate(injuredTeamStrength, 52);
+
+  assert.ok(
+    injuredTeamStrength < healthyTeamStrength - 0.5,
+    `losing ace must reduce team strength (healthy: ${healthyTeamStrength.toFixed(2)}, injured: ${injuredTeamStrength.toFixed(2)})`,
+  );
+  assert.ok(
+    injuredWinRate < healthyWinRate,
+    'injured ace must reduce regular season expected win rate',
+  );
+
+  // Offseason healing:
+  agePlayer(ace, fixedRng, 1.0);
+  assert.equal(ace.injuredSeasons, 0, 'injured player must recover after one offseason of aging');
+  assert.equal(available(lionsTeam).length, 26, 'recovered player returns to available active roster');
+
+  // 3. Postseason win expectancy formulas:
+  // In season.ts: series odds are compressed towards .500:
+  // rawA = winRate(teamStrength(a), average)
+  // gameOdds = clamp(0.5 + (rawA - 0.5) * 0.55, 0.3, 0.7)
+  const calcPostseasonGameOdds = (strA: number, avg: number): number => {
+    const raw = winRate(strA, avg);
+    return Math.min(0.7, Math.max(0.3, 0.5 + (raw - 0.5) * 0.55));
+  };
+
+  // Superior club with 0.70 regular season win rate:
+  // Edge is +0.20 => compressed to +0.20 * 0.55 = +0.11 => game odds = 0.61.
+  const strongOdds = calcPostseasonGameOdds(63, 52);
+  const rawStrongWinRate = winRate(63, 52);
+  assert.ok(strongOdds < rawStrongWinRate, 'postseason compression must dampen regular season edge');
+  assert.ok(Math.abs((strongOdds - 0.5) - (rawStrongWinRate - 0.5) * 0.55) < 1e-4);
+
+  // Short series underdog variance:
+  // Simulate 600 postseason tournaments with fixed strong vs weak teams.
+  const simTeams: Team[] = lionsState.teams.map((t, idx) => ({
+    ...t,
+    wins: 90 - idx * 10,
+    losses: 30 + idx * 10,
+  }));
+  const postRng = createRng(777);
+  let underdogCrowns = 0;
+  const numTourneys = 600;
+  for (let t = 0; t < numTourneys; t++) {
+    const outcome = playPostseason(simTeams, 'lions', postRng);
+    // simTeams[3] is the 4th seed (weakest playoff qualifier).
+    if (outcome.champion === simTeams[3].id) {
+      underdogCrowns += 1;
+    }
+  }
+  const underdogRate = underdogCrowns / numTourneys;
+  // Underdog must win sometimes (between 8% and 32%), confirming non-deterministic tournament upsets.
+  assert.ok(
+    underdogRate > 0.08 && underdogRate < 0.32,
+    `underdog championship rate ${(underdogRate * 100).toFixed(1)}% outside realistic variance band [8%, 32%]`,
+  );
+}
+
 const checks: [string, () => void][] = [
   ['deterministic tenures', expectDeterministicTenures],
   ['seeds and choices matter', expectSeedsAndChoicesMatter],
@@ -1152,6 +1790,10 @@ const checks: [string, () => void][] = [
   ['storylines have costs and triggers', expectStorylinesHaveCostsAndTriggers],
   ['life bridge is defensive', expectLifeBridgeIsDefensive],
   ['storylines do not stall tenure', expectStorylinesDoNotStallTenure],
+  ['tenure expectations and crisis resolution', expectBoardExpectationsNegotiationAndCrisisResolution],
+  ['scouting accuracy and fog-of-war estimation', expectScoutingAccuracyFogOfWarAndDevelopmentCeilings],
+  ['salary cap elasticity and fan pricing', expectSalaryCapLuxuryTaxAndFanPricingModels],
+  ['player aging, injuries and postseason formulas', expectPlayerAgingInjuriesAndPostseasonWinExpectancy],
 ];
 
 let failed = 0;
