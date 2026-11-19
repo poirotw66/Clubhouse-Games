@@ -20,6 +20,7 @@ Clubhouse Games rejects filler. Every listed game must clear this bar before cou
 | Baseball-Life | Career summary is a long-form multi-section page, not a short win/lose card. |
 | Dynasty | Tenure summary is a long-form page, not a short win/lose card. |
 | Clip-Clop | 3D equestrian paddock shell with bespoke Three.js camera orbiting the horse, replay reel, paddock telemetry, and medal ceremonies directly within the 3D canvas/HTML overlay. Native WebAudio acoustic sound engine + custom paddock result styling. |
+| Brick-Kart-Racing | Bespoke 3D spinning brick kart preview (`BrickPreview`), full standings grid with racer finish times, and character color badges tailored to the retro Mode-7 kart aesthetic. |
 
 ## Language
 

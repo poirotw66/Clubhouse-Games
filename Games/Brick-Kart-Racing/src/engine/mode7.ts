@@ -1,5 +1,5 @@
-import {FOG_END, FOG_START} from './constants';
-import type {TrackAssets} from './trackAssets';
+import {FOG_END, FOG_START} from './constants.ts';
+import type {TrackAssets} from './trackAssets.ts';
 
 export interface Camera {
   x: number;

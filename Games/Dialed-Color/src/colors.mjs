@@ -76,51 +76,65 @@ export function meanHue(h1, h2) {
   return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
 }
 
+/**
+ * Convert HSL Color to RGB [0-255].
+ * @param {Color} c
+ * @returns {[number, number, number]}
+ */
+export function hslToRgb(c) {
+  const h = c.h / 360;
+  const s = c.s / 100;
+  const l = c.l / 100;
+  if (s === 0) {
+    const v = Math.round(l * 255);
+    return [v, v, v];
+  }
+  const hue2rgb = (p, q, t) => {
+    let tt = t;
+    if (tt < 0) tt += 1;
+    if (tt > 1) tt -= 1;
+    if (tt < 1 / 6) return p + (q - p) * 6 * tt;
+    if (tt < 1 / 2) return q;
+    if (tt < 2 / 3) return p + (q - p) * (2 / 3 - tt) * 6;
+    return p;
+  };
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  const p = 2 * l - q;
+  return [
+    Math.round(hue2rgb(p, q, h + 1 / 3) * 255),
+    Math.round(hue2rgb(p, q, h) * 255),
+    Math.round(hue2rgb(p, q, h - 1 / 3) * 255),
+  ];
+}
+
+/**
+ * Convert RGB [0-255] to HSL Color.
+ * @param {number} r
+ * @param {number} g
+ * @param {number} b
+ * @returns {Color}
+ */
+export function rgbToHsl(r, g, b) {
+  const rr = r / 255;
+  const gg = g / 255;
+  const bb = b / 255;
+  const max = Math.max(rr, gg, bb);
+  const min = Math.min(rr, gg, bb);
+  const l = (max + min) / 2;
+  if (max === min) return clampColor(0, 0, l * 100);
+  const d = max - min;
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  let h;
+  if (max === rr) h = ((gg - bb) / d + (gg < bb ? 6 : 0)) / 6;
+  else if (max === gg) h = ((bb - rr) / d + 2) / 6;
+  else h = ((rr - gg) / d + 4) / 6;
+  return clampColor(h * 360, s * 100, l * 100);
+}
+
 /** 50/50 mix in RGB (then back to HSL) — closer to perceptual light mix. */
 export function mixColors(a, b) {
-  const toRgb = (c) => {
-    const h = c.h / 360;
-    const s = c.s / 100;
-    const l = c.l / 100;
-    if (s === 0) {
-      const v = Math.round(l * 255);
-      return [v, v, v];
-    }
-    const hue2rgb = (p, q, t) => {
-      let tt = t;
-      if (tt < 0) tt += 1;
-      if (tt > 1) tt -= 1;
-      if (tt < 1 / 6) return p + (q - p) * 6 * tt;
-      if (tt < 1 / 2) return q;
-      if (tt < 2 / 3) return p + (q - p) * (2 / 3 - tt) * 6;
-      return p;
-    };
-    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-    const p = 2 * l - q;
-    return [
-      Math.round(hue2rgb(p, q, h + 1 / 3) * 255),
-      Math.round(hue2rgb(p, q, h) * 255),
-      Math.round(hue2rgb(p, q, h - 1 / 3) * 255),
-    ];
-  };
-  const rgbToHsl = (r, g, b) => {
-    const rr = r / 255;
-    const gg = g / 255;
-    const bb = b / 255;
-    const max = Math.max(rr, gg, bb);
-    const min = Math.min(rr, gg, bb);
-    const l = (max + min) / 2;
-    if (max === min) return clampColor(0, 0, l * 100);
-    const d = max - min;
-    const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    let h;
-    if (max === rr) h = ((gg - bb) / d + (gg < bb ? 6 : 0)) / 6;
-    else if (max === gg) h = ((bb - rr) / d + 2) / 6;
-    else h = ((rr - gg) / d + 4) / 6;
-    return clampColor(h * 360, s * 100, l * 100);
-  };
-  const [r1, g1, b1] = toRgb(a);
-  const [r2, g2, b2] = toRgb(b);
+  const [r1, g1, b1] = hslToRgb(a);
+  const [r2, g2, b2] = hslToRgb(b);
   return rgbToHsl((r1 + r2) / 2, (g1 + g2) / 2, (b1 + b2) / 2);
 }
 

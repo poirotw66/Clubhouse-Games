@@ -1,6 +1,8 @@
 /**
  * Score from HSL distance: identical colors → 999; farther → lower.
  * dh is circular on the hue wheel (0–360), normalized by 180.
+ * Euclidean distance across 3D normalized HSL (dh, ds, dl) is divided by Math.sqrt(3)
+ * so distance stays bounded within [0, 1] and smoothly approaches 0 at opposite extremes.
  */
 
 /** @typedef {{ h: number, s: number, l: number }} Color */
@@ -21,7 +23,7 @@ export function distanceComponents(c1, c2) {
   const dh = hueDelta(c1, c2) / 180;
   const ds = Math.abs(c1.s - c2.s) / 100;
   const dl = Math.abs(c1.l - c2.l) / 100;
-  const distance = Math.sqrt(dh * dh + ds * ds + dl * dl);
+  const distance = Math.min(1, Math.sqrt((dh * dh + ds * ds + dl * dl) / 3));
   return {
     hueNorm: dh,
     satNorm: ds,
@@ -39,7 +41,7 @@ export function distanceComponents(c1, c2) {
  */
 export function calculateScore(c1, c2) {
   const { distance } = distanceComponents(c1, c2);
-  return Math.max(0, Math.floor(999 * (1 - distance)));
+  return Math.max(0, Math.min(999, Math.floor(999 * (1 - distance))));
 }
 
 /** Wordle-style emoji band for a 0–999 score. */

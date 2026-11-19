@@ -898,6 +898,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={handleGuess}
+                      aria-label="提交"
                       className="btn-primary flex-[1.6] bg-cyan-400 hover:bg-cyan-300 text-black font-bold shadow-[0_0_20px_rgba(6,182,212,0.35)]"
                     >
                       確認提交

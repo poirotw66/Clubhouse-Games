@@ -94,6 +94,20 @@
 - 光矩陣點燈：以最少步數熄滅所有光源為勝利。
 - 可重複挑戰；每日挑戰種子全日固定。
 
+## 品質門檻對齊
+
+對照 [`docs/GAME-QUALITY-BAR.md`](../docs/GAME-QUALITY-BAR.md)：
+
+| 項目 | 本實作 |
+|------|--------|
+| 模式／變體 | 10 種遊戲模式（每日挑戰、單色挑戰、五色連續、5 關闖關模式、混色調配、互補色、類似色、60 秒限時閃擊、無盡生存挑戰、GF(2) 3×3 與 4×4 光矩陣點燈解鎖）× 色盲友善圖樣輔助模式 |
+| 遙測與座艙 | 色相光譜戰情駕駛艙（360° 極座標向量儀 Vector Scope、光學波長 λ 奈米估算、相關色溫 TC 換算、RGB / HEX 光學數值、色相光軌滑桿、光波共振錦囊、每日色彩星盤軌道） |
+| Replay hook | `localStorage` 本地儲存多維度紀錄（最佳單分、不同秒數平均分、每日挑戰 Asia/Taipei 連勝 Streak、生存最高通關數、閃擊總分、GF(2) 光矩陣最佳步數、近期對局歷史） |
+| Undo／Hint | 練習透視提示（`H` / `P` 鍵或長按透視目標色）；光矩陣點燈模式內建 GF(2) 高斯消去法線性代數解題提示（預測最少步數與下一步推薦） |
+| Feedback | `@clubhouse/shared/ResultOverlay` 結算畫面、並排比對與 HSL 光譜差值遙測長條（色相／飽和／明度）、匹配粒子特效（MatchParticles，≥850 分）、`@clubhouse/shared/synthAudio`（`playWin`、`playLose`、`playScore`、`playGoal`、`playMove`）、Wordle 式每日對局分享卡 |
+| Touch | 360° 環形 Conic 色輪觸控滑動、極座標向量儀即時拖曳、光軌滑桿與 ±1 / ±10 微調步進按鈕、行動端戰術切換標籤條（調色艙／雷達／星圖／光矩陣） |
+| Check | `npm run check` → `src/check-dialed-color.mjs`（3D HSL 正規化距離計分、RGB/HSL 邊界轉換、單調衰減感知梯度、台北時間每日種子、混色與互補色、連勝計算、Wordle 分享文案） |
+
 ## 實作
 
 - 專案路徑：[Games/Dialed-Color/](../Games/Dialed-Color/)

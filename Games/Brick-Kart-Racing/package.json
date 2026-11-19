@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
-    "check": "node --experimental-strip-types src/check-kart-modes.mjs"
+    "check": "node --experimental-strip-types src/check-kart-modes.mjs && node --experimental-strip-types src/check-physics.mjs"
   },
   "dependencies": {
     "@clubhouse/shared": "*",

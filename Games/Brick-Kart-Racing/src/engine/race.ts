@@ -10,6 +10,8 @@ import {
   type RaceOptions,
 } from './raceOptions';
 import {
+  calculateDraftAccelMult,
+  calculateDraftTopSpeed,
   findSlipstreamTarget,
   SLIP_ACCEL_MULT,
   SLIP_SPEED_MULT,
@@ -552,7 +554,7 @@ function stepRacer(state: RaceState, r: Racer, input: RaceInput, dt: number): vo
     );
     if (draft) {
       r.slipstream = draft.strength;
-      topSpeed *= 1 + (SLIP_SPEED_MULT - 1) * draft.strength;
+      topSpeed = calculateDraftTopSpeed(topSpeed, draft.strength);
       if (r.isPlayer && draft.strength > 0.45 && Math.random() < dt * 2.5) {
         state.events.push('slipstream');
       }
@@ -567,7 +569,7 @@ function stepRacer(state: RaceState, r: Racer, input: RaceInput, dt: number): vo
   let vf = r.vx * fx + r.vy * fy;
   let vl = r.vx * rx + r.vy * ry;
 
-  const slipAccel = r.slipstream > 0 ? 1 + (SLIP_ACCEL_MULT - 1) * r.slipstream : 1;
+  const slipAccel = calculateDraftAccelMult(r.slipstream);
   const accelRate =
     (r.boostTime > 0 ? BOOST_ACCEL : input.throttle ? BASE_ACCEL * c.accel * slipAccel : 0) *
     (r.isPlayer && state.startAssist > 0 ? 1.18 : 1);

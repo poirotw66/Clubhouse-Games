@@ -42,6 +42,8 @@ declare module './colors.mjs' {
     },
   ): Color;
   export function meanHue(h1: number, h2: number): number;
+  export function hslToRgb(c: Color): [number, number, number];
+  export function rgbToHsl(r: number, g: number, b: number): Color;
   export function mixColors(a: Color, b: Color): Color;
   export function complementaryOf(c: Color): Color;
   export function analogousOf(c: Color, offset: number): Color;

@@ -148,3 +148,24 @@ export function parseGhostLap(raw: unknown): GhostLap | null {
     samples,
   };
 }
+
+/**
+ * Serialize a ghost lap to JSON string for storage or transmission.
+ */
+export function serializeGhostLap(ghost: GhostLap): string {
+  return JSON.stringify(ghost);
+}
+
+/**
+ * Deserialize and validate a ghost lap from JSON string.
+ * Returns null if the JSON is malformed or violates integrity invariants.
+ */
+export function deserializeGhostLap(raw: string): GhostLap | null {
+  try {
+    const parsed = JSON.parse(raw);
+    return parseGhostLap(parsed);
+  } catch {
+    return null;
+  }
+}
+

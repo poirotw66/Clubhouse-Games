@@ -60,3 +60,42 @@ export function findSlipstreamTarget(
   }
   return best;
 }
+
+/** Calculate boosted top speed under slipstream draft. */
+export function calculateDraftTopSpeed(baseTopSpeed: number, strength: number): number {
+  if (strength <= 0) return baseTopSpeed;
+  return baseTopSpeed * (1 + (SLIP_SPEED_MULT - 1) * Math.min(1, Math.max(0, strength)));
+}
+
+/** Calculate acceleration multiplier under slipstream draft. */
+export function calculateDraftAccelMult(strength: number): number {
+  if (strength <= 0) return 1;
+  return 1 + (SLIP_ACCEL_MULT - 1) * Math.min(1, Math.max(0, strength));
+}
+
+/**
+ * Step forward speed with draft accumulation or post-draft bleed-off.
+ * When drafting, speed accumulates up towards draftTopSpeed using boosted accel.
+ * When draft expires (current speed > baseTopSpeed and no longer drafting),
+ * speed bleeds back down to baseTopSpeed at bleedRate.
+ */
+export function stepDraftSpeed(
+  currentSpeed: number,
+  baseTopSpeed: number,
+  accelRate: number,
+  draftStrength: number,
+  dt: number,
+  bleedRate = 260,
+): number {
+  const targetTop = calculateDraftTopSpeed(baseTopSpeed, draftStrength);
+  const effectiveAccel = accelRate * calculateDraftAccelMult(draftStrength);
+
+  let speed = currentSpeed;
+  if (draftStrength > 0 && effectiveAccel > 0) {
+    speed = Math.min(speed + effectiveAccel * dt, targetTop);
+  } else if (speed > baseTopSpeed) {
+    speed = Math.max(baseTopSpeed, speed - bleedRate * dt);
+  }
+  return speed;
+}
+
