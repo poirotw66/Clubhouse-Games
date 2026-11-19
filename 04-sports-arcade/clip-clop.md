@@ -75,3 +75,17 @@
 - 低角度左後 3/4 追蹤鏡頭：距離 7.5–15m 自適應畫面比例，前視點隨速度領先。
 - 樹木／欄杆／草皮 InstancedMesh；遠景丘陵與慶典三角彩旗；極速疾馳流光特效（Speed Lines）與動態視野縮放；衝線彩帶與人群；PWA（manifest＋Service Worker 離線）。
 - 音效全合成（WebAudio MasterGain 全域路由）：原木／椰殼腔體馬蹄聲、草皮微摩擦、低通翻滾悶響、步態進階風鈴和弦、體育場倒數鈴聲、柔和看台歡呼。
+
+## 品質門檻對齊
+
+對照 [`docs/GAME-QUALITY-BAR.md`](../docs/GAME-QUALITY-BAR.md)：
+
+| 項目 | 本實作 |
+|------|--------|
+| 模式／變體 | 單人計時賽（四檔稱號）、步態練習、三檔 AI 對決（小馬／賽馬／傳奇）、三連戰錦標賽（積分制）、雙人輪流對戰、每日隨機挑戰（風阻／抓地力／坡度／天氣） |
+| 遙測與座艙 | 皇家德比雙翼座艙（Stride Cadence RPM 遙測計、動態心電圖與精力耗損、障礙賽道等高線地圖、領先秒差 Delta、天氣風阻儀、電競矩陣 HUD） |
+| Replay hook | 本地前 10 排行榜、個人最佳、幽靈重跑軌跡（👻）、七枚成就、線上 Supabase 世界排行榜與戰報碼（`CC1.` 壓縮碼） |
+| Undo／Hint | 不適用（即時競速）；節奏引導條（Rhythm Perfect Bar）、步態 Cadence RPM 遙測、重心水平儀與傾斜警示、戰術雷達與起跳視窗指引 |
+| Feedback | **永久 ～**（專屬 3D 馬場環繞運鏡、完賽慢鏡頭重播黑邊、三連戰頒獎台結算 UI；詳見 `docs/GAME-QUALITY-BAR.md`）、全合成 WebAudio 有機椰殼／原木馬蹄與草皮摩擦聲、步態和弦、柔和歡呼與倒數鐘聲、4段音量與快速靜音 |
+| Touch | 底部四色馬腿藥丸按鈕、破風衝刺鍵、跨欄跳躍鍵、左右重心平衡鍵，支援多點觸控與行動抽屜遙測儀表 |
+| Check | `npm run check` → `src/check-physics.mjs`、`src/check-stride-coach.mjs`、`src/check-paddock.mjs` |

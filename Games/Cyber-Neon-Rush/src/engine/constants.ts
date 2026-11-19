@@ -27,6 +27,8 @@ export const MULTIPLIER_POWER = 2;
 export const SLOWMO_SCALE = 0.62;
 export const SHIELD_FLASH_SEC = 0.45;
 
+export type PowerupKind = 'shield' | 'magnet' | 'multiplier' | 'slowmo';
+
 export type RushDifficulty = 'chill' | 'normal' | 'rush';
 
 export const RUSH_DIFFICULTIES: RushDifficulty[] = ['chill', 'normal', 'rush'];
@@ -67,9 +69,9 @@ export const OBSTACLE_DESPAWN_BEHIND = 12;
 export const OBSTACLE_MIN_GAP = 12;
 export const OBSTACLE_MAX_GAP = 26;
 
-/** Adjacent-lane pass counts as near-miss (lane spacing is LANE_WIDTH). */
-export const NEAR_MISS_WINDOW = 2.85;
-export const PERFECT_MISS_WINDOW = 1.55;
+/** Adjacent-lane pass counts as near-miss (lane spacing is LANE_WIDTH = 2.4). */
+export const NEAR_MISS_WINDOW = 3.2;
+export const PERFECT_MISS_WINDOW = 1.75;
 export const NEAR_MISS_SCORE = 100;
 export const PERFECT_MISS_SCORE = 220;
 export const BOOST_SCORE = 180;
@@ -77,7 +79,7 @@ export const POWERUP_SCORE = 140;
 export const DISTANCE_SCORE_PER_M = 2.5;
 
 /** Combo fades if no near-miss / pickup within this many seconds. */
-export const COMBO_DECAY_SEC = 3.2;
+export const COMBO_DECAY_SEC = 3.8;
 export const FEVER_COMBO = 5;
 
 export const CAMERA_FOLLOW = 10;

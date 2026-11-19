@@ -1,4 +1,4 @@
-import { LANE_DAMPING, LANE_SPRING, laneToX } from './constants';
+import { LANE_DAMPING, LANE_SPRING, laneToX } from './constants.ts';
 
 export interface LaneBody {
   x: number;

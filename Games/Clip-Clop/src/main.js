@@ -1,5 +1,22 @@
 import * as THREE from 'three';
-import { setupPaddock } from './paddock.js';
+import {
+  setupPaddock,
+  TOUR_AI,
+  createTournament,
+  evaluateTourLeg,
+  tournamentCup,
+  tournamentCupIcon,
+  createDuel,
+  recordDuelTurn,
+  evaluateDuel,
+  b64u,
+  deflateText,
+  inflateText,
+  makeBattleCodeFromRec,
+  parseBattleCode,
+  rivalPoseFrom,
+  formatLeaderboardPayload,
+} from './paddock.js';
 import { StrideCoach, mountStrideCoach } from './stride-coach.js';
 import { CFG, LEG_CFG, MOD, dailyInfo, todayStr, makeLegStates, makeHorseState, simHorse } from './physics.js';
 import { SteeplechaseManager } from './steeplechase.js';
@@ -352,12 +369,21 @@ class Sfx {
   }
 
   setVolume(lvl){
-    this.volumeLevel = Math.max(0, Math.min(3, lvl));
+    this.volumeLevel = Math.max(0, Math.min(3, Number.isFinite(lvl) ? lvl : 2));
     this.muted = this.volumeLevel === 0;
-    localStorage.setItem('cc_volume', String(this.volumeLevel));
-    localStorage.setItem('cc_mute', this.muted ? '1' : '0');
-    if(this.masterGain && this.ctx){
-      this.masterGain.gain.setTargetAtTime(this.getGain(), this.ctx.currentTime, 0.02);
+    try{
+      localStorage.setItem('cc_volume', String(this.volumeLevel));
+      localStorage.setItem('cc_mute', this.muted ? '1' : '0');
+    }catch(_){}
+    if(this.masterGain && this.ctx && this.ctx.state !== 'closed'){
+      try{
+        const targetGain = this.getGain();
+        this.masterGain.gain.cancelScheduledValues(this.ctx.currentTime);
+        this.masterGain.gain.setValueAtTime(targetGain, this.ctx.currentTime);
+      }catch(_){}
+    }
+    if(this.muted && this.crowd){
+      this.crowdStop();
     }
     return this.volumeLevel;
   }
@@ -399,104 +425,164 @@ class Sfx {
     if(this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
   }
 
-  ok(){ return this.ctx && !this.muted; }
+  ok(){ return !!(this.ctx && !this.muted && this.volumeLevel > 0 && this.ctx.state !== 'closed'); }
 
   tone(type, f0, f1, dur, vol, when = 0){
     if(!this.ok()) return;
-    const c = this.ctx, t = c.currentTime + when;
-    const dest = this.masterGain || c.destination;
-    const o = c.createOscillator(), g = c.createGain();
-    o.type = type;
-    o.frequency.setValueAtTime(f0, t);
-    if(f1 !== f0) o.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t + dur);
-    g.gain.setValueAtTime(vol, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    o.connect(g).connect(dest);
-    o.start(t);
-    o.stop(t + dur + 0.02);
+    try{
+      const c = this.ctx, t = c.currentTime + when;
+      const dest = this.masterGain || c.destination;
+      const o = c.createOscillator(), g = c.createGain();
+      o.type = type;
+      o.frequency.setValueAtTime(f0, t);
+      if(f1 !== f0) o.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t + dur);
+      g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      o.connect(g).connect(dest);
+      o.start(t);
+      o.stop(t + dur + 0.02);
+    }catch(_){}
   }
 
   noise(freq, q, dur, vol, when = 0){
     if(!this.ok() || !this.noiseBuf) return;
-    const c = this.ctx, t = c.currentTime + when;
-    const dest = this.masterGain || c.destination;
-    const s = c.createBufferSource();
-    s.buffer = this.noiseBuf;
-    const f = c.createBiquadFilter();
-    f.type = 'bandpass';
-    f.frequency.value = freq;
-    f.Q.value = q;
-    const g = c.createGain();
-    g.gain.setValueAtTime(vol, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    s.connect(f).connect(g).connect(dest);
-    s.start(t);
-    s.stop(t + dur + 0.02);
+    try{
+      const c = this.ctx, t = c.currentTime + when;
+      const dest = this.masterGain || c.destination;
+      const s = c.createBufferSource();
+      s.buffer = this.noiseBuf;
+      const f = c.createBiquadFilter();
+      f.type = 'bandpass';
+      f.frequency.value = freq;
+      f.Q.value = q;
+      const g = c.createGain();
+      g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      s.connect(f).connect(g).connect(dest);
+      s.start(t);
+      s.stop(t + dur + 0.02);
+    }catch(_){}
   }
 
   // Organic coconut / wood-block acoustic horse hoof Foley
   clop(leg = 0, p = 1){
     if(!this.ok()) return;
-    if(typeof p !== 'number'){
-      p = typeof leg === 'number' ? leg : 1;
-      leg = 0;
-    }
-    p = Math.max(0.15, Math.min(1.2, p));
+    try{
+      const safeLeg = (typeof leg === 'number' && Number.isFinite(leg)) ? Math.floor(Math.abs(leg)) % 4 : 0;
+      let power = (typeof p === 'number' && Number.isFinite(p)) ? p : 1;
+      power = Math.max(0.15, Math.min(1.2, power));
 
-    const now = this.ctx.currentTime;
-    // De-clash: dampen rapid overlapping footsteps under 28ms
-    const isClash = (now - this.lastClopTime) < 0.028;
-    this.lastClopTime = now;
-    const clashMul = isClash ? 0.65 : 1.0;
+      const c = this.ctx;
+      const now = Math.max(0, c.currentTime);
+      // De-clash: dampen rapid overlapping footsteps under 28ms
+      const isClash = (now - this.lastClopTime) < 0.028 && (now >= this.lastClopTime);
+      this.lastClopTime = now;
+      const clashMul = isClash ? 0.65 : 1.0;
 
-    const c = this.ctx;
-    const dest = this.masterGain || c.destination;
+      const dest = this.masterGain || c.destination;
 
-    // Front legs (0, 1): crisp hollow snap; Hind legs (2, 3): deeper body resonance
-    const isHind = (leg === 2 || leg === 3);
-    const baseFreq = isHind ? (235 + Math.random() * 25) : (310 + Math.random() * 30);
-    const dropFreq = isHind ? 125 : 165;
-    const dur = isHind ? 0.065 : 0.052;
-    const vol = (isHind ? 0.088 : 0.082) * p * clashMul;
+      // Front legs (0, 1): crisp hollow snap; Hind legs (2, 3): deeper body resonance
+      const isHind = (safeLeg === 2 || safeLeg === 3);
+      const baseFreq = isHind ? (235 + Math.random() * 25) : (310 + Math.random() * 30);
+      const dropFreq = isHind ? 125 : 165;
+      const dur = isHind ? 0.065 : 0.052;
+      const vol = (isHind ? 0.088 : 0.082) * power * clashMul;
 
-    // Resonant acoustic cavity
-    const osc = c.createOscillator();
-    const oscGain = c.createGain();
-    const filter = c.createBiquadFilter();
+      // Resonant acoustic cavity
+      const osc = c.createOscillator();
+      const oscGain = c.createGain();
+      const filter = c.createBiquadFilter();
 
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(baseFreq * 1.08, now);
-    osc.frequency.exponentialRampToValueAtTime(dropFreq, now + dur);
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(baseFreq * 1.08, now);
+      osc.frequency.exponentialRampToValueAtTime(dropFreq, now + dur);
 
-    filter.type = 'bandpass';
-    filter.frequency.setValueAtTime(baseFreq * 1.35, now);
-    filter.Q.value = 2.6;
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(baseFreq * 1.35, now);
+      filter.Q.value = 2.6;
 
-    oscGain.gain.setValueAtTime(vol, now);
-    oscGain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+      oscGain.gain.setValueAtTime(vol, now);
+      oscGain.gain.exponentialRampToValueAtTime(0.001, now + dur);
 
-    osc.connect(filter).connect(oscGain).connect(dest);
-    osc.start(now);
-    osc.stop(now + dur + 0.015);
+      osc.connect(filter).connect(oscGain).connect(dest);
+      osc.start(now);
+      osc.stop(now + dur + 0.015);
 
-    // Warm turf / grass friction (low-frequency pink noise, non-piercing)
-    if(this.noiseBuf){
-      const src = c.createBufferSource();
-      src.buffer = this.noiseBuf;
-      const nFilter = c.createBiquadFilter();
-      nFilter.type = 'bandpass';
-      nFilter.frequency.value = isHind ? 580 : 720;
-      nFilter.Q.value = 1.1;
+      // Warm turf / grass friction (low-frequency pink noise, non-piercing)
+      if(this.noiseBuf){
+        const src = c.createBufferSource();
+        src.buffer = this.noiseBuf;
+        const nFilter = c.createBiquadFilter();
+        nFilter.type = 'bandpass';
+        nFilter.frequency.setValueAtTime(isHind ? 580 : 720, now);
+        nFilter.Q.value = 1.1;
 
-      const nGain = c.createGain();
-      const nVol = 0.022 * p * clashMul;
-      nGain.gain.setValueAtTime(nVol, now);
-      nGain.gain.exponentialRampToValueAtTime(0.0005, now + 0.038);
+        const nGain = c.createGain();
+        const nVol = 0.022 * power * clashMul;
+        nGain.gain.setValueAtTime(nVol, now);
+        nGain.gain.exponentialRampToValueAtTime(0.0005, now + 0.038);
 
-      src.connect(nFilter).connect(nGain).connect(dest);
-      src.start(now);
-      src.stop(now + 0.045);
-    }
+        src.connect(nFilter).connect(nGain).connect(dest);
+        src.start(now);
+        src.stop(now + 0.045);
+      }
+    }catch(_){}
+  }
+
+  // Organic horse snort & nostril breath flutter
+  snort(intensity = 1){
+    if(!this.ok()) return;
+    try{
+      const c = this.ctx;
+      const now = Math.max(0, c.currentTime);
+      const dest = this.masterGain || c.destination;
+      const p = (typeof intensity === 'number' && Number.isFinite(intensity))
+        ? Math.max(0.2, Math.min(1.5, intensity))
+        : 1.0;
+
+      // Nostril air puff with flutter amplitude modulation
+      if(this.noiseBuf){
+        const src = c.createBufferSource();
+        src.buffer = this.noiseBuf;
+        const f = c.createBiquadFilter();
+        f.type = 'bandpass';
+        f.frequency.setValueAtTime(400, now);
+        f.frequency.exponentialRampToValueAtTime(240, now + 0.22);
+        f.Q.value = 1.5;
+
+        // Flutter oscillator (18Hz nostril vibration)
+        const am = c.createOscillator();
+        am.type = 'sine';
+        am.frequency.setValueAtTime(18, now);
+        const amGain = c.createGain();
+        amGain.gain.setValueAtTime(0.4, now);
+
+        const g = c.createGain();
+        const vol = 0.08 * p;
+        g.gain.setValueAtTime(0.001, now);
+        g.gain.linearRampToValueAtTime(vol, now + 0.03);
+        g.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+        am.connect(amGain).connect(g.gain);
+
+        src.connect(f).connect(g).connect(dest);
+        src.start(now);
+        src.stop(now + 0.26);
+        am.start(now);
+        am.stop(now + 0.26);
+      }
+
+      // Low chest cavity harmonic
+      const osc = c.createOscillator();
+      const og = c.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(120, now);
+      osc.frequency.exponentialRampToValueAtTime(70, now + 0.16);
+      og.gain.setValueAtTime(0.035 * p, now);
+      og.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+      osc.connect(og).connect(dest);
+      osc.start(now);
+      osc.stop(now + 0.18);
+    }catch(_){}
   }
 
   thud(){
@@ -516,6 +602,7 @@ class Sfx {
     if(!this.ok()) return;
     this.clop(0, 0.6);
     setTimeout(() => this.clop(2, 0.75), 90);
+    setTimeout(() => this.snort(0.85), 180);
   }
 
   // Graceful stadium countdown chimes
@@ -601,6 +688,7 @@ class Sfx {
     [523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((f, i) => {
       this.tone('triangle', f, f * 1.02, 0.14, 0.11, i * 0.05);
     });
+    setTimeout(() => this.snort(0.65), 180);
   }
 
   hurdleClatter(){
@@ -1391,33 +1479,31 @@ function endReplay(){
 /* ================================================================
    Local 2-player duel — alternating timed runs, winner compared.
 ================================================================ */
-const DUEL={on:false,turn:0,t1:0,t2:0};
+const DUEL = createDuel();
+DUEL.on = false;
 function duelStart(){
-  DUEL.on=true; DUEL.turn=1; DUEL.t1=0; DUEL.t2=0;
+  DUEL.on=true; DUEL.turn=1; DUEL.t1=0; DUEL.t2=0; DUEL.dnf1=false; DUEL.dnf2=false;
   TOUR.on=false;
   aiSel='';                       // no AI in duels
   refreshAiChips();
   startRun(false);
 }
 function duelRecord(t){
-  if(DUEL.turn===1)DUEL.t1=t; else DUEL.t2=t;
+  recordDuelTurn(DUEL, t, G.dnf);
 }
 
 /* ================================================================
    Championship — three legs against pony → racehorse → legend.
 ================================================================ */
-const TOUR_AI=['pony','race','legend'];
-const TOUR={on:false,leg:0,pts:0,marks:''};
+const TOUR = createTournament();
+TOUR.on = false;
 function tourStart(){
-  TOUR.on=true; TOUR.leg=1; TOUR.pts=0; TOUR.marks='';
+  TOUR.on=true; TOUR.leg=1; TOUR.pts=0; TOUR.marks=''; TOUR.history=[];
   DUEL.on=false;
   startRun(false);
 }
 function tourLegResult(){
-  const win=!G.dnf&&(AI.finishTime==null||G.finishTime<=AI.finishTime);
-  TOUR.pts+=win?3:0;
-  TOUR.marks+=win?'勝':'負';
-  return win;
+  return evaluateTourLeg(TOUR, G.finishTime, G.dnf, AI.finishTime);
 }
 
 /* ================================================================
@@ -1474,68 +1560,8 @@ function perfTick(dt){
    10 Hz position trace (deflate + base64url). Importing it loads a
    challenge ghost to race against.
 ================================================================ */
-const b64u={
-  enc:b=>btoa(String.fromCharCode(...b)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''),
-  dec:s=>Uint8Array.from(atob(s.replace(/-/g,'+').replace(/_/g,'/')),c=>c.charCodeAt(0)),
-};
-async function deflateText(str){
-  if(!window.CompressionStream)return null;
-  const cs=new CompressionStream('deflate-raw');
-  const w=cs.writable.getWriter();
-  w.write(new TextEncoder().encode(str));
-  w.close();
-  return new Uint8Array(await new Response(cs.readable).arrayBuffer());
-}
-async function inflateText(bytes){
-  if(!window.DecompressionStream)throw new Error('no-inflate');
-  const ds=new DecompressionStream('deflate-raw');
-  const w=ds.writable.getWriter();
-  w.write(bytes);
-  w.close();
-  return new TextDecoder().decode(await new Response(ds.readable).arrayBuffer());
-}
 async function makeBattleCode(){
-  const xs=[];
-  for(let i=0;i<G.rec.length;i+=3)xs.push(Math.round(G.rec[i][0]*10));   // 10 Hz, 0.1 m units
-  const payload={v:1,t:Math.round(G.finishTime*10),f:G.falls,s:G.steps,
-                 sp:Math.round(G.topSpeed*36),x:xs};
-  const json=JSON.stringify(payload);
-  const def=await deflateText(json);
-  return def?('CC1.'+b64u.enc(def)):('CC0.'+b64u.enc(new TextEncoder().encode(json)));
-}
-async function parseBattleCode(raw){
-  const code=(raw||'').replace(/\s+/g,'');
-  const m=/^CC([01])\.([A-Za-z0-9_-]+)$/.exec(code);
-  if(!m)throw new Error('bad');
-  const bytes=b64u.dec(m[2]);
-  const json=m[1]==='1'?await inflateText(bytes):new TextDecoder().decode(bytes);
-  const p=JSON.parse(json);
-  if(!p||p.v!==1||!(p.x instanceof Array)||p.x.length<10)throw new Error('bad');
-  return p;
-}
-// Rebuild a 30 Hz ghost pose stream from the 10 Hz trace, with a
-// synthesized trot so the challenge ghost visibly runs.
-function rivalPoseFrom(p){
-  const frames=[];
-  const n=p.x.length;
-  let ph=0;
-  for(let i=0;i<n*3;i++){
-    const t10=i/3;
-    const k=Math.floor(t10);
-    const a=p.x[Math.max(0,Math.min(n-1,k-1))], b=p.x[Math.max(0,Math.min(n-1,k))];
-    const c=p.x[Math.max(0,Math.min(n-1,k+1))];
-    const x=((b-a)+(c-a)*(t10-k))*0.05+a*0.1;   // smooth-ish interp in metres
-    const sp=Math.max(0,b-a);                    // 1 unit delta ≈ 1 m/s
-    ph+=sp*5.0/30;
-    const A=0.35*Math.min(1,sp/1.2);
-    const s1=Math.sin(ph), s2=Math.sin(ph+Math.PI);
-    const lift=q=>Math.max(0,Math.min(1,q*1.3));
-    const y=CFG.bodyY+0.03*Math.sin(ph*2);
-    frames.push([Math.round(x*1000)/1000,Math.round(y*1000)/1000,0,0,0,0,
-      s1*A,-s2*A,-s2*A,s1*A,
-      lift(s1*A),lift(-s2*A),lift(-s2*A),lift(s1*A)]);
-  }
-  return frames;
+  return makeBattleCodeFromRec(G.rec, G.finishTime, G.falls, G.steps, G.topSpeed);
 }
 async function loadRivalCode(code){
   const p=await parseBattleCode(code);
@@ -1658,16 +1684,17 @@ uploadBtn.addEventListener('click',async()=>{
     return;
   }
   try{
-    await LB.submit({
+    const payload = formatLeaderboardPayload({
       name,
-      time_ms:Math.round(G.finishTime*1000),
-      falls:G.falls,
-      steps:G.steps,
-      speed:Math.round(G.topSpeed*36),
+      finishTime: G.finishTime,
+      falls: G.falls,
+      steps: G.steps,
+      topSpeed: G.topSpeed,
       code,
-      mode:G.daily?'daily':'normal',
-      day:G.daily?G.dailyData.date:null,
+      mode: G.daily ? 'daily' : 'normal',
+      day: G.daily ? G.dailyData.date : null,
     });
+    await LB.submit(payload);
     store.set('cc_name',name);
     store.set('cc_last_upload',now);
     LB.lastFetch=0;
@@ -1707,7 +1734,7 @@ function toast(msg){
   el.classList.remove('hidden');
   el.style.opacity='0.95';
   clearTimeout(toastTimer);
-  toastTimer=setTimeout(()=>{el.style.opacity='0';setTimeout(()=>el.classList.add('hidden'),400);},2400);
+  toastTimer=setTimeout(()=>{el.style.opacity='0';setTimeout(()=>el.classList.add('hidden'),400);},3200);
 }
 function renderBoard(){
   const board=store.get('cc_board',[]);
@@ -1965,8 +1992,8 @@ function showResult(){
       duelRow.classList.remove('hidden');
       retryBtn.textContent=tr('next_battle')+tr('ai_'+TOUR_AI[TOUR.leg])+' →';
     }else{
-      const cup=TOUR.pts>=9?'champ9':TOUR.pts>=6?'champ6':TOUR.pts>=3?'champ3':'champ0';
-      rankIcon.textContent=TOUR.pts>=9?'🏆':TOUR.pts>=6?'🥈':TOUR.pts>=3?'🥉':'🐎';
+      const cup=tournamentCup(TOUR.pts);
+      rankIcon.textContent=tournamentCupIcon(TOUR.pts);
       rankText.textContent=tr(cup);
       duelRow.textContent=TOUR.marks+'　·　'+tr('pts')+' '+TOUR.pts+'/9';
       duelRow.classList.remove('hidden');
@@ -1979,10 +2006,10 @@ function showResult(){
       rankText.textContent='1P：'+G.finishTime.toFixed(1)+' s';
       retryBtn.textContent=tr('duel_next');
     }else{
-      const t1=DUEL.t1,t2=DUEL.t2;
-      rankIcon.textContent=t1<t2?'1️⃣':(t2<t1?'2️⃣':'🤝');
-      rankText.textContent=t1<t2?tr('duel_p1win'):(t2<t1?tr('duel_p2win'):tr('duel_draw'));
-      duelRow.textContent='1P '+t1.toFixed(1)+' s　｜　2P '+t2.toFixed(1)+' s';
+      const outcome=evaluateDuel(DUEL);
+      rankIcon.textContent=outcome.icon;
+      rankText.textContent=tr(outcome.key);
+      duelRow.textContent='1P '+DUEL.t1.toFixed(1)+' s　｜　2P '+DUEL.t2.toFixed(1)+' s';
       duelRow.classList.remove('hidden');
       retryBtn.textContent=tr('duel_again');
     }
@@ -2282,6 +2309,7 @@ window.__handleMatrixKeyDown = function(code){
     else if(G.state === 'run') triggerHurdleJump();
     else primaryAction();
   } else if(code === 'ShiftLeft' || code === 'ShiftRight'){
+    if(!cockpit.aeroActive && G.state === 'run') sfx.snort(0.5);
     cockpit.aeroActive = true;
   } else if(code === 'ArrowLeft'){
     cockpit.trimRoll = -1;

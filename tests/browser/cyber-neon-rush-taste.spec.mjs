@@ -32,7 +32,7 @@ test.describe('Cyber-Neon-Rush taste polish', () => {
 
     await page.getByRole('button', { name: '開始疾馳' }).click();
     await expect(page.getByLabel('動態計分板')).toBeVisible({ timeout: 15_000 });
-    await expect(page.locator('canvas')).toBeVisible();
+    await expect(page.locator('canvas').first()).toBeVisible();
 
     // Dismiss first-run tip if present so the track stays readable.
     const tip = page.getByRole('button', { name: '知道了' });

@@ -39,8 +39,8 @@ import {
   clampLane,
   laneToX,
   type RushDifficulty,
-} from './constants';
-import { createLaneBody, laneBodyRoll, stepLaneBody, type LaneBody } from './lanePhysics';
+} from './constants.ts';
+import { createLaneBody, laneBodyRoll, stepLaneBody, type LaneBody } from './lanePhysics.ts';
 import {
   createBoostRing,
   createCarMesh,
@@ -51,8 +51,12 @@ import {
   createTrailSpark,
   type ObstacleKind,
   type PowerupKind,
-} from './meshes';
-import { collisionProfile, pickObstacleKind } from './obstacleProfile';
+} from './meshes.ts';
+import {
+  collisionProfile,
+  hitsObstacle as engineHitsObstacle,
+  pickObstacleKind,
+} from './obstacleProfile.ts';
 import {
   creditsFromRun,
   dashCooldownSec,
@@ -60,7 +64,7 @@ import {
   powerDurationMul,
   type CosmeticId,
   type UpgradeLevels,
-} from './progress';
+} from './progress.ts';
 import {
   addDistanceScore,
   breakCombo,
@@ -75,8 +79,8 @@ import {
   toHud,
   type HudSnapshot,
   type RunResult,
-} from './scoreSystem';
-import { trackCurvature, trackHeading, trackOffset, trackSlope } from './trackPath';
+} from './scoreSystem.ts';
+import { trackCurvature, trackHeading, trackOffset, trackSlope } from './trackPath.ts';
 
 export type GamePhase = 'running' | 'paused' | 'over';
 
@@ -608,10 +612,10 @@ export function createGameWorld(config: RunConfig): GameWorld {
   }
 
   function hitsObstacle(obs: Obstacle): boolean {
-    const profile = collisionProfile(obs.kind);
-    if (profile === 'jumpable' && jumpT > 0.08) return false;
-    if (profile === 'slideable' && dashT > 0.05) return false;
-    return true;
+    return engineHitsObstacle(obs.kind, {
+      jumping: jumpT > 0.08,
+      dashing: dashT > 0.05,
+    });
   }
 
   function updateObstacles(dt: number): void {

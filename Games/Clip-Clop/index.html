@@ -183,7 +183,30 @@ canvas{display:block}
 
 /* Screens */
 .screen{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:auto;background:rgba(60,40,20,.18);backdrop-filter:blur(2px)}
+#resultScreen{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:auto;
+  background:
+    radial-gradient(130% 90% at 50% 0%, rgba(245,165,36,.28), transparent 56%),
+    radial-gradient(90% 70% at 100% 100%, rgba(74,47,24,.45), transparent 50%),
+    rgba(28,18,10,.65);
+  backdrop-filter:blur(8px) saturate(1.2);
+  -webkit-backdrop-filter:blur(8px) saturate(1.2);
+}
 .card{background:#fff6e8;border:3px solid #4a2f18;border-radius:22px;padding:24px 30px;box-shadow:0 10px 0 rgba(74,47,24,.28);max-width:560px;width:calc(100% - 40px);text-align:center;max-height:calc(100% - 28px);overflow:auto}
+#resultScreen .card{
+  border:3.5px solid #4a2f18;
+  border-radius:24px;
+  box-shadow:0 16px 40px rgba(0,0,0,.35), 0 8px 0 rgba(74,47,24,.3);
+  animation:resultCardPop .35s cubic-bezier(.175,.885,.32,1.275);
+}
+@keyframes resultCardPop{
+  0%{transform:scale(.92);opacity:0}
+  100%{transform:scale(1);opacity:1}
+}
+.btn:focus-visible, .modeChip:focus-visible, .paddock-beat:focus-visible, input:focus-visible {
+  outline: 3px solid #f5a524;
+  outline-offset: 2px;
+}
 h1{font-size:44px;line-height:1.05}
 .subtitle{font-size:14px;font-weight:800;letter-spacing:.3em;color:#b06a2c;margin-top:2px}
 .tagline{margin-top:10px;font-size:15px;opacity:.85}
@@ -1215,7 +1238,7 @@ h1{font-size:44px;line-height:1.05}
     </div>
   </div>
 
-  <div id="resultScreen" class="screen hidden">
+  <div id="resultScreen" class="screen hidden" role="dialog" aria-modal="true" aria-labelledby="rankText">
     <div class="card">
       <div class="resultHead" data-i18n="result_title"></div>
       <div id="rankIcon" class="rankIcon">🏆</div>

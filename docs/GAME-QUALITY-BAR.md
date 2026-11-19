@@ -19,6 +19,7 @@ Clubhouse Games rejects filler. Every listed game must clear this bar before cou
 | Puyo-Puyo | Dependency-free static page (copy `src/` → `dist/`); no React/Tailwind. Custom `#result-overlay` already mirrors the shared chrome contract (title / stats / restart). Bundling `resultOverlayDom` would be chrome churn without React stack payoff. |
 | Baseball-Life | Career summary is a long-form multi-section page, not a short win/lose card. |
 | Dynasty | Tenure summary is a long-form page, not a short win/lose card. |
+| Clip-Clop | 3D equestrian paddock shell with bespoke Three.js camera orbiting the horse, replay reel, paddock telemetry, and medal ceremonies directly within the 3D canvas/HTML overlay. Native WebAudio acoustic sound engine + custom paddock result styling. |
 
 ## Language
 

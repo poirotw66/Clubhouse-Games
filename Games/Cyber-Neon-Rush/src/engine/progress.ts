@@ -91,7 +91,7 @@ export const COSMETIC_CATALOG: Record<
   ice: { name: '極光冰霜', cost: 380, body: 0xecfeff, emissive: 0x67e8f9, trail: 0xa5f3fc },
 };
 
-const MISSION_POOL: MissionDef[] = [
+export const MISSION_POOL: MissionDef[] = [
   { id: 'nm10', kind: 'nearMiss', label: '單局擦身閃避 10 次', target: 10, reward: 80 },
   { id: 'nm20', kind: 'nearMiss', label: '單局擦身閃避 20 次', target: 20, reward: 140 },
   { id: 'dist400', kind: 'distance', label: '單局行駛 400 m', target: 400, reward: 90 },
@@ -123,7 +123,8 @@ function todayKey(): string {
   return shifted.toISOString().slice(0, 10);
 }
 
-function clampInt(n: unknown, min: number, max: number, fallback: number): number {
+export function clampInt(n: unknown, min: number, max: number, fallback: number): number {
+  if (n == null || n === '') return fallback;
   const v = typeof n === 'number' ? n : Number(n);
   if (!Number.isFinite(v)) return fallback;
   return Math.max(min, Math.min(max, Math.floor(v)));
@@ -146,7 +147,7 @@ function isMissionKind(v: unknown): v is MissionKind {
   );
 }
 
-function hashDay(seed: string): number {
+export function hashDay(seed: string): number {
   let h = 2166136261;
   for (let i = 0; i < seed.length; i++) {
     h ^= seed.charCodeAt(i);
@@ -155,7 +156,7 @@ function hashDay(seed: string): number {
   return h >>> 0;
 }
 
-function pickMissionsForDate(date: string): MissionProgress[] {
+export function pickMissionsForDate(date: string): MissionProgress[] {
   const h = hashDay(`cnr-missions:${date}`);
   const pool = MISSION_POOL.slice();
   // Deterministic shuffle
@@ -207,10 +208,23 @@ export function defaultMeta(): MetaSave {
   };
 }
 
+function getLocalStorage(): Storage | null {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      return window.localStorage;
+    }
+  } catch {
+    /* private mode */
+  }
+  return null;
+}
+
 export function loadMeta(): MetaSave {
   const base = defaultMeta();
   try {
-    const raw = localStorage.getItem(META_KEY);
+    const storage = getLocalStorage();
+    if (!storage) return refreshMissionsIfNeeded(base);
+    const raw = storage.getItem(META_KEY);
     if (!raw) return refreshMissionsIfNeeded(base);
     const parsed = JSON.parse(raw) as Partial<MetaSave>;
     const upgrades = emptyUpgrades();
@@ -256,7 +270,9 @@ export function loadMeta(): MetaSave {
 
 export function saveMeta(meta: MetaSave): void {
   try {
-    localStorage.setItem(META_KEY, JSON.stringify(meta));
+    const storage = getLocalStorage();
+    if (!storage) return;
+    storage.setItem(META_KEY, JSON.stringify(meta));
   } catch {
     /* private mode */
   }

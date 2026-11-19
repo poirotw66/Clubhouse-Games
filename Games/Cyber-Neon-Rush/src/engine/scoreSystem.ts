@@ -10,10 +10,10 @@ import {
   PERFECT_MISS_SCORE,
   POWERUP_SCORE,
   RUSH_DIFFICULTIES,
+  type PowerupKind,
   type RushDifficulty,
-} from './constants';
-import { nearMissScoreMul, type UpgradeLevels } from './progress';
-import type { PowerupKind } from './meshes';
+} from './constants.ts';
+import { nearMissScoreMul, type UpgradeLevels } from './progress.ts';
 
 export type ToastKind =
   | 'near'
@@ -106,9 +106,22 @@ function emptyBests(): BestsMap {
   };
 }
 
+function getLocalStorage(): Storage | null {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      return window.localStorage;
+    }
+  } catch {
+    /* private mode */
+  }
+  return null;
+}
+
 function readLegacy(key: string): number {
   try {
-    const raw = localStorage.getItem(key);
+    const storage = getLocalStorage();
+    if (!storage) return 0;
+    const raw = storage.getItem(key);
     const n = raw == null ? 0 : Number(raw);
     return Number.isFinite(n) ? n : 0;
   } catch {
@@ -119,7 +132,9 @@ function readLegacy(key: string): number {
 export function loadBests(): BestsMap {
   const bests = emptyBests();
   try {
-    const raw = localStorage.getItem(BESTS_KEY);
+    const storage = getLocalStorage();
+    if (!storage) return bests;
+    const raw = storage.getItem(BESTS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<Record<RushDifficulty, Partial<ModeBest>>>;
       for (const d of RUSH_DIFFICULTIES) {
@@ -178,6 +193,8 @@ export function persistBests(
 ): boolean {
   let isNewBest = false;
   try {
+    const storage = getLocalStorage();
+    if (!storage) return false;
     const bests = loadBests();
     const prev = bests[difficulty];
     if (score > prev.score) {
@@ -189,7 +206,7 @@ export function persistBests(
     } else if (distance > prev.distance) {
       bests[difficulty] = { ...prev, distance: Math.floor(distance) };
     }
-    localStorage.setItem(BESTS_KEY, JSON.stringify(bests));
+    storage.setItem(BESTS_KEY, JSON.stringify(bests));
   } catch {
     /* private mode */
   }
@@ -280,7 +297,8 @@ export function tickScoreTimers(state: ScoreState, dt: number): void {
   state.comboTimer -= dt;
   if (state.comboTimer <= 0) {
     state.combo = Math.max(0, state.combo - 1);
-    state.comboTimer = COMBO_DECAY_SEC * 0.55;
+    // Slower decay cadence, especially while sustaining fever
+    state.comboTimer = isFever(state.combo) ? COMBO_DECAY_SEC * 0.7 : COMBO_DECAY_SEC * 0.6;
     if (!isFever(state.combo)) state.feverLatched = false;
   }
 }

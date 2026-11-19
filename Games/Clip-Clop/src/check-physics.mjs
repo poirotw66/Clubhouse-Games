@@ -1,4 +1,3 @@
-import './check-stride-coach.mjs';
 import assert from 'node:assert/strict';
 import { CFG, MOD, dailyInfo, makeHorseState, makeLegStates, simHorse } from './physics.js';
 

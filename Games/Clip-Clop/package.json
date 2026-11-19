@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "lint": "node ../../scripts/lint-js-syntax.mjs",
     "clean": "rm -rf dist",
-    "check": "node src/check-physics.mjs"
+    "check": "node src/check-physics.mjs && node src/check-stride-coach.mjs && node src/check-paddock.mjs"
   },
   "dependencies": {
     "three": "^0.186.1"

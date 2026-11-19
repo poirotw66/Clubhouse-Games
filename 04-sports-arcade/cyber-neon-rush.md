@@ -72,6 +72,21 @@
 - **結束**：碰撞障礙物（無護盾／無敵時）。
 - **成績**：總分 = 距離分 + 近距離閃避分 × 連擊／道具倍率。
 - **紀錄**：各難度最佳總分與最遠距離；車庫進度與任務另存。
+- **結算 UI**：共用 `@clubhouse/shared/ResultOverlay`。
+
+## 品質門檻對齊
+
+對照 [`docs/GAME-QUALITY-BAR.md`](../docs/GAME-QUALITY-BAR.md)：
+
+| 項目 | 本實作 |
+|------|--------|
+| 模式／變體 | 三難度梯次（悠閒 chill／標準 normal／狂飆 rush，具獨立車速倍率與障礙間距）× 車庫永久升級 × 塗裝解鎖 × 每日輪換任務 |
+| 駕駛艙儀表 | 賽博全息駕駛艙 HUD（數位時速表 KM/H、檔位指示器、電容衝刺充能槽、Speed Warp 流光、Holo Floaties 浮動標籤）與 3D 旋轉車輛預覽台 |
+| Replay hook | 各難度最佳總分與最遠距離（`cyber-neon-rush:bests-v2`）、車庫進度與生涯統計（`cyber-neon-rush:meta-v1`，含霓虹幣、五項升級、五款塗裝、單日輪換任務） |
+| Undo／Hint | 不適用（即時高速跑酷）；首次開跑操作引導（`cyber-neon-rush:tip-seen`）與動態避障閱讀（矮障跳躍、橫桿衝刺鑽過、高閘切道） |
+| Feedback | `@clubhouse/shared/ResultOverlay` 結算卡片＋`synthAudio`（拾取、加速、狂熱音效）＋震動回饋（haptics）＋螢幕晃動（screen shake）＋近失／狂熱視覺流光（FEVER vignette & Speed Warp） |
+| Touch | 完整觸控支援：觸控按鈕列（左切道、右切道、跳躍、衝刺）與手勢滑動（左右滑動切道、上滑跳躍、下滑衝刺） |
+| Check | `npm run check`（`check-physics.mjs` 物理與連擊曲線、`check-camera.mjs` 攝影機朝向守護、`check-depth.mjs` 障礙配置與經濟升級） |
 
 ## 常見變體或可選規則
 

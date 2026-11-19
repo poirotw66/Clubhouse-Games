@@ -1,22 +1,20 @@
 import * as THREE from 'three';
-import { ROAD_HALF_WIDTH, TRACK_SEGMENT_LENGTH } from './constants';
+import { ROAD_HALF_WIDTH, TRACK_SEGMENT_LENGTH, type PowerupKind } from './constants.ts';
 import {
   COSMETIC_CATALOG,
   type CosmeticId,
-} from './progress';
-import type { ObstacleKind } from './obstacleProfile';
-import { trackOffset, trackHeading } from './trackPath';
-import { getBarrierMap, getCarMap, getConeMap, getDroneMap, getRoadMap } from './textures';
+} from './progress.ts';
+import type { ObstacleKind } from './obstacleProfile.ts';
+import { trackOffset, trackHeading } from './trackPath.ts';
+import { getBarrierMap, getCarMap, getConeMap, getDroneMap, getRoadMap } from './textures.ts';
 
-export type { ObstacleKind };
+export type { ObstacleKind, PowerupKind };
 
 const NEON_CYAN = 0x22d3ee;
 const NEON_MAGENTA = 0xf472b6;
 const NEON_LIME = 0xa3e635;
 const STRIPE = 0x67e8f9;
 const LANE_STRIPE = 1.2;
-
-export type PowerupKind = 'shield' | 'magnet' | 'multiplier' | 'slowmo';
 
 export function createCarMesh(cosmeticId: CosmeticId = 'cyan'): THREE.Group {
   const cosmetic = COSMETIC_CATALOG[cosmeticId];

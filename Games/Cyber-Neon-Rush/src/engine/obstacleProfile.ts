@@ -24,6 +24,23 @@ export function collisionProfile(kind: ObstacleKind): CollisionProfile {
   }
 }
 
+export function canClearObstacle(
+  kind: ObstacleKind,
+  action: { jumping?: boolean; dashing?: boolean },
+): boolean {
+  const profile = collisionProfile(kind);
+  if (profile === 'jumpable' && action.jumping) return true;
+  if (profile === 'slideable' && action.dashing) return true;
+  return false;
+}
+
+export function hitsObstacle(
+  kind: ObstacleKind,
+  action: { jumping?: boolean; dashing?: boolean },
+): boolean {
+  return !canClearObstacle(kind, action);
+}
+
 export function pickObstacleKind(rng: () => number, progress: number): ObstacleKind {
   const roll = rng();
   // Later distance introduces more profile variety so players must read ahead.
