@@ -7,9 +7,9 @@ import {
   WINDOW_GOOD,
   WINDOW_PERFECT,
   getTimingWindows,
-} from './constants';
-import type { ParrySide } from './patterns';
-import { CounterResult } from './types';
+} from './constants.ts';
+import type { ParrySide } from './patterns.ts';
+import { CounterResult } from './types.ts';
 
 export interface ResolveInput {
   /** now - impactTime (negative = early). */

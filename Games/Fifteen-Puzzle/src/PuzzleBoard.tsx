@@ -236,7 +236,7 @@ export function PuzzleBoard({
         pointerStart.current = null;
       }}
       role="grid"
-      aria-label={`${size} 乘 ${size} 機械推盤`}
+      aria-label={`${size} 乘 ${size} 推盤`}
     >
       {/* Decorative Corner Rivets */}
       <span
@@ -290,9 +290,30 @@ export function PuzzleBoard({
         );
       })}
 
-      {/* Tiles */}
-      {board.map((tile, i) => {
-        if (tile === null) return null;
+      {/* Tiles: direct neighbors first for accessible navigation */}
+      {Array.from({ length: board.length }, (_, i) => i)
+        .sort((a, b) => {
+          const tileA = board[a];
+          const tileB = board[b];
+          if (tileA === null) return 1;
+          if (tileB === null) return -1;
+          const rA = Math.floor(a / size);
+          const cA = a % size;
+          const rB = Math.floor(b / size);
+          const cB = b % size;
+          const distA = Math.abs(rA - eRow) + Math.abs(cA - eCol);
+          const distB = Math.abs(rB - eRow) + Math.abs(cB - eCol);
+          const moveA = canMultiSlide(board, a, size);
+          const moveB = canMultiSlide(board, b, size);
+          if (moveA && distA === 1 && (!moveB || distB !== 1)) return -1;
+          if (moveB && distB === 1 && (!moveA || distA !== 1)) return 1;
+          if (moveA && !moveB) return -1;
+          if (!moveA && moveB) return 1;
+          return a - b;
+        })
+        .map((i) => {
+          const tile = board[i];
+          if (tile === null) return null;
         const row = Math.floor(i / size);
         const col = i % size;
         const goal = tile - 1;

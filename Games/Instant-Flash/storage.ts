@@ -1,7 +1,7 @@
-import { OPPONENTS, type OpponentId } from './opponents';
-import { betterRank, type ReactionRank } from './ranks';
-import type { DailyRecord } from './daily';
-import { computeStreak, dateKey } from './daily';
+import { OPPONENTS, type OpponentId } from './opponents.ts';
+import { betterRank, type ReactionRank } from './ranks.ts';
+import type { DailyRecord } from './daily.ts';
+import { computeStreak, dateKey } from './daily.ts';
 
 export interface BestRecord {
   highScore: number;

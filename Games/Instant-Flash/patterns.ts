@@ -5,8 +5,8 @@
 import {
   pickProjectileType,
   type PracticeScenario,
-} from './constants';
-import type { OpponentDef, PatternTrait } from './opponents';
+} from './constants.ts';
+import type { OpponentDef, PatternTrait } from './opponents.ts';
 
 export type ParrySide = 'left' | 'right';
 

@@ -99,14 +99,14 @@
 
 對照 [`docs/GAME-QUALITY-BAR.md`](../docs/GAME-QUALITY-BAR.md)：
 
-| 項目 | 本實作 |
-|------|--------|
-| 模式／變體 | 經典／衝刺／每日／闖關 × 盤面 × 數字／名畫 × 三級打亂 × 三大工坊主題 |
-| Replay hook | 最佳步數／衝刺秒數／每日連續／最高推盤 SPS／闖關進度 |
-| Undo／Hint | 皆有 |
-| Feedback | `ResultOverlay` + `mechanicalAudio` + 齒輪鎖定微粒子 + 評等預測 |
-| Touch | 點擊、滑動、多塊連動、行動端專屬戰術抽屜 |
-| Check | `npm run check` → `src/check-fifteen.mjs` |
+| 項目 | 本實作說明與亮點 |
+|------|------------------|
+| **模式／變體** | 經典／衝刺（90 秒）／每日挑戰／闖關階梯（8 關循序漸進，已校準第 5 關限時衝刺 95s 與第 7 關馬賽克 120s 觸控容錯）× 3×3～6×6 盤面 × 數字／名畫拼圖 × 簡單／普通／困難三級打亂 × 三大典藏工坊材質（胡桃木黃銅／黑曜石金箔／賽博鈦金） |
+| **Replay hook** | 完整持久化至 `localStorage`：各盤面難度最佳步數、最速衝刺秒數、每日挑戰連續天數（Streak）、歷史最高推盤時速（Max SPS）、闖關階梯進度（Cleared Count & 關卡最佳成績）與工坊個人化偏好 |
+| **對手／輔助（Undo／Hint）** | 雙重智能輔助：一鍵復原（Undo，支援鍵盤 <kbd>Z</kbd>／<kbd>Backspace</kbd>）與即時最佳解提示（IDA\* 啟發式推薦下一步，支援鍵盤 <kbd>H</kbd>）；另具備曼哈頓熱力光暈（<kbd>M</kbd>）與目標藍圖透視（<kbd>G</kbd>） |
+| **回饋（Feedback）** | 標準 `ResultOverlay`（結算勝負、標準桿差距、評等 S～D、最高 SPS）+ **機械卡榫星爆粒子（Mechanical Latch Particles）**（歸位迸發 8 顆環形金色微粒子與雙重震動）+ **動態時速計與連擊（SPS Speedometer & Combo Streak）**（0.95s 窗口五聲音階爬升） |
+| **觸控與操作（Touch）** | 原生觸控手勢滑動 + **整排多塊連動衝刺（Multi-Tile Physics Dash Wave）**（點擊同行列方塊觸發骨牌連鎖推移與多段滑步音效）+ 行動端專屬戰術抽屜（Mobile Tactical HUD Drawer，< 1024px 自動摺疊） |
+| **驗證腳本（Check）** | `npm run check -w fifteen-puzzle` → `src/check-fifteen.mjs`（涵蓋多尺寸連動推盤物理、IDA\* 啟發式與線性衝突、音效合成器契約、存儲遷移與歷史紀錄等深層單元測試，>500 行深度檢驗） |
 
 ## 實作
 

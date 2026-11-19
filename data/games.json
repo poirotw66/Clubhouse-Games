@@ -195,14 +195,6 @@
           "gameFolder": "Switchpoint-Run"
         },
         {
-          "name": "花花舞獅踩街",
-          "en": "Bloom Lion Dance",
-          "desc": "QWOP 式四腳舞獅踩街 v4：拉開側視、可愛醒獅關節腳、明亮街景與採青；單人／雙人合作。",
-          "players": "1–2 人",
-          "specPath": "04-sports-arcade/lion-dance.md",
-          "gameFolder": "Lion-Dance"
-        },
-        {
           "name": "牆上翻滾",
           "en": "Wall Flip",
           "desc": "全速衝上反翘的弧形道路，倒掛段靠磁力吸附撐住，唇端倒著飛出後用推進器翻滾回正、輪胎著地。附 2D 與 Three.js 3D 兩個版本。",

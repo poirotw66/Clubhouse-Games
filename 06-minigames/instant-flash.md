@@ -102,8 +102,24 @@
 - 雙人：先得 5 分。
 - 練習：僅供訓練，不寫入挑戰最佳。
 
+## 品質門檻對齊
+
+對照 [`docs/GAME-QUALITY-BAR.md`](../docs/GAME-QUALITY-BAR.md)：
+
+| 項目 | 本實作 |
+|------|--------|
+| 模式／變體 | 5 種遊戲模式（對決階梯 8 位劍豪、每日對決 Asia/Taipei 種子、同機雙人拔刀競賽、無盡挑戰模式、4 大練習劇本 × 3 種難度強度） |
+| 遙測與座艙 | 雙翼武道館戰術座艙（居合神經反應光譜儀、毫秒級秒差散佈圖、動態收斂判定視窗、Zen Flow 心流動態波形、劍豪交鋒情報、九段拔刀段位階梯、心法大師錦囊、行動端戰術速報條） |
+| Replay hook | `localStorage` 本地儲存多維度紀錄（挑戰模式最佳高分、最高連段、8 位劍豪個別擊破狀態、每位對手最快反應毫秒與最高評級 S/A/B/C、每日挑戰 Asia/Taipei 連勝 Streak、九段拔刀段位累積晉陞） |
+| Undo／Hint | 練習模式無限生命免受傷重試；劍豪交鋒破綻指引與居合心法錦囊提示（靜心凝神、破綻捕捉、看破假相、殘心收刀、氣韻回流）；暗器軌跡上偏左斬／下偏右斬直覺引導 |
+| Feedback | 完美一閃全螢幕白熾負片反色與衝擊波、Hit-Stop 鈍化頓點、自適應螢幕震動、雙向雷弧刀光與火花粒子、`@clubhouse/shared/synthAudio` 居合拔刀／斬擊音效、結算畫面與段位晉陞徽章 |
+| Touch | 螢幕左右分區觸控引刀與放開拔刀、雙人模式左右同機對決觸控（P1/P2）、行動端頂部戰術速報條與滑入式左右翼戰術抽屜 |
+| Check | `npm run check` → `check-instant-flash.mjs`（`node --experimental-strip-types` 原生導入 TS 模組，驗證 0-6 難度階梯時間窗、左右斬判定、佯攻看破與提前放刀懲罰、九段拔刀段位晉陞、8 位劍豪解鎖、Asia/Taipei 每日種子與連勝） |
+
 ## 實作
 
 - 專案路徑：[Games/Instant-Flash/](../Games/Instant-Flash/)
-- 檢查腳本：`npm run check`（`check-instant-flash.mjs`；含劇本權重、左右／佯攻判定、階梯解鎖、Taipei 每日種子與評價）
+- 檢查腳本：`npm run check`（`check-instant-flash.mjs`；以 `node --experimental-strip-types` 執行，含難度時間窗、左右／佯攻判定、階梯解鎖、九段晉陞、Taipei 每日種子與評價）
+- 靜態檢查：`npm run lint`（TypeScript 編譯驗證）
+- 打包驗證：`npm run build`（Vite 生產建置）
 - 手感：hit-stop、螢幕震動、斬擊 SVG、`@clubhouse/shared/synthAudio`、雙翼戰術座艙

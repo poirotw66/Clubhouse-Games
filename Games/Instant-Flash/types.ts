@@ -1,47 +1,52 @@
-import type { ReactionRank } from './ranks';
-import type { ParrySide } from './patterns';
+import type { ReactionRank } from './ranks.ts';
+import type { ParrySide } from './patterns.ts';
 
 export type PlayMode = 'practice' | 'challenge' | 'duel' | 'daily' | 'versus';
 
-export enum GameState {
-  MENU = 'MENU',
-  PLAYING = 'PLAYING',
-  GAMEOVER = 'GAMEOVER',
-}
+export const GameState = {
+  MENU: 'MENU',
+  PLAYING: 'PLAYING',
+  GAMEOVER: 'GAMEOVER',
+} as const;
+export type GameState = (typeof GameState)[keyof typeof GameState];
 
-export enum PlayerStance {
-  IDLE = 'IDLE',
-  SHEATHED = 'SHEATHED', // Holding the button
-  SLASHING = 'SLASHING', // Released button
-  RECOVERING = 'RECOVERING', // Post-slash animation
-  HIT = 'HIT', // Took damage
-}
+export const PlayerStance = {
+  IDLE: 'IDLE',
+  SHEATHED: 'SHEATHED', // Holding the button
+  SLASHING: 'SLASHING', // Released button
+  RECOVERING: 'RECOVERING', // Post-slash animation
+  HIT: 'HIT', // Took damage
+} as const;
+export type PlayerStance = (typeof PlayerStance)[keyof typeof PlayerStance];
 
-export enum EnemyState {
-  IDLE = 'IDLE',
-  WARNING = 'WARNING', // Red eye flash / projectile flight
-  ATTACKING = 'ATTACKING', // The dash/hit frame
-  COOLDOWN = 'COOLDOWN',
-  DEAD = 'DEAD',
-}
+export const EnemyState = {
+  IDLE: 'IDLE',
+  WARNING: 'WARNING', // Red eye flash / projectile flight
+  ATTACKING: 'ATTACKING', // The dash/hit frame
+  COOLDOWN: 'COOLDOWN',
+  DEAD: 'DEAD',
+} as const;
+export type EnemyState = (typeof EnemyState)[keyof typeof EnemyState];
 
-export enum ProjectileType {
-  SHURIKEN = 'SHURIKEN', // Standard speed
-  KUNAI = 'KUNAI', // Very fast
-  BOMB = 'BOMB', // Slow, varying trajectory
-  SICKLE = 'SICKLE', // Medium, spinning wide
-}
+export const ProjectileType = {
+  SHURIKEN: 'SHURIKEN', // Standard speed
+  KUNAI: 'KUNAI', // Very fast
+  BOMB: 'BOMB', // Slow, varying trajectory
+  SICKLE: 'SICKLE', // Medium, spinning wide
+} as const;
+export type ProjectileType = (typeof ProjectileType)[keyof typeof ProjectileType];
 
-export enum CounterResult {
-  NONE = 'NONE',
-  PERFECT = 'PERFECT',
-  GOOD = 'GOOD',
-  EARLY = 'EARLY', // Released too early
-  LATE = 'LATE', // Released too late (hit)
-  MISS = 'MISS', // Didn't release at all
-  FEINT = 'FEINT', // Slashed a fake-out
-  WRONG_SIDE = 'WRONG_SIDE', // Correct timing, wrong parry side
-}
+export const CounterResult = {
+  NONE: 'NONE',
+  PERFECT: 'PERFECT',
+  GOOD: 'GOOD',
+  EARLY: 'EARLY', // Released too early
+  LATE: 'LATE', // Released too late (hit)
+  MISS: 'MISS', // Didn't release at all
+  FEINT: 'FEINT', // Slashed a fake-out
+  WRONG_SIDE: 'WRONG_SIDE', // Correct timing, wrong parry side
+} as const;
+export type CounterResult = (typeof CounterResult)[keyof typeof CounterResult];
 
 export interface ReactionRecord {
   id: number;

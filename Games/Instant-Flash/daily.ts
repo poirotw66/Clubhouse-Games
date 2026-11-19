@@ -2,8 +2,8 @@
  * Daily duel — same challenger seed for everyone on the same Taipei calendar day.
  */
 
-import { hashString } from './rng';
-import { opponentCount } from './opponents';
+import { hashString } from './rng.ts';
+import { opponentCount, getOpponent, OPPONENTS, type OpponentDef } from './opponents.ts';
 
 const TZ_OFFSET_MINUTES = 8 * 60;
 
@@ -55,4 +55,10 @@ export function dailyOpponentIndex(key: string): number {
   const n = opponentCount();
   if (n <= 0) return 0;
   return dailySeedNumber(key) % n;
+}
+
+/** Get the OpponentDef for a given day key. */
+export function dailyOpponent(key: string): OpponentDef {
+  const index = dailyOpponentIndex(key);
+  return getOpponent(index) ?? OPPONENTS[0];
 }

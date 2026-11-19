@@ -24,7 +24,12 @@ export interface RankInput {
 export function computeReactionRank(input: RankInput): ReactionRank {
   const { avgAbsTimingMs, accuracy, sampleSize } = input;
   if (sampleSize < 3) return 'C';
-  if (avgAbsTimingMs <= 55 && accuracy >= 0.85) return 'S';
+  if (
+    (avgAbsTimingMs <= 60 && accuracy >= 0.80) ||
+    (avgAbsTimingMs <= 45 && accuracy >= 0.75)
+  ) {
+    return 'S';
+  }
   if (avgAbsTimingMs <= 95 && accuracy >= 0.7) return 'A';
   if (avgAbsTimingMs <= 160 && accuracy >= 0.5) return 'B';
   return 'C';

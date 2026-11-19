@@ -1,5 +1,5 @@
-import type { BestRecord, LadderProgress } from './storage';
-import type { GameStats } from './types';
+import type { BestRecord, LadderProgress } from './storage.ts';
+import type { GameStats } from './types.ts';
 
 export interface DanRankDef {
   level: number;
@@ -112,9 +112,9 @@ export const DAN_RANKS: readonly DanRankDef[] = [
     badge: '皆傳',
     accent: '#fbbf24', // amber-400 gold
     glowColor: 'rgba(251, 191, 36, 0.6)',
-    requirement: '全通八位劍豪（擊破宗師）、榮獲 S 評價且最快反應 ≤ 60ms',
+    requirement: '全通八位劍豪（擊破宗師）、榮獲 S 評價且最快反應 ≤ 70ms',
     check: (ctx) =>
-      ctx.clearedCount >= 8 && ctx.hasSRank && ctx.bestReactionMs <= 60,
+      ctx.clearedCount >= 8 && ctx.hasSRank && ctx.bestReactionMs <= 70,
   },
 ] as const;
 

@@ -28,7 +28,7 @@ export const OpponentDossierCard: React.FC<OpponentDossierCardProps> = ({
         <div className="flex items-center gap-1.5 pb-2 mb-2 border-b border-slate-800 text-amber-400">
           <Crosshair size={15} />
           <span className="font-display text-xs font-bold tracking-widest uppercase">
-            雙人拔刀競速
+            同機拔刀競速
           </span>
         </div>
         <p className="text-xs text-slate-300 leading-relaxed">

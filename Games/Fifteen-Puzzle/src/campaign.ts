@@ -71,12 +71,12 @@ export const CAMPAIGN_STAGES: readonly CampaignStage[] = [
   {
     id: 'sprint-4',
     name: '限時衝刺',
-    blurb: '4×4 困難・75 秒',
+    blurb: '4×4 困難・95 秒',
     size: 4,
     tier: 'hard',
     style: 'number',
     seedCode: 'fp-camp-5',
-    limit: { kind: 'time', seconds: 75 },
+    limit: { kind: 'time', seconds: 95 },
   },
   {
     id: 'wide-5',
@@ -91,12 +91,12 @@ export const CAMPAIGN_STAGES: readonly CampaignStage[] = [
   {
     id: 'mosaic-5',
     name: '馬賽克',
-    blurb: '5×5 圖片・90 秒',
+    blurb: '5×5 圖片・120 秒',
     size: 5,
     tier: 'normal',
     style: 'picture',
     seedCode: 'fp-camp-7',
-    limit: { kind: 'time', seconds: 90 },
+    limit: { kind: 'time', seconds: 120 },
   },
   {
     id: 'grand-6',

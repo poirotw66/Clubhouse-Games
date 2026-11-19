@@ -600,7 +600,7 @@ export default function App() {
             className="w-full min-h-[46px] px-5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 font-bold text-white shadow-lg touch-manipulation transition-all"
             onClick={() => startClassicOrSprint('classic')}
           >
-            經典挑戰
+            經典模式
           </button>
           <button
             type="button"
@@ -907,7 +907,7 @@ export default function App() {
             {/* Quick status bar */}
             <div className="flex items-center justify-between w-full max-w-[440px] px-3 py-1.5 rounded-xl bg-slate-900/80 border border-slate-700/60 text-xs mb-3">
               <span className="text-slate-300">
-                步數: <strong className="text-emerald-400 font-mono text-sm">{moves}</strong>
+                步數：<strong className="text-emerald-400 font-mono text-sm">{moves}</strong>
                 {s.moveLimit != null ? ` / ${s.moveLimit}` : ''}
               </span>
               {remain != null && (
@@ -988,6 +988,7 @@ export default function App() {
                 disabled={!canUndo}
                 className={toolBtn}
                 title="鍵盤快捷鍵: Z"
+                aria-label="復原"
               >
                 復原 (Z)
               </button>
@@ -997,6 +998,7 @@ export default function App() {
                 disabled={won || lost}
                 className={toolBtnAmber}
                 title="鍵盤快捷鍵: H"
+                aria-label="提示"
               >
                 提示 (H)
               </button>
@@ -1005,6 +1007,7 @@ export default function App() {
                 onClick={restartSame}
                 className={toolBtn}
                 title="鍵盤快捷鍵: R"
+                aria-label="重開"
               >
                 重開 (R)
               </button>
@@ -1131,7 +1134,7 @@ export default function App() {
             {/* Personal Records Box */}
             <div className="mt-auto pt-2 border-t border-slate-800 text-[11px] text-slate-400 space-y-1">
               <div className="flex items-center justify-between">
-                <span>經典最佳步數</span>
+                <span>最佳還原步數</span>
                 <span className="text-emerald-300 font-mono font-bold">
                   {bestMoves != null ? `${bestMoves} 步` : '--'}
                 </span>

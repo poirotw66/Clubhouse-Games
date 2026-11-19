@@ -2,7 +2,7 @@
  * Duel ladder roster — eight samurai, each with a distinct attack pattern trait.
  */
 
-import type { PracticeScenario } from './constants';
+import type { PracticeScenario } from './constants.ts';
 
 export type OpponentId =
   | 'ronin'
@@ -198,4 +198,11 @@ export function opponentById(id: string): OpponentDef | undefined {
 
 export function opponentIndexOf(id: OpponentId): number {
   return OPPONENTS.findIndex((op) => op.id === id);
+}
+
+export function getOpponent(idOrIndex: OpponentId | string | number): OpponentDef | undefined {
+  if (typeof idOrIndex === 'number') {
+    return opponentByIndex(idOrIndex);
+  }
+  return opponentById(idOrIndex);
 }
