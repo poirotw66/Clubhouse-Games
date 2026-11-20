@@ -42,6 +42,8 @@ export interface OpponentDef {
   /** True for the final boss (index 7). */
   isBoss: boolean;
   catchphrases: { intro: string; win: string; lose: string };
+  avatar?: string;
+  sprite?: string;
 }
 
 export const OPPONENTS: readonly OpponentDef[] = [
@@ -61,6 +63,8 @@ export const OPPONENTS: readonly OpponentDef[] = [
       win: '還是輸了……',
       lose: '今天運氣好！',
     },
+    avatar: 'opponents/ronin.jpg',
+    sprite: 'opponents/ronin-sprite.jpg',
   },
   {
     id: 'bait',
@@ -78,6 +82,8 @@ export const OPPONENTS: readonly OpponentDef[] = [
       win: '耐性不夠呀。',
       lose: '……這次沒騙過你。',
     },
+    avatar: 'opponents/bait.jpg',
+    sprite: 'opponents/bait-sprite.jpg',
   },
   {
     id: 'twin',
@@ -95,6 +101,8 @@ export const OPPONENTS: readonly OpponentDef[] = [
       win: '第二刀才是重點。',
       lose: '連擊被看穿了……',
     },
+    avatar: 'opponents/twin.jpg',
+    sprite: 'opponents/twin-sprite.jpg',
   },
   {
     id: 'delay',
@@ -112,6 +120,8 @@ export const OPPONENTS: readonly OpponentDef[] = [
       win: '太早了。',
       lose: '……居然等得到。',
     },
+    avatar: 'opponents/delay.jpg',
+    sprite: 'opponents/delay-sprite.jpg',
   },
   {
     id: 'surge',
@@ -129,6 +139,8 @@ export const OPPONENTS: readonly OpponentDef[] = [
       win: '跟不上吧？',
       lose: '鴉羽被斬斷了……',
     },
+    avatar: 'opponents/surge.jpg',
+    sprite: 'opponents/surge-sprite.jpg',
   },
   {
     id: 'mirror',
@@ -146,6 +158,8 @@ export const OPPONENTS: readonly OpponentDef[] = [
       win: '邊都搞錯了。',
       lose: '幻影被識破了……',
     },
+    avatar: 'opponents/mirror.jpg',
+    sprite: 'opponents/mirror-sprite.jpg',
   },
   {
     id: 'chaos',
@@ -163,6 +177,8 @@ export const OPPONENTS: readonly OpponentDef[] = [
       win: '你的節奏亂了。',
       lose: '亂舞敗給了冷靜……',
     },
+    avatar: 'opponents/chaos.jpg',
+    sprite: 'opponents/chaos-sprite.jpg',
   },
   {
     id: 'master',
@@ -180,6 +196,8 @@ export const OPPONENTS: readonly OpponentDef[] = [
       win: '還不夠快。',
       lose: '……一閃，傳承給你。',
     },
+    avatar: 'opponents/master.jpg',
+    sprite: 'opponents/master-sprite.jpg',
   },
 ] as const;
 
@@ -205,4 +223,14 @@ export function getOpponent(idOrIndex: OpponentId | string | number): OpponentDe
     return opponentByIndex(idOrIndex);
   }
   return opponentById(idOrIndex);
+}
+
+export function opponentAvatar(opponent?: OpponentDef | null): string {
+  if (!opponent) return 'opponents/player.jpg';
+  return opponent.avatar ?? `opponents/${opponent.id}.jpg`;
+}
+
+export function opponentSprite(opponent?: OpponentDef | null): string {
+  if (!opponent) return 'enemy.jpg';
+  return opponent.sprite ?? `opponents/${opponent.id}-sprite.jpg`;
 }

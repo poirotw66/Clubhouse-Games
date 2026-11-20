@@ -46,7 +46,7 @@ import {
   type ParrySide,
   type PatternState,
 } from '../patterns';
-import type { OpponentDef } from '../opponents';
+import { opponentSprite, type OpponentDef } from '../opponents';
 import { resolveCounter } from '../resolveCounter';
 import { computeReactionRank } from '../ranks';
 import { createRng } from '../rng';
@@ -1234,12 +1234,17 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                 }`}
               >
                 <img
-                  src={`${import.meta.env.BASE_URL}enemy.jpg`}
-                  alt=""
+                  src={`${import.meta.env.BASE_URL}${opponentSprite(opponent)}`}
+                  alt={opponent ? opponent.name : '對手'}
                   draggable={false}
-                  className={`w-full h-full object-contain drop-shadow-[0_8px_24px_rgba(239,68,68,0.4)] select-none ${
-                    isEnemyAttacking ? 'brightness-125 saturate-150' : ''
+                  className={`w-full h-full object-contain select-none transition-all duration-200 ${
+                    isEnemyAttacking ? 'brightness-125 saturate-150 scale-105' : ''
                   }`}
+                  style={{
+                    filter: opponent?.accent
+                      ? `drop-shadow(0 8px 24px ${opponent.accent}66)`
+                      : 'drop-shadow(0 8px 24px rgba(239,68,68,0.4))',
+                  }}
                 />
                 {isEnemyAttacking && (
                   <div

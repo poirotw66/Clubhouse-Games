@@ -1,5 +1,5 @@
 import React from 'react';
-import type { OpponentDef } from '../opponents';
+import { opponentAvatar, type OpponentDef } from '../opponents';
 import type { PlayMode } from '../types';
 import type { OpponentBest } from '../storage';
 import { SCENARIO_LABELS } from '../constants';
@@ -101,18 +101,28 @@ export const OpponentDossierCard: React.FC<OpponentDossierCardProps> = ({
         )}
       </div>
 
-      <div className="flex items-start justify-between gap-3 mb-2">
-        <div>
+      <div className="flex items-center gap-3 mb-2.5">
+        <div
+          className="relative w-12 h-12 rounded-xl overflow-hidden border-2 flex-shrink-0 shadow-md bg-slate-900"
+          style={{ borderColor: opponent.accent }}
+        >
+          <img
+            src={`${import.meta.env.BASE_URL}${opponentAvatar(opponent)}`}
+            alt={opponent.name}
+            className="w-full h-full object-cover"
+          />
+        </div>
+        <div className="flex-1 min-w-0">
           <div
-            className="text-base font-black font-display tracking-wider"
+            className="text-base font-black font-display tracking-wider truncate"
             style={{ color: opponent.accent }}
           >
             {opponent.name}
           </div>
-          <div className="text-xs text-slate-400 mt-0.5">{opponent.tagline}</div>
+          <div className="text-xs text-slate-400 truncate mt-0.5">{opponent.tagline}</div>
         </div>
         {stats && (
-          <div className="text-right text-[10px] font-display">
+          <div className="text-right text-[10px] font-display flex-shrink-0">
             <div className="text-slate-400">戰績</div>
             <div className="text-emerald-400 font-bold">
               {stats.wins} 勝 / {stats.losses} 敗

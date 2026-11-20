@@ -28,7 +28,7 @@ import {
   type PracticeIntensity,
   type PracticeScenario,
 } from './constants';
-import { OPPONENTS, opponentByIndex, type OpponentDef } from './opponents';
+import { OPPONENTS, opponentByIndex, opponentAvatar, type OpponentDef } from './opponents';
 import { dateKey, dailyOpponentIndex, dailySeedNumber } from './daily';
 import { RANK_LABELS } from './ranks';
 import { Sword, Info, Users, Calendar, Swords, Award } from 'lucide-react';
@@ -421,35 +421,60 @@ export default function App() {
                         }`}
                         style={unlocked ? { borderColor: op.accent } : undefined}
                       >
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <div className="font-display font-bold text-base" style={{ color: op.accent }}>
-                              {index + 1}. {op.name}
-                              {op.isBoss ? ' ⚔' : ''}
-                              {cleared ? ' ✓' : ''}
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div
+                              className={`relative w-12 h-12 rounded-lg overflow-hidden border-2 flex-shrink-0 bg-slate-950 ${
+                                unlocked ? 'shadow-md' : 'grayscale opacity-50'
+                              }`}
+                              style={{ borderColor: unlocked ? op.accent : '#334155' }}
+                            >
+                              <img
+                                src={`${import.meta.env.BASE_URL}${opponentAvatar(op)}`}
+                                alt={op.name}
+                                className="w-full h-full object-cover"
+                              />
+                              {cleared && (
+                                <div className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px] font-bold shadow">
+                                  ✓
+                                </div>
+                              )}
                             </div>
-                            <div className="text-xs text-slate-400 mt-0.5">{op.tagline}</div>
-                            <div className="text-[11px] text-slate-500 mt-1 leading-snug">
-                              {op.blurb}
-                            </div>
-                            {ob && (
-                              <div className="text-[11px] text-slate-400 mt-1 font-display">
-                                {ob.rank ? RANK_LABELS[ob.rank] : '—'}
-                                {ob.bestReactionMs != null && (
-                                  <> · 最快 {ob.bestReactionMs}ms</>
+                            <div className="min-w-0">
+                              <div
+                                className="font-display font-bold text-base flex items-center gap-1.5"
+                                style={{ color: unlocked ? op.accent : '#94a3b8' }}
+                              >
+                                <span>{index + 1}. {op.name}</span>
+                                {op.isBoss && (
+                                  <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-600/50">
+                                    頭目
+                                  </span>
                                 )}
-                                {' · '}
-                                {ob.wins}勝
                               </div>
-                            )}
+                              <div className="text-xs text-slate-400 truncate mt-0.5">{op.tagline}</div>
+                              <div className="text-[11px] text-slate-500 mt-0.5 leading-snug line-clamp-1">
+                                {op.blurb}
+                              </div>
+                              {ob && (
+                                <div className="text-[11px] text-slate-400 mt-1 font-display">
+                                  {ob.rank ? RANK_LABELS[ob.rank] : '—'}
+                                  {ob.bestReactionMs != null && (
+                                    <> · 最快 {ob.bestReactionMs}ms</>
+                                  )}
+                                  {' · '}
+                                  {ob.wins}勝
+                                </div>
+                              )}
+                            </div>
                           </div>
                           <button
                             type="button"
                             disabled={!unlocked}
                             onClick={() => startDuel(index)}
-                            className={`min-h-[44px] min-w-[72px] px-3 py-2 text-sm font-display font-bold tracking-wider border ${
+                            className={`min-h-[44px] min-w-[72px] px-3 py-2 text-sm font-display font-bold tracking-wider border rounded-md transition-colors flex-shrink-0 ${
                               unlocked
-                                ? 'bg-emerald-500/20 border-emerald-400 text-emerald-100'
+                                ? 'bg-emerald-500/20 border-emerald-400 text-emerald-100 hover:bg-emerald-500/30'
                                 : 'bg-slate-800 border-slate-700 text-slate-500'
                             }`}
                           >

@@ -53,7 +53,7 @@
 
 | 劇本 | UI | 暗器偏重 | 預設強度 |
 |------|-----|----------|----------|
-| mixed | 標準亂舞 | 手裏劍 40%／飛刀 25%／炸彈 20%／鐮刀 15% | 標準 |
+| mixed | 標準亂舞 | 手裡劍 40%／飛刀 25%／炸彈 20%／鐮刀 15% | 標準 |
 | kunai | 飛刀特訓 | 飛刀為主（55%） | 標準 |
 | bomb | 炸彈誘餌 | 慢彈為主（50%） | 輕鬆 |
 | chaos | 亂舞高壓 | 飛刀＋鐮刀混打 | 高壓 |
@@ -102,16 +102,32 @@
 - 雙人：先得 5 分。
 - 練習：僅供訓練，不寫入挑戰最佳。
 
-## 櫻井政博遊戲手感原則實踐（Game Feel & Feedback）
+## 櫻井政博遊戲手感與美術原則實踐（Game Feel & Visual Art）
 
-本遊戲繼承櫻井政博在《星之卡比 超級豪華版》「武士卡比（Samurai Kirby）」中創立的極限反應手感體系，導入以下強化：
-1. **待機懸念心跳音律（gameplay-core-002 Stress & Release）**：
+本遊戲繼承櫻井政博在《星之卡比 超級豪華版》「武士卡比（Samurai Kirby）」中創立的極限反應手感體系，並全面貫徹櫻井政博視覺美術設計原則：
+1. **剪影優先辨識度（skill-gfx-013 Silhouette-First Readability）**：
+   - 告別過往所有對手共用單一 `enemy.jpg` 的廉價感，為對決階梯 8 位劍豪建立專屬高對比立繪與頭像（[Games/Instant-Flash/public/opponents/](file:///Users/cfh00896102/Github/Clubhouse-Games/Games/Instant-Flash/public/opponents/)）：
+     - `ronin`（見習浪人）：竹笠斗笠、竹刀練習木刃、翠綠專屬輝光與「浪」字落款印。
+     - `bait`（誘餌影）：斜戴白瓷狐面、雙隱藏苦無、櫻粉殘影與「影」字落款印。
+     - `twin`（雙連閃）：雙交叉小太刀、疾風閃電弧、天青電光與「雙」字落款印。
+     - `delay`（遲延鬼）：鐵鬼面具、肩扛巨大野太刀、沈穩紫焰與「鬼」字落款印。
+     - `surge`（加速鴉）：長喙黑鴉天狗面具、羽刃衝刺姿態、烈橙疾風與「鴉」字落款印。
+     - `mirror`（左右幻）：黑白對稱羽織、鏡光雙刃、幻像青光與「幻」字落款印。
+     - `chaos`（混彈鬼）：狂暴鐵鎖鐮、暗器綁帶、洋紅火花與「亂」字落款印。
+     - `master`（宗師一閃）：金紋符文眼罩、神聖金龍鍔神刀、金光聖環與「極」字落款印。
+   - 玩家主角升級為高解析度居合神童立繪（[player.jpg](file:///Users/cfh00896102/Github/Clubhouse-Games/Games/Instant-Flash/public/player.jpg)）：深藍飛鶴羽織、白袴、冷澈拔刀待機姿態與湛藍氣韻。
+2. **清晰度高於裝飾（skill-gfx-002 Readability Before Decoration）**：
+   - 四大暗器全面升級 512×512 高對比高銳利材質（[Games/Instant-Flash/public/projectiles/](file:///Users/cfh00896102/Github/Clubhouse-Games/Games/Instant-Flash/public/projectiles/)），搭配專屬光暈辨識框（手裡劍紅芒、苦無藍光、炸彈橙火、鎖鐮青風），在高速飛行中確保左右判斷清晰無誤。
+3. **格鬥選人格調與情報整合（skill-gfx-007 Unified Stylized Aesthetic）**：
+   - 對決階梯導入動漫格鬥遊戲選人卡片，具備頭像外框、頭目專屬勳章、通關勾選與最快毫秒紀錄。
+   - 右翼劍豪情報座艙（`OpponentDossierCard`）同步整合對手頭像、專屬配色邊框與破綻指引。
+4. **待機懸念心跳音律（gameplay-core-002 Stress & Release）**：
    - 居合納刀待機與警告階段導入低頻 60Hz 呼吸心跳音律脈動（Heartbeat Thump），在寂靜的對峙中營造極致神經緊張感，直到「閃」字爆發。
-2. **居合一閃 120ms Hit-stop 與物理震顫（fx-005 & fx-004）**：
+5. **居合一閃 120ms Hit-stop 與物理震顫（fx-005 & fx-004）**：
    - 完美反擊時啟動物理定格（Hit-stop）與畫布實體震顫（`shake(container, 1.8)`），搭配水墨金光與彩帶慶祝（`particles('confetti')`），極大化刀光一瞬的破壞張力。
-3. **搶拍與失誤詼諧音效反饋（communicate-through-feedback）**：
+6. **搶拍與失誤詼諧音效反饋（communicate-through-feedback）**：
    - 提前搶拍揮刀時合成滑稽鈍擊音與震顫（`shake(container, 1.1)`），清晰告知犯規。
-4. **極速重試（gameplay-ux-009）**：
+7. **極速重試（gameplay-ux-009）**：
    - 對決或挑戰結束時，結算疊層支援 <kbd>Space</kbd>、<kbd>Enter</kbd> 與 <kbd>R</kbd> 鍵秒速立即再戰，無需滑鼠位移點擊。
 
 ## 品質門檻對齊
