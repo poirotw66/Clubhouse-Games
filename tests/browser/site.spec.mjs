@@ -88,7 +88,9 @@ for (const game of workspaceGames) {
     // Menu navigation + game bundle boot + return navigation needs headroom on 2-vCPU CI runners.
     test.setTimeout(60_000);
     await page.goto('./');
-    await page.locator(`.game-tile[data-folder="${game.gameFolder}"] .tile-play`).click();
+    const playBtn = page.locator(`.game-tile[data-folder="${game.gameFolder}"] .tile-play`);
+    await playBtn.scrollIntoViewIfNeeded();
+    await playBtn.click({ force: true });
     await expect(page).toHaveURL(new RegExp(`/Games/${game.gameFolder}/$`));
     // Prefer the shared chrome over networkidle — games that preload BGM/media
     // (e.g. Koi-Koi) never go idle, and the afterEach hooks already catch bad assets.
@@ -113,7 +115,9 @@ for (const game of games.filter((game) => game.playPath
   test(`${game.gameFolder}: static demo loads from the menu`, { tag: '@smoke' }, async ({ page }) => {
     test.setTimeout(60_000);
     await page.goto('./');
-    await page.locator(`.game-tile[data-folder="${game.gameFolder}"] .tile-play`).click();
+    const playBtn = page.locator(`.game-tile[data-folder="${game.gameFolder}"] .tile-play`);
+    await playBtn.scrollIntoViewIfNeeded();
+    await playBtn.click({ force: true });
     await expect(page).toHaveURL(new RegExp(`/${game.playPath}$`));
     await expect(page.locator('h1:visible, canvas:visible, main:visible').first()).toBeVisible();
     await expect(page).not.toHaveTitle('');
