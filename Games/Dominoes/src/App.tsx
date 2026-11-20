@@ -239,6 +239,7 @@ export default function App() {
   const placeTileFx = useCallback((isDouble?: boolean) => {
     haptic('place');
     particles('dust', { el: boardShellRef.current });
+    shake(boardShellRef.current, isDouble ? 0.75 : 0.3);
     if (isDouble) {
       playTableSlam();
     } else {
@@ -867,6 +868,31 @@ export default function App() {
     handlePlayAt,
     isValidEnd,
   ]);
+
+  useEffect(() => {
+    const isRoundOverlay = roundBanner && state.phase === 'roundOver' && !match.matchOver;
+    const isMatchOverlay = match.matchOver;
+    if (!isRoundOverlay && !isMatchOverlay) return;
+
+    const handleOverlayKey = (e: KeyboardEvent) => {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      ) {
+        return;
+      }
+      if (e.key === ' ' || e.key === 'Enter' || e.key === 'r' || e.key === 'R') {
+        e.preventDefault();
+        if (isRoundOverlay) {
+          handleNextRound();
+        } else if (isMatchOverlay) {
+          startFreshMatch();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleOverlayKey);
+    return () => window.removeEventListener('keydown', handleOverlayKey);
+  }, [roundBanner, state.phase, match.matchOver, handleNextRound, startFreshMatch]);
 
   const roundTeams = useMemo(
     () => teamHandScores(state.handScores, state.playerCount),
@@ -1571,7 +1597,7 @@ export default function App() {
             { label: `${p2Label} 本局`, value: roundTeams[1] },
             { label: '規則', value: RULE_LABELS[ruleVariant] },
           ]}
-          primaryLabel="下一局"
+          primaryLabel="下一局 (Space / Enter / R)"
           onPrimary={handleNextRound}
         />
       )}
@@ -1624,7 +1650,7 @@ export default function App() {
                   ]
                 : []),
           ]}
-          primaryLabel={isDaily ? '再挑戰今日' : '再打一場'}
+          primaryLabel={isDaily ? '再挑戰今日 (Space / Enter / R)' : '再打一場 (Space / Enter / R)'}
           onPrimary={() => startFreshMatch()}
           secondaryLabel={isDaily ? (shareCopied ? '已複製' : '複製分享結果') : undefined}
           onSecondary={isDaily ? handleCopyShare : undefined}

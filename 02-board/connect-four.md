@@ -120,6 +120,16 @@ Clubhouse 數位版在標準 7×6／連四之外，加入 **PopOut**、**五子�
 - **五子勝**：改為先連成五枚者勝（常用於 9 列×7 行等較大盤）。（已實作）
 - 棋盤尺寸：5×4、8×7、8×8 等。（已實作 8×7／9×7）
 
+## 櫻井政博遊戲手感原則實踐（Game Feel & Feedback）
+
+本遊戲落實櫻井政博（Masahiro Sakurai）感官反饋與重力撞擊設計原則：
+1. **落子重力沉降與物理微震（fx-004 & communicate-through-feedback）**：
+   - 棋子落入孔槽觸底時，觸發物理塵埃粒子與機檯實體微震（`shake(boardShellRef.current, 0.35)`），搭配依落點深度調變之木質硬塑膠撞擊音；達成連線四子獲勝時觸發金芒爆裂、`shake 1.4` 與彩帶噴泉（`particles confetti`）。
+2. **三連聽牌懸念警戒光環（gameplay-core-002 Stress & Release）**：
+   - 盤面形成三連子威脅時，啟動心跳搏動（Lub-Dub）與貫穿威脅雷射（Threat Ray），在落子前的寧靜中放大博弈張力。
+3. **極速重試（gameplay-ux-009）**：
+   - 在勝利、落敗或謎題完成之結算面板（`ResultOverlay`）中，全域監聽 <kbd>Space</kbd>、<kbd>Enter</kbd> 與 <kbd>R</kbd> 鍵，無需滑鼠尋標即可瞬間開展下一局。
+
 ## 品質門檻對齊
 
 對照 [`docs/GAME-QUALITY-BAR.md`](../docs/GAME-QUALITY-BAR.md)：

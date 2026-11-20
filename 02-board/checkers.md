@@ -105,6 +105,16 @@
 
 `localStorage` 鍵：`clubhouse-checkers:progress:v1`（會遷移舊的 streak key）。
 
+## 櫻井政博遊戲手感原則實踐（Game Feel & Feedback）
+
+本遊戲貫徹櫻井政博（Masahiro Sakurai）動態連擊與感官反饋原則：
+1. **連續跳吃升調打擊感（fx-005 & coordinate-audio-visual-priority）**：
+   - 連續跳吃（Multi-jump）時，每次空中躍殺皆觸發音頻升調音效（360Hz 至 1100Hz 諧波音階）與實木碎裂光弧，棋子落地伴隨實體棋盤震顫（`shake 0.85`）。
+2. **國王黃金加冕儀式（fx-004 & communicate-through-feedback）**：
+   - 升變國王（👑 Kinging）時奏響大調和弦聖樂（C5-E5-G5-C6）、噴發金色符文彩帶（`particles confetti`），讓突破底線獲得最強正向反饋。
+3. **極速重試（gameplay-ux-009）**：
+   - 在勝利、落敗或殘局謎題結算疊層（`ResultOverlay`）中，全域監聽 <kbd>Space</kbd>、<kbd>Enter</kbd> 與 <kbd>R</kbd> 鍵，一鍵秒速開始下一局。
+
 ## 常見變體或可選規則
 
 - **American / English (8×8)**：12 子，短王，兵僅向前跳。（已實作）

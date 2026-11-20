@@ -127,6 +127,16 @@
 
 `localStorage` 鍵：`clubhouse-reversi-win-streak`、`clubhouse-reversi-best-streak`、`clubhouse-reversi-best-margin`、`clubhouse-reversi-ladder`。
 
+## 櫻井政博遊戲手感原則實踐（Game Feel & Feedback）
+
+本遊戲落實櫻井政博（Masahiro Sakurai）感官節奏與反饋強化原則：
+1. **翻棋五聲音階連續升調回饋（fx-005 & coordinate-audio-visual-priority）**：
+   - 多子骨牌波浪翻轉時（Domino Cascade Wave），每枚翻轉棋子依五聲音階階梯攀升音調（C4~C6 多階上升），創造連續翻盤的極致聽覺爽快感。
+2. **佔據四角（Corner）重錘打擊與金色爆裂火花（gameplay-core-001 & fx-004）**：
+   - 奪取關鍵四角（Golden Fortress Lock）時觸發 95Hz 低頻重錘打擊、聚光金芒彩帶爆裂（`particles confetti`）與棋盤實體震顫（`shake 0.6`），給予戰略制高點最強反饋。
+3. **極速重試（gameplay-ux-009）**：
+   - 在終局勝負或殘局謎題結算疊層（`ResultOverlay`）中，全域監聽 <kbd>Space</kbd>、<kbd>Enter</kbd> 與 <kbd>R</kbd> 鍵，一鍵秒速開始下一題或下一局。
+
 ## 常見變體或可選規則
 
 - **Anti-Reversi**：子少的一方贏。

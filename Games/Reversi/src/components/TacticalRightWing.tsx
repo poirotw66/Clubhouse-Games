@@ -113,9 +113,9 @@ export function TacticalRightWing({
               </span>
               <div>
                 <p className="text-sm font-bold" style={{ color: activeOpponent.accent }}>
-                  {activeOpponent.name}
+                  {activeOpponent.tagline}
                 </p>
-                <p className="text-[11px] text-stone-400">{activeOpponent.tagline}</p>
+                <p className="text-[11px] text-stone-400">風格性格檔案</p>
               </div>
             </div>
 

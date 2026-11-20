@@ -230,7 +230,7 @@ export default function App() {
   const [puzzleUndosUsed, setPuzzleUndosUsed] = useState(0);
   const [earnedStars, setEarnedStars] = useState<PuzzleStar | null>(null);
   const [focusedSquare, setFocusedSquare] = useState<[number, number] | null>(null);
-  const [is3D, setIs3D] = useState(true);
+  const [is3D, setIs3D] = useState(false);
   const [themeId, setThemeId] = useState<BoardThemeId>('walnut');
   const [showThreatLens, setShowThreatLens] = useState(true);
   const [activeMove, setActiveMove] = useState<Move | null>(null);
@@ -870,6 +870,27 @@ export default function App() {
     handleCellClick,
   ]);
 
+  useEffect(() => {
+    if (state.phase !== 'over' || showReview) return;
+    const handleOverKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      ) {
+        return;
+      }
+      if (e.key === ' ' || e.key === 'Enter' || e.key === 'r' || e.key === 'R') {
+        e.preventDefault();
+        if (gameMode === 'series' && match.matchOver) {
+          setMatch(createMatch(matchTarget));
+        }
+        resetGame();
+      }
+    };
+    window.addEventListener('keydown', handleOverKeyDown);
+    return () => window.removeEventListener('keydown', handleOverKeyDown);
+  }, [state.phase, showReview, gameMode, match.matchOver, matchTarget, resetGame]);
+
   const hintPathSet = hintMove
     ? new Set(hintMove.path.map(([r, c]) => sq(r, c)))
     : new Set<string>();
@@ -1490,7 +1511,9 @@ export default function App() {
               : []),
           ]}
           primaryLabel={
-            gameMode === 'series' && !match.matchOver ? '下一局' : '再玩一局'
+            gameMode === 'series' && !match.matchOver
+              ? '下一局 (Space / Enter / R)'
+              : '再玩一局 (Space / Enter / R)'
           }
           onPrimary={() => {
             if (gameMode === 'series' && match.matchOver) {

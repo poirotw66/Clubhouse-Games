@@ -107,6 +107,16 @@
 - 首局引導：首次開啟三步上手疊層（`clubhouse-dominoes-howto-seen`）。
 - Check：`npm run check` → vitest（90 tests，含五倍數計分、超幾何持牌機率分析、端點走向趨勢分析與戰術引導單元與進階測試）。
 
+## 櫻井政博遊戲手感原則實踐（Game Feel & Feedback）
+
+本遊戲落實櫻井政博（Masahiro Sakurai）感官觸覺與博弈張力原則：
+1. **骨牌敲桌物理微震與拍磚脆響（communicate-through-feedback & fx-004）**：
+   - 骨牌落於桌面鏈條時，觸發高密度陶瓷碰撞瞬態 `playBoneClatter` 與微震（`shake(boardShellRef.current, 0.3)`）；打出雙張（雙牛）或首張十字轉軸時觸發實木重扣衝擊波 `playTableSlam` 與強震（`shake 0.75`）。
+2. **五倍數純律琶音與彩帶（gameplay-core-001 & fx-005）**：
+   - 五倍數得分時演奏清亮水晶鐘琴琶音；局末勝出時噴發慶祝彩帶（`particles confetti`）與金光環繞。
+3. **極速重試（gameplay-ux-009）**：
+   - 在單局結算與比賽終局疊層（`ResultOverlay`）中，全域監聽 <kbd>Space</kbd>、<kbd>Enter</kbd> 與 <kbd>R</kbd> 鍵，一鍵秒速開始下一局或再戰一場。
+
 ## 品質門檻對齊
 
 對照 [`docs/GAME-QUALITY-BAR.md`](../docs/GAME-QUALITY-BAR.md)：

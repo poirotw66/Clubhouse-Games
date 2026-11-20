@@ -222,7 +222,7 @@ export function Board3D({
                       piece
                         ? `${piece.color} ${piece.king ? 'king' : 'man'} at ${labels[c]}${size - r}`
                         : dark
-                          ? `Empty dark square ${labels[c]}${size - r}`
+                          ? `Empty ${labels[c]}${size - r}`
                           : `Light square ${labels[c]}${size - r}`
                     }
                   >

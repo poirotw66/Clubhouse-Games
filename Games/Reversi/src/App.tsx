@@ -1012,6 +1012,28 @@ export default function App() {
     handleCellClick,
   ]);
 
+  useEffect(() => {
+    if (state.phase !== 'over') return;
+    const handleOverKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      ) {
+        return;
+      }
+      if (e.key === ' ' || e.key === 'Enter' || e.key === 'r' || e.key === 'R') {
+        e.preventDefault();
+        if (playMode === 'puzzle' && puzzleSolved && puzzle && puzzle.index < PUZZLES.length - 1) {
+          startPuzzle(puzzle.index + 1);
+          return;
+        }
+        replaySame();
+      }
+    };
+    window.addEventListener('keydown', handleOverKeyDown);
+    return () => window.removeEventListener('keydown', handleOverKeyDown);
+  }, [state.phase, playMode, puzzleSolved, puzzle, startPuzzle, replaySame]);
+
   // Reticle coordinate badge & tactical explanation
   const reticleReadout = useMemo(() => {
     if (!activeFocusCell) return null;
@@ -1216,8 +1238,8 @@ export default function App() {
           {/* Restart */}
           <TouchButton
             label={<RefreshCw className="w-5 h-5" />}
-            ariaLabel="回選單"
-            title="回選單"
+            ariaLabel="新對局"
+            title="新對局 (回選單)"
             onClick={backToMenu}
             className="p-2 rounded-lg hover:bg-white/10 transition-colors inline-flex items-center justify-center bg-transparent text-inherit border-0"
           />
@@ -1473,11 +1495,11 @@ export default function App() {
           primaryLabel={
             playMode === 'puzzle'
               ? puzzleSolved && puzzle && puzzle.index < PUZZLES.length - 1
-                ? '下一題'
-                : '再試一次'
+                ? '下一題 (Space / Enter / R)'
+                : '再試一次 (Space / Enter / R)'
               : series && !series.over
-                ? '下一局'
-                : '再玩一局'
+                ? '下一局 (Space / Enter / R)'
+                : '再玩一局 (Space / Enter / R)'
           }
           onPrimary={() => {
             if (playMode === 'puzzle' && puzzleSolved && puzzle && puzzle.index < PUZZLES.length - 1) {

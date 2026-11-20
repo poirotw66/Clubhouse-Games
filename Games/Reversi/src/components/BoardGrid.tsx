@@ -168,17 +168,14 @@ export function BoardGrid({
                   }}
                   aria-label={
                     cell
-                      ? `${toAlgebraic(r, c)} ${cell === 'black' ? '黑子' : '白子'}${
-                          isCornerLocked ? '（四角黃金要塞）' : isStable ? '（永久安定子）' : ''
-                        }`
+                      ? `第 ${r + 1} 列 ${c + 1} 欄 ${cell === 'black' ? '黑' : '白'}`
                       : isHint
-                        ? `提示落子點：${toAlgebraic(r, c)}`
+                        ? `提示：第 ${r + 1} 列 ${c + 1} 欄`
                         : isLegal
-                          ? `可下子於 ${toAlgebraic(r, c)}${
-                              flipCount ? `（翻轉 ${flipCount} 子）` : ''
-                            }`
-                          : `空格 ${toAlgebraic(r, c)}`
+                          ? `可下於第 ${r + 1} 列 ${c + 1} 欄`
+                          : `空格第 ${r + 1} 列 ${c + 1} 欄`
                   }
+                  title={`${toAlgebraic(r, c)}${cell ? (cell === 'black' ? ' 黑子' : ' 白子') : isLegal && flipCount ? ` (+${flipCount})` : ''}`}
                 >
                   {/* Golden Pillar Eruption Beam on recent corner lock */}
                   {isRecentBeam && (

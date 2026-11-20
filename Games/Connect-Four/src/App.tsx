@@ -368,10 +368,10 @@ export default function App() {
         );
         haptic('place');
         particles('dust', { el: cell ?? boardShellRef.current });
+        shake(boardShellRef.current, won ? 1.4 : 0.35);
         if (won) {
           haptic('win');
           particles('confetti', { el: boardShellRef.current, strength: 1.1 });
-          shake(boardShellRef.current, 0.95);
         }
       } else {
         arcadeAudio.playPopOut();
@@ -862,6 +862,40 @@ export default function App() {
     (screen === 'play' && state.phase === 'over') ||
     (screen === 'puzzles' &&
       (puzzleStatus === 'won' || puzzleStatus === 'failed'));
+
+  useEffect(() => {
+    if (!showOverlay) return;
+    const handleOverlayKey = (e: KeyboardEvent) => {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement
+      ) {
+        return;
+      }
+      if (e.key === ' ' || e.key === 'Enter' || e.key === 'r' || e.key === 'R') {
+        e.preventDefault();
+        if (screen === 'puzzles' && activePuzzle) {
+          if (puzzleStatus === 'won') {
+            const idx = PUZZLES.findIndex((p) => p.id === activePuzzle.id);
+            const next = PUZZLES[idx + 1];
+            if (next) openPuzzle(next);
+            else setActivePuzzle(null);
+          } else {
+            openPuzzle(activePuzzle);
+          }
+          return;
+        }
+        if (series.seriesOver) {
+          startNewSeries();
+        } else {
+          resetBoard();
+        }
+        prevPhaseRef.current = 'playing';
+      }
+    };
+    window.addEventListener('keydown', handleOverlayKey);
+    return () => window.removeEventListener('keydown', handleOverlayKey);
+  }, [showOverlay, screen, activePuzzle, puzzleStatus, series.seriesOver, openPuzzle, startNewSeries, resetBoard]);
 
   const resultVariant =
     screen === 'puzzles'
@@ -2150,13 +2184,13 @@ export default function App() {
           primaryLabel={
             screen === 'puzzles'
               ? puzzleStatus === 'won'
-                ? '下一題'
-                : '再試一次'
+                ? '下一題 (Space / Enter / R)'
+                : '再試一次 (Space / Enter / R)'
               : series.seriesOver
                 ? isSingleTarget(series.target)
-                  ? '再玩一局'
-                  : '新系列賽'
-                : '再玩一局'
+                  ? '再玩一局 (Space / Enter / R)'
+                  : '新系列賽 (Space / Enter / R)'
+                : '再玩一局 (Space / Enter / R)'
           }
         />
       )}
