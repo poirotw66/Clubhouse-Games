@@ -1,5 +1,6 @@
 import React from 'react';
 import { X } from 'lucide-react';
+import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
 
 interface RulesModalProps {
   isOpen: boolean;
@@ -110,6 +111,11 @@ export function RulesModal({ isOpen, onClose }: RulesModalProps) {
                 <strong>挑戰</strong>：如無悔棋、步數／時間上限、標準高分、維加斯獲利等，通關時結算。
               </li>
             </ul>
+          </section>
+
+          <section>
+            <h3 className="text-lg font-bold text-white mb-2">打擊感與手感回饋（Juice）</h3>
+            <JuiceSettingsPanel />
           </section>
         </div>
 

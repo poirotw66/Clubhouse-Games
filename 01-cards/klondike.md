@@ -151,6 +151,25 @@
 - **提示**、**自動完成**、**悔棋**、局號發牌／同局重發。
 - 收牌飛牌動畫、勝利瀑布、共用 `synthAudio` 音效。
 
+## 櫻井政博遊戲手感與體驗設計
+
+本遊戲深度融合櫻井政博遊戲設計哲學：
+
+- **fx-004 物理撞擊與微震動反饋（Physical Impact & Shake）**：
+  - 翻牌、循環摸牌與卡牌落列時觸發輕快物理微震動（`shake 0.1~0.22`）與觸覺反饋（`haptic tap`），強化紙牌觸底沉浸手感。
+  - 移入回收區（Foundation）給予成功肯定震動（`shake 0.22`，`haptic success`）。
+  - 通關時連動 Windows 經典卡牌重力彈跳瀑布（`WinCascade`）、全螢幕震動（`shake 0.8`）與彩帶粒子（`particles confetti`）。
+  - 無步可走陷入死局時觸發柔和警示震動（`shake 0.35`，`haptic error`）。
+- **fx-005 節奏連擊與音階攀升（Rhythm & Pitch Ascent）**：
+  - 每張牌進駐回收區時，五聲音階水晶琶音隨已收牌張數動態調升音高（`playFoundationAscent`），自動全解收牌時形成極具成就感的連鎖和弦音樂回饋。
+- **gameplay-core-001 風險與回報清晰化（Risk vs Reward）**：
+  - 維加斯模式即時顯示底注 -$52 與回本線倒數計，精準掌握下注風險曲線。
+  - 解局步數效率儀（Step Efficiency Gauge）即時評等 S/A/B/C 級，激勵深層暗牌探勘與步數最佳化。
+- **gameplay-ux-009 快速重試與操作流暢度（Rapid Retry & Zero Friction）**：
+  - 結算畫面（過關或無步可走）全局監聽 <kbd>Space</kbd>、<kbd>Enter</kbd>、<kbd>R</kbd> 快捷鍵，瞬間開啟新局或重新洗牌，無須點擊滑鼠。
+  - 結算按鈕清楚提示 `(Space / Enter / R)`。
+  - 規則對話框內嵌 Juice 手感回饋控制面板，支援自訂震動與粒子強度。
+
 ## 品質門檻對齊
 
 對照 [`docs/GAME-QUALITY-BAR.md`](../docs/GAME-QUALITY-BAR.md)：

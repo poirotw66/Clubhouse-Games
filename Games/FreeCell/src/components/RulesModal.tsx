@@ -1,5 +1,6 @@
 import React from 'react';
 import { X } from 'lucide-react';
+import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
 
 interface RulesModalProps {
   isOpen: boolean;
@@ -107,6 +108,11 @@ export function RulesModal({ isOpen, onClose }: RulesModalProps) {
                 <strong>雙擊</strong>：快速將卡牌移至回收區或空的暫存格。
               </li>
             </ul>
+          </section>
+
+          <section>
+            <h3 className="text-lg font-bold text-stone-900 mb-2">打擊感與手感回饋（Juice）</h3>
+            <JuiceSettingsPanel />
           </section>
         </div>
 

@@ -107,6 +107,24 @@ CPU 思考時間依難度約 650–1050ms，再隔約 420ms 翻第二張，避�
 - **音效**：`@clubhouse/shared/synthAudio`（翻牌／配對／連擊／對錯／勝負）。
 - **本機紀錄**：`localStorage` 鍵 `clubhouse-memory-match-best`（翻牌、時間、分數、對戰勝場分軌）。
 
+## 櫻井政博遊戲手感與體驗設計
+
+本遊戲遵循櫻井政博手感回饋與心流節奏設計原則：
+
+- **fx-004 物理翻牌彈性與微震動打擊感（Physical Pop & Shake）**：
+  - 卡牌翻轉具備 3D 透視抬升與空氣排擠感（`playTactileFlip`），觸控具備彈性反饋（`haptic tap`）。
+  - 配對成功瞬間激發微震動（`shake 0.25~0.45`）與火花粒子（`particles sparkle/confetti`），失誤未配對則給予輕微錯位回饋（`shake 0.28`，`haptic error`）。
+  - 清盤通關時觸發全螢幕慶祝震動（`shake 0.95`）與繽紛彩帶彩屑爆發。
+- **fx-005 多巴胺狂熱音階與連擊回饋（Fever Chord & Combo Pitch Ramp）**：
+  - 連續配對觸發「突觸共振」與「狂熱超頻」連擊，原生 Web Audio 依連擊數動態調升多巴胺五聲音階和弦（`playFeverChord`），音量與泛音振幅隨連擊同步放大。
+- **gameplay-core-001 決策張力與風險回報（Core Tension）**：
+  - 衝刺模式具備倒數限時高壓心流，特牌模式加入窺視（Peek）有限資源戰略取捨。
+  - 對戰模式與三檔 CPU 心理博弈，暗記對方已翻開未配對卡牌搶奪關鍵牌對。
+- **gameplay-ux-009 極速重試與零摩擦操作（Rapid Retry）**：
+  - 結算畫面全局監聽 <kbd>Space</kbd>、<kbd>Enter</kbd>、<kbd>R</kbd>，獲勝或失敗瞬間即可秒速進入下一關、下一位對手或重啟對局，操作流暢無阻。
+  - 主要操作按鈕標註 `(Space / Enter / R)`。
+  - 側翼戰術艙內建 Juice 手感回饋控制面板，支援即時自訂粒子與震動強度。
+
 ## 品質門檻對齊
 
 對照 [`docs/GAME-QUALITY-BAR.md`](../docs/GAME-QUALITY-BAR.md)：

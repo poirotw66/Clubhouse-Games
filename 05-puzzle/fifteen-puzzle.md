@@ -95,6 +95,23 @@
   - `clubhouse:fifteen-puzzle:heatmap`
   - `clubhouse:fifteen-puzzle:max-sps`
 
+## 櫻井政博遊戲手感與體驗設計
+
+本遊戲遵循櫻井政博手感回饋與心流節奏設計原則：
+
+- **fx-004 機械物理打擊感與微震動（Mechanical Impact & Shake）**：
+  - 方塊推動具備真實木質黃銅摩擦音與落地微震（`shake 0.15~0.3`），多塊連動衝刺時觸發骨牌連鎖推移震感。
+  - 方塊歸位瞬間觸發齒輪卡榫鎖定聲（`playGearLatchLock`）與星爆火花粒子（`haptic success`）。
+  - 還原通關時激發全螢幕勝利慶祝震動（`shake 0.75`）與彩帶粒子彩屑（`particles confetti`）；逾時或步數用盡時觸發柔和警示震動（`shake 0.4`，`haptic error`）。
+- **fx-005 節奏連擊與音階攀升（Rhythm & Pitch Ascent）**：
+  - 0.95 秒滑動窗口內連續推盤觸發推盤時速（SPS）連擊，五聲音階水晶琴音隨連擊數動態攀升（`playSpeedCombo`）。
+- **gameplay-core-001 風險回報與精準反饋（Clear Feedback & Mastery）**：
+  - 即時呈現曼哈頓距離熱力圖、目標藍圖幽靈透視與標準桿（Par）即時差值評等（S～D 級），激勵極限操作與思維精準度。
+- **gameplay-ux-009 極速重試與零摩擦操作（Rapid Retry）**：
+  - 結算畫面全局監聽 <kbd>Space</kbd>、<kbd>Enter</kbd>、<kbd>R</kbd> 快捷鍵，獲勝或失敗瞬間即可秒速進入下一關或原地重開局，無須點擊滑鼠。
+  - 結算按鈕明確標註 `(Space / Enter / R)`。
+  - 首頁大廳內嵌 Juice 手感回饋控制面板，支援自訂震動與粒子強度。
+
 ## 品質門檻對齊
 
 對照 [`docs/GAME-QUALITY-BAR.md`](../docs/GAME-QUALITY-BAR.md)：

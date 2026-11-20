@@ -146,6 +146,25 @@
 - **提示**、**自動收牌**、**自動解答**、**無限復原**（計入悔棋次數與分數）、局號發牌／同局重發。
 - 收牌飛牌動畫、勝利瀑布。
 
+## 櫻井政博遊戲手感與體驗設計
+
+本遊戲遵循櫻井政博遊戲設計哲學進行手感與反饋調校：
+
+- **fx-004 物理撞擊與微震動反饋（Physical Impact & Shake）**：
+  - 卡牌落入牌疊與回收區時提供細緻微震動（`shake 0.12~0.22`）與觸覺反饋（`haptic tap/success`），呈現厚實絨布落牌感。
+  - Supermove 多牌連鎖移動著陸時具備彈簧阻尼減震（`shake 0.35`）與階梯延遲回饋。
+  - 通關瞬間激發全場金幣彩帶粒子爆發（`particles confetti`）與大跨度勝利震動（`shake 0.8`）。
+- **fx-005 連鎖節奏與遞增音階（Rhythm & Ascending Audio）**：
+  - 收牌至回收區觸發原生 Web Audio 和聲編鐘琶音（`playFoundationBell`），隨卡牌點數 A 至 K 階梯式攀升。
+  - 連鎖移動觸發多音律動波浪滑音（`playSupermoveWave`），依移牌張數動態延展。
+- **gameplay-core-001 風險與回報感知（Risk vs Reward）**：
+  - 暫存格利用度即時連動評價，2 格極限死鬥模式提供高壓策略深度。
+  - 結算畫面具備標準步（Par）差值評級與星級回饋，清晰彰顯每步決策價值。
+- **gameplay-ux-009 快速重試與流暢操作（Rapid Retry & Zero Friction）**：
+  - 結算畫面（獲勝或失敗）全局監聽 <kbd>Space</kbd>、<kbd>Enter</kbd>、<kbd>R</kbd> 按鍵，一鍵瞬間重新開局，無須滑鼠點擊。
+  - 主要按鈕標籤明確提示 `(Space / Enter / R)`，鍵盤指南同步標註極速重試操作。
+  - 規則面板內建手感回饋調節器（`JuiceSettingsPanel`），尊重玩家個別動態偏好。
+
 ## 品質門檻對齊
 
 對照 [`docs/GAME-QUALITY-BAR.md`](../docs/GAME-QUALITY-BAR.md)：

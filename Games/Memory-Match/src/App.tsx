@@ -726,6 +726,7 @@ export default function App() {
           el: gridRef.current,
           strength: newCombo >= 3 ? 1.2 : 0.8,
         });
+        shake(gridRef.current, newCombo >= 3 ? 0.45 : 0.25);
         setMatchPulse(indices);
         const gained = scoreForMatch(newCombo);
         comboRef.current = newCombo;
@@ -1031,6 +1032,35 @@ export default function App() {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       const key = e.key;
 
+      if ((overlayOpen && (won || lost)) || versusOutcome) {
+        if (key === ' ' || key === 'Enter' || key === 'r' || key === 'R') {
+          e.preventDefault();
+          if (versusOutcome) {
+            if (versusOutcome === 'win') {
+              const idx = OPPONENTS.findIndex((o) => o.id === opponentId);
+              const next = OPPONENTS[idx + 1];
+              if (next && isOpponentUnlocked(idx + 1, roster.unlockedIndex)) {
+                startVersusOpponent(next.id);
+                return;
+              }
+            }
+            restart();
+            return;
+          }
+          if (mode === 'campaign' && stageIndex != null && won) {
+            const next = stageIndex + 1;
+            if (next < CAMPAIGN_STAGES.length && isStageUnlocked(next, campaign)) {
+              startCampaignStage(next);
+              return;
+            }
+            setScreen('campaign');
+            return;
+          }
+          restart();
+          return;
+        }
+      }
+
       if (key === 'h' || key === 'H') {
         if (canHint) {
           e.preventDefault();
@@ -1129,6 +1159,14 @@ export default function App() {
     restart,
     themeId,
     cpuDifficulty,
+    overlayOpen,
+    versusOutcome,
+    opponentId,
+    roster,
+    stageIndex,
+    campaign,
+    startCampaignStage,
+    startVersusOpponent,
   ]);
 
   if (screen === 'campaign') {
@@ -1792,9 +1830,9 @@ export default function App() {
               ? stageIndex != null &&
                 stageIndex + 1 < CAMPAIGN_STAGES.length &&
                 isStageUnlocked(stageIndex + 1, campaign)
-                ? '下一關'
-                : '關卡選單'
-              : '再玩一局'
+                ? '下一關 (Space / Enter / R)'
+                : '關卡選單 (Space / Enter / R)'
+              : '再玩一局 (Space / Enter / R)'
           }
         />
       )}
@@ -1815,6 +1853,7 @@ export default function App() {
             },
             { label: '分數', value: score },
           ]}
+          primaryLabel="再玩一局 (Space / Enter / R)"
           onPrimary={() => restart()}
         />
       )}
@@ -1862,8 +1901,8 @@ export default function App() {
                 isOpponentUnlocked(idx + 1, roster.unlockedIndex)
               );
             })()
-              ? '挑戰下一位'
-              : '再戰一局'
+              ? '挑戰下一位 (Space / Enter / R)'
+              : '再戰一局 (Space / Enter / R)'
           }
         />
       )}

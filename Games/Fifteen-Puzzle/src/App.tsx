@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
+import { haptic, particles, shake } from '@clubhouse/shared/juice';
 import { playLose, playWin } from '@clubhouse/shared/synthAudio';
 import {
   CAMPAIGN_STAGES,
@@ -161,6 +163,7 @@ export default function App() {
   const [won, setWon] = useState(false);
   const [lost, setLost] = useState(false);
   const [loseReason, setLoseReason] = useState<'time' | 'moves'>('time');
+  const puzzleAreaRef = useRef<HTMLDivElement>(null);
   const [elapsed, setElapsed] = useState(0);
   const [bestMoves, setBestMoves] = useState<number | null>(() => loadBestMoves(4, 'normal'));
   const [bestSprint, setBestSprint] = useState<number | null>(() => loadBestSprintSec(4, 'normal'));
@@ -321,6 +324,8 @@ export default function App() {
       setLoseReason('time');
       playLose();
       triggerHaptic([40, 60, 40]);
+      haptic('error');
+      shake(puzzleAreaRef.current, 0.4);
     }
   }, [elapsed, session, won, lost, screen]);
 
@@ -333,6 +338,9 @@ export default function App() {
     setHintIndex(null);
     playWin();
     triggerHaptic([30, 50, 40, 60, 50]);
+    haptic('success');
+    shake(puzzleAreaRef.current, 0.75);
+    particles('confetti');
     const g = parGrade(moves, session.optimal);
     setGrade(g);
 
@@ -370,7 +378,11 @@ export default function App() {
       playMechanicalSlide(movedCount);
       if (nextInPlace > prevInPlace) {
         playGearLatchLock();
+        haptic('success');
+      } else {
+        haptic('tap');
       }
+      shake(puzzleAreaRef.current, movedCount > 1 ? 0.3 : 0.15);
 
       // Calculate sliding speed & combo
       const now = Date.now();
@@ -414,6 +426,8 @@ export default function App() {
         setLoseReason('moves');
         playLose();
         triggerHaptic([40, 60, 40]);
+        haptic('error');
+        shake(puzzleAreaRef.current, 0.4);
       }
     },
     [board, comboCount, moves, session, won, lost],
@@ -450,10 +464,29 @@ export default function App() {
   }, [board, session, won, lost]);
 
   useEffect(() => {
-    if (screen !== 'play' || !session || won || lost) return;
+    if (screen !== 'play' || !session) return;
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      if (won || lost) {
+        if (e.key === ' ' || e.key === 'Enter' || e.key === 'r' || e.key === 'R') {
+          e.preventDefault();
+          if (won && session.mode === 'campaign' && session.stageIndex != null) {
+            const next = session.stageIndex + 1;
+            if (next < CAMPAIGN_STAGES.length && isStageUnlocked(next, campaign.clearedCount)) {
+              startCampaignStage(next);
+              return;
+            }
+            setScreen('campaign');
+            return;
+          }
+          restartSame();
+          return;
+        }
+        return;
+      }
+
       if (e.key === 'ArrowUp' || e.code === 'KeyW') {
         e.preventDefault();
         slideDir('up');
@@ -491,7 +524,19 @@ export default function App() {
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [screen, session, won, lost, slideDir, handleUndo, handleHint, theme]);
+  }, [
+    screen,
+    session,
+    won,
+    lost,
+    slideDir,
+    handleUndo,
+    handleHint,
+    theme,
+    campaign.clearedCount,
+    startCampaignStage,
+    restartSame,
+  ]);
 
   const canUndo = !won && !lost && history.length > 0;
   const remain =
@@ -633,6 +678,10 @@ export default function App() {
             {maxSps > 0 && <span className="text-amber-300 font-mono ml-2">最速 {maxSps} SPS</span>}
           </div>
         )}
+
+        <div className="w-full max-w-sm">
+          <JuiceSettingsPanel compact />
+        </div>
       </Shell>
     );
   }
@@ -903,7 +952,7 @@ export default function App() {
           </aside>
 
           {/* Center Main Board */}
-          <main className="fp-board-center">
+          <main ref={puzzleAreaRef} className="fp-board-center">
             {/* Quick status bar */}
             <div className="flex items-center justify-between w-full max-w-[440px] px-3 py-1.5 rounded-xl bg-slate-900/80 border border-slate-700/60 text-xs mb-3">
               <span className="text-slate-300">
@@ -1175,7 +1224,7 @@ export default function App() {
             { label: '最高時速', value: `${maxSps} SPS` },
             ...(grade ? [{ label: '評等', value: `${grade}（${PAR_LABEL[grade]}）` }] : []),
           ]}
-          primaryLabel={s.mode === 'campaign' ? '下一關' : '再玩一局'}
+          primaryLabel={s.mode === 'campaign' ? '下一關 (Space / Enter / R)' : '再玩一局 (Space / Enter / R)'}
           onPrimary={() => {
             if (s.mode === 'campaign' && s.stageIndex != null) {
               const next = s.stageIndex + 1;
@@ -1205,6 +1254,7 @@ export default function App() {
             { label: '步數', value: moves },
             { label: '標準桿', value: optimalLabel },
           ]}
+          primaryLabel="再玩一局 (Space / Enter / R)"
           onPrimary={restartSame}
           secondaryLabel="回選單"
           onSecondary={() => setScreen('title')}

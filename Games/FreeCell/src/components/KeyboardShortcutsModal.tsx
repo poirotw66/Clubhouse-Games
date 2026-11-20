@@ -62,6 +62,10 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
           desc: '開啟全新牌局',
         },
         {
+          keys: ['Space', '/', 'Enter', '/', 'R'],
+          desc: '結算畫面極速重開局（直接開啟新遊戲，無需點擊滑鼠）',
+        },
+        {
           keys: ['?'],
           desc: '開啟或關閉本快捷鍵指南',
         },

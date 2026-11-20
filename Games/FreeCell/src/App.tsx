@@ -1,6 +1,7 @@
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { ScoreFlash } from '@clubhouse/shared/ScoreFlash';
+import { haptic, particles, shake } from '@clubhouse/shared/juice';
 import {
   playCard,
   playError,
@@ -189,6 +190,7 @@ export default function App() {
   );
   const foundationRefs = useRef<(HTMLDivElement | null)[]>([]);
   const freeCellRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const boardRef = useRef<HTMLDivElement>(null);
 
   const playMode = settings.playMode;
   const autoMove = settings.autoMove;
@@ -453,14 +455,20 @@ export default function App() {
       bumpScore(pointsToFoundation());
       playScore();
       if (card) playFoundationBell(card.rank);
+      shake(boardRef.current, 0.22);
+      haptic('success');
     } else if (isSupermove) {
       setSupermoveWaveCount(movingCards.length);
       playSupermoveWave(movingCards.length);
+      shake(boardRef.current, 0.35);
+      haptic('combo');
     } else {
       playCardGlide();
       playCardSnap();
       playCard();
       playMove();
+      shake(boardRef.current, 0.12);
+      haptic('tap');
     }
   };
 
@@ -724,8 +732,15 @@ export default function App() {
     if (hasWon && !prevWonRef.current) {
       playWin();
       playVictoryFanfare();
+      haptic('success');
+      shake(boardRef.current, 0.8);
+      particles('confetti');
     }
-    if ((hasLost || timedOut) && !prevLostRef.current && !hasWon) playError();
+    if ((hasLost || timedOut) && !prevLostRef.current && !hasWon) {
+      playError();
+      haptic('error');
+      shake(boardRef.current, 0.4);
+    }
     prevWonRef.current = hasWon;
     prevLostRef.current = hasLost || timedOut;
   }, [hasWon, hasLost, timedOut]);
@@ -935,6 +950,14 @@ export default function App() {
         }
         if (selectedPos) {
           setSelectedPos(null);
+          return;
+        }
+      }
+
+      if (hasWon || showLoss) {
+        if (e.key === ' ' || e.key === 'Enter' || e.key === 'r' || e.key === 'R') {
+          e.preventDefault();
+          startNewGame();
           return;
         }
       }
@@ -1427,7 +1450,7 @@ export default function App() {
               { label: '悔棋', value: undoCount },
               { label: '勝率', value: `${Math.round(winRate(stats) * 100)}%` },
             ]}
-            primaryLabel="新遊戲"
+            primaryLabel="新遊戲 (Space / Enter / R)"
             onPrimary={startNewGame}
           />
         )}
@@ -1446,7 +1469,7 @@ export default function App() {
               { label: '步數', value: moveCount },
               { label: '悔棋', value: undoCount },
             ]}
-            primaryLabel="新遊戲"
+            primaryLabel="新遊戲 (Space / Enter / R)"
             onPrimary={startNewGame}
           />
         )}
@@ -1478,7 +1501,7 @@ export default function App() {
           </div>
 
           {/* Center Arena */}
-          <div className="flex-1 min-w-0 max-w-5xl w-full">
+          <div ref={boardRef} className="flex-1 min-w-0 max-w-5xl w-full">
             <div className="flex justify-between mb-8">
               <div className="flex gap-1 sm:gap-2 md:gap-4 w-[48%]">
                 {gameState.freeCells.map((card, i) => {

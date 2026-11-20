@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { ScoreFlash } from '@clubhouse/shared/ScoreFlash';
+import { haptic, particles, shake } from '@clubhouse/shared/juice';
 import {
   playCard,
   playError,
@@ -154,6 +155,7 @@ export default function App() {
   const moveRef = useRef(moveCount);
   const recycleRef = useRef(recycleCount);
   const metaHistory = useRef<{ score: number; moves: number; recycles: number }[]>([]);
+  const boardRef = useRef<HTMLDivElement>(null);
 
   const drawCount = settings.drawCount;
   const scoreMode = settings.scoreMode;
@@ -377,9 +379,13 @@ export default function App() {
       const currentFoundationCards = gameState.foundation.reduce((a, b) => a + b.length, 0);
       klondikeAudio.playFoundationAscent(currentFoundationCards + cardsToMove.length);
       playScore();
+      shake(boardRef.current, 0.22);
+      haptic('success');
     } else {
       klondikeAudio.playCardSnap();
       playMove();
+      shake(boardRef.current, 0.12);
+      haptic('tap');
     }
   };
 
@@ -546,6 +552,8 @@ export default function App() {
     setMoveCount((m) => m + 1);
     klondikeAudio.playCardFlick();
     playCard();
+    shake(boardRef.current, 0.1);
+    haptic('tap');
   };
 
   const recycleWaste = () => {
@@ -575,6 +583,8 @@ export default function App() {
     bumpScore(penalty);
     klondikeAudio.playCardFlick();
     playCard();
+    shake(boardRef.current, 0.12);
+    haptic('tap');
   };
 
   const undo = () => {
@@ -715,6 +725,9 @@ export default function App() {
     }
     prevWonRef.current = true;
     playWin();
+    haptic('success');
+    shake(boardRef.current, 0.8);
+    particles('confetti');
     timerActiveRef.current = false;
     setIsAutoCompleting(false);
     setIsAutoPlaying(false);
@@ -782,6 +795,8 @@ export default function App() {
     }
     if (isGameOverNoMoves && !prevNoMovesRef.current) {
       playError();
+      haptic('error');
+      shake(boardRef.current, 0.35);
       setStats((prev) =>
         recordGameResult(prev, {
           won: false,
@@ -1021,6 +1036,18 @@ export default function App() {
       }
 
       if (e.repeat) return;
+
+      if (isGameWon || isGameOverNoMoves) {
+        if (e.key === ' ' || e.key === 'Enter' || e.key === 'r' || e.key === 'R') {
+          e.preventDefault();
+          if (isGameWon) {
+            startNewGame();
+          } else {
+            reshuffleBoard();
+          }
+          return;
+        }
+      }
 
       const notifyKey = (name: string) => {
         setLastKeyPressed(name);
@@ -1438,7 +1465,7 @@ export default function App() {
           </div>
 
           {/* Center Table */}
-          <div className="flex-1 max-w-4xl w-full">
+          <div ref={boardRef} className="flex-1 max-w-4xl w-full">
             {isAutoCompleting && !isGameWon && (
               <p className="mb-4 text-sm text-emerald-200/90 font-medium">自動完成中…</p>
             )}
@@ -1653,7 +1680,7 @@ export default function App() {
             },
           ]}
           onPrimary={startNewGame}
-          primaryLabel={settings.playDaily ? '再挑戰今日' : '新局'}
+          primaryLabel={settings.playDaily ? '再挑戰今日 (Space / Enter / R)' : '新局 (Space / Enter / R)'}
           secondaryLabel={
             settings.playDaily
               ? shareCopied
@@ -1678,7 +1705,7 @@ export default function App() {
             { label: '分數', value: score },
             { label: '步數', value: moveCount },
           ]}
-          primaryLabel="重新洗牌"
+          primaryLabel="重新洗牌 (Space / Enter / R)"
           onPrimary={reshuffleBoard}
           secondaryLabel="新局"
           onSecondary={startNewGame}
