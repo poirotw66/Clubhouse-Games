@@ -93,6 +93,74 @@ function seatName(seat: Seat): string {
   return ['你', '下家', '對家', '上家'][seat] ?? `座位${seat}`;
 }
 
+export interface PowerPlayAlertInfo {
+  text: string;
+  callout: string;
+  tone: 'spade2' | 'bomb' | 'deuce' | 'monster';
+  badgeStyle: string;
+}
+
+/**
+ * Generate power play alert info for dominant card plays on the felt.
+ */
+export function powerPlayAlert(
+  play: { type: string; cards: { rank: number; suit: string }[] } | null,
+): PowerPlayAlertInfo | null {
+  if (!play) return null;
+  const hasSpadeTwo = play.cards.some((c) => c.rank === 2 && c.suit === 'spades');
+  const deuceCount = play.cards.filter((c) => c.rank === 2).length;
+
+  if (play.type === 'straightFlush') {
+    return {
+      text: '👑 同花順天霸至尊！神級牌型！',
+      callout: '👑 同花順降臨！',
+      tone: 'bomb',
+      badgeStyle: 'bg-gradient-to-r from-amber-400 via-rose-500 to-purple-600 text-white shadow-purple-900/50',
+    };
+  }
+  if (play.type === 'quads') {
+    return {
+      text: '💣 鐵支重砲轟炸！狂暴壓境！',
+      callout: '💣 鐵支強襲！',
+      tone: 'bomb',
+      badgeStyle: 'bg-gradient-to-r from-rose-600 via-amber-500 to-rose-600 text-white shadow-rose-900/50',
+    };
+  }
+  if (hasSpadeTwo) {
+    return {
+      text: '👑 ♠2 黑桃至尊降臨！絕對壓制！',
+      callout: '👑 ♠2 黑桃至尊！',
+      tone: 'spade2',
+      badgeStyle: 'bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500 text-slate-950 shadow-amber-500/50 font-black',
+    };
+  }
+  if (deuceCount >= 2) {
+    return {
+      text: '⚡ 雙老二霸氣控場！雙龍出海！',
+      callout: '⚡ 雙老二控場！',
+      tone: 'deuce',
+      badgeStyle: 'bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 shadow-orange-500/40 font-black',
+    };
+  }
+  if (deuceCount === 1) {
+    return {
+      text: '⚡ 老二強勢控場！壓制檯面！',
+      callout: '⚡ 老二壓制！',
+      tone: 'deuce',
+      badgeStyle: 'bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 shadow-amber-400/30 font-bold',
+    };
+  }
+  if (play.type === 'fullHouse') {
+    return {
+      text: '💥 葫蘆重裝壓場！五張巨牌！',
+      callout: '💥 葫蘆重壓！',
+      tone: 'monster',
+      badgeStyle: 'bg-gradient-to-r from-sky-400 via-indigo-500 to-purple-500 text-white shadow-indigo-500/40 font-bold',
+    };
+  }
+  return null;
+}
+
 /** True when a play deserves a combo callout on the table. */
 export function isFlashyPlay(play: { type: string; cards: { rank: number; suit: string }[] }): boolean {
   return (

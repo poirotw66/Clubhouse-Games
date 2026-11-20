@@ -67,9 +67,13 @@ import {
   opponentByIndex,
 } from './game/opponents';
 import { TYPE_LABEL, detectPlay } from './game/plays';
-import { computeTacticalRadar } from './game/tactics';
+import {
+  computeTacticalRadar,
+  isDingDaSituation,
+  isDingDaViolation,
+} from './game/tactics';
 import { normalizeSeedCode, randomSeedCode } from './game/rng';
-import { buildHandReview, isFlashyPlay } from './game/review';
+import { buildHandReview, isFlashyPlay, powerPlayAlert } from './game/review';
 import type { HandReview } from './game/review';
 import {
   EMPTY_DAILY,
@@ -104,6 +108,7 @@ import type {
   MatchState,
   NamedOpponentId,
   Play,
+  Seat,
   StraightRule,
   TargetScore,
 } from './game/types';
@@ -309,12 +314,24 @@ export default function App(): React.ReactElement {
       particles('dust', { el: felt, strength: Math.min(1, strength) });
     }
 
-    if (isFlashyPlay(state.table)) {
+    const alert = powerPlayAlert(state.table);
+    if (alert) {
+      setCallout({ text: alert.callout, key: Date.now() });
+      if (alert.tone === 'bomb' || alert.tone === 'spade2') {
+        playGoal();
+        if (alert.tone === 'spade2') {
+          particles('burst', { el: felt, strength: 1.1 });
+          shake(felt, 0.4);
+        }
+      } else if (alert.tone === 'monster') {
+        playCapture();
+      } else {
+        playScore();
+      }
+    } else if (isFlashyPlay(state.table)) {
       const label = TYPE_LABEL[state.table.type];
       setCallout({ text: label, key: Date.now() });
-      if (state.table.type === 'straightFlush' || state.table.type === 'quads') playGoal();
-      else if (state.table.type === 'fullHouse') playCapture();
-      else playScore();
+      playScore();
     }
   }, [state]);
 
@@ -705,6 +722,7 @@ export default function App(): React.ReactElement {
                       count={state.hands[seat].length}
                       active={state.turn === seat && state.phase === 'playing'}
                       passed={state.passed.includes(seat)}
+                      isTableOwner={state.tableOwner === seat && state.table !== null}
                     />
                   );
                 })}
@@ -877,45 +895,114 @@ function Opponent({
   count,
   active,
   passed,
+  isTableOwner,
 }: {
   name: string;
   personality: string;
   count: number;
   active: boolean;
   passed: boolean;
+  isTableOwner: boolean;
 }): React.ReactElement {
   const isCritical = count === 1;
   const isThreat = count <= 3 && count > 0;
 
+  let expression: { icon: string; text: string; style: string };
+  if (isCritical) {
+    expression = {
+      icon: '🔥',
+      text: '聽牌剩 1 張',
+      style: 'bg-rose-500/25 text-rose-200 border-rose-500/50 animate-pulse font-bold',
+    };
+  } else if (passed) {
+    expression = {
+      icon: '💨',
+      text: 'PASS',
+      style: 'bg-slate-800/90 text-slate-400 border-slate-700/80 font-medium',
+    };
+  } else if (active) {
+    if (isThreat) {
+      expression = {
+        icon: '😈',
+        text: '勢在必得',
+        style: 'bg-amber-500/25 text-amber-200 border-amber-400/50 font-bold animate-pulse',
+      };
+    } else {
+      expression = {
+        icon: '🤔',
+        text: '思考中…',
+        style: 'bg-indigo-500/25 text-indigo-200 border-indigo-400/50 font-medium animate-pulse',
+      };
+    }
+  } else if (isTableOwner) {
+    expression = {
+      icon: '👑',
+      text: '掌控檯面',
+      style: 'bg-amber-400/20 text-amber-200 border-amber-400/40 font-semibold',
+    };
+  } else if (isThreat) {
+    expression = {
+      icon: '⚡',
+      text: '蓄勢待發',
+      style: 'bg-amber-500/15 text-amber-300 border-amber-500/30 font-medium',
+    };
+  } else {
+    expression = {
+      icon: '👀',
+      text: '觀望中',
+      style: 'bg-slate-800/40 text-slate-400 border-slate-700/50',
+    };
+  }
+
   return (
     <div
-      className={`rounded-xl px-2 py-2 text-center text-xs transition-transform duration-200 ${
+      className={`relative rounded-xl px-2 py-2 text-center text-xs transition-all duration-200 flex flex-col items-center justify-between min-h-[5.5rem] border ${
         isCritical
-          ? 'bg-rose-950/40 ring-2 ring-rose-500 scale-[1.03] shadow-lg shadow-rose-950/50'
+          ? 'bg-rose-950/40 border-rose-500 ring-2 ring-rose-500/60 scale-[1.03] shadow-lg shadow-rose-950/50'
           : active
-            ? 'bg-indigo-500/15 ring-1 ring-indigo-400/50 scale-[1.02]'
-            : 'bg-slate-900/50'
+            ? 'bg-indigo-500/20 border-indigo-400 ring-2 ring-indigo-400/60 scale-[1.02] shadow-md shadow-indigo-950/50'
+            : isTableOwner
+              ? 'bg-amber-500/10 border-amber-400/50 ring-1 ring-amber-400/40'
+              : passed
+                ? 'bg-slate-900/40 border-slate-800/70 opacity-70'
+                : 'bg-slate-900/60 border-slate-800/80'
       } ${isThreat ? 'bt-threat' : ''}`}
     >
-      <div className="font-bold flex items-center justify-center gap-1">
-        <span>{name}</span>
-        {passed && <span className="text-slate-500 font-normal">· pass</span>}
+      <div className="w-full flex items-center justify-between gap-1">
+        <span className="font-bold truncate text-indigo-100">{name}</span>
+        {isTableOwner && (
+          <span className="text-[10px] px-1 py-0.2 rounded bg-amber-400/20 text-amber-300 border border-amber-400/30 font-bold shrink-0">
+            👑 檯主
+          </span>
+        )}
       </div>
+
       {personality && (
-        <div className="text-[10px] text-indigo-200/50 truncate">{personality}</div>
+        <div className="text-[10px] text-indigo-200/60 truncate w-full">{personality}</div>
       )}
+
+      {/* Opponent Micro-Expression Badge */}
+      <div className="my-0.5">
+        <span
+          className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full border text-[10px] tracking-tight shadow-sm ${expression.style}`}
+        >
+          <span>{expression.icon}</span>
+          <span>{expression.text}</span>
+        </span>
+      </div>
+
       <div
-        className={`tabular-nums mt-0.5 ${
+        className={`tabular-nums font-bold flex items-center justify-center gap-1 ${
           isCritical
-            ? 'text-rose-400 font-black flex items-center justify-center gap-1'
+            ? 'text-rose-400 font-black'
             : count <= 3
               ? 'text-amber-300 font-black'
               : 'text-slate-400'
         }`}
       >
-        <span>{count} 張</span>
+        <span>剩 {count} 張</span>
         {isCritical && (
-          <span className="text-[9px] px-1 rounded bg-rose-500/30 text-rose-200 border border-rose-500/40 animate-pulse">
+          <span className="text-[9px] px-1 rounded bg-rose-500/30 text-rose-200 border border-rose-500/40 animate-pulse font-bold">
             頂大戒備
           </span>
         )}
@@ -937,16 +1024,33 @@ function Table({
     ? `${state.tableOwner}-${state.table.cards.map((c) => c.id).join(',')}`
     : 'empty';
 
+  const powerAlert = powerPlayAlert(state.table);
+  const nextSeat = ((state.turn + 1) % 4) as Seat;
+  const isDingDaActive = state.hands[nextSeat]?.length === 1;
+
   return (
     <section
       ref={(el) => {
         feltRef.current = el;
       }}
       data-bt-felt="1"
-      className="bt-felt relative rounded-2xl p-4 min-h-[7rem] flex flex-col items-center justify-center gap-2 overflow-hidden"
+      className="bt-felt relative rounded-2xl p-4 min-h-[7.5rem] flex flex-col items-center justify-center gap-2 overflow-hidden"
       style={feltBackgroundStyle()}
       aria-label="檯面"
     >
+      {/* Table Power Play or Ding-Da Defense Alert */}
+      {powerAlert ? (
+        <span
+          className={`rounded-full px-3 py-0.5 text-[11px] font-black shadow-lg animate-pulse flex items-center gap-1 border border-white/20 ${powerAlert.badgeStyle}`}
+        >
+          {powerAlert.text}
+        </span>
+      ) : isDingDaActive ? (
+        <span className="rounded-full bg-rose-500/30 border border-rose-500/50 px-2.5 py-0.5 text-[10px] font-bold text-rose-200 shadow-md animate-pulse">
+          ⚠️ 頂大防線警報：下家剩 1 張！單張必出最大！
+        </span>
+      ) : null}
+
       {state.table ? (
         <>
           <div key={tableKey} className="flex gap-1 bt-played">
@@ -954,8 +1058,8 @@ function Table({
               <CardView key={card.id} card={card} />
             ))}
           </div>
-          <p className="text-xs text-indigo-200/70">
-            {seatLabel(state.tableOwner ?? 0)} 的 {TYPE_LABEL[state.table.type]}
+          <p className="text-xs text-indigo-200/80 font-medium">
+            {seatLabel(state.tableOwner ?? 0)} 打出的 {TYPE_LABEL[state.table.type]}
           </p>
         </>
       ) : (
@@ -985,6 +1089,9 @@ function Status({
   let message: string;
   let tone = 'text-indigo-200';
 
+  const nextSeat = ((state.turn + 1) % 4) as Seat;
+  const isNextCritical = state.hands[nextSeat]?.length === 1;
+
   if (hintReason) {
     message = hintReason;
     tone = 'text-sky-300';
@@ -996,12 +1103,26 @@ function Status({
       ? `${seatLabel(state.turn)}（${person.name}）思考中…`
       : `${seatLabel(state.turn)}思考中…`;
   } else if (!candidate) {
-    message = state.table
-      ? `選出牌壓過 ${TYPE_LABEL[state.table.type]}，或 Pass`
-      : '你領出，選一手牌';
+    if (isNextCritical) {
+      message = '⚠️ 頂大警報：下家僅剩 1 張！若出單張必須打出手中最大牌！';
+      tone = 'text-rose-300 font-bold';
+    } else {
+      message = state.table
+        ? `選出牌壓過 ${TYPE_LABEL[state.table.type]}，或 Pass`
+        : '你領出，選一手牌';
+    }
   } else if (playable) {
-    message = `${TYPE_LABEL[candidate.type]} — 可以出`;
-    tone = 'text-emerald-300';
+    if (
+      isNextCritical &&
+      candidate.type === 'single' &&
+      isDingDaViolation(state.hands[HUMAN], candidate, 1)
+    ) {
+      message = `${TYPE_LABEL[candidate.type]} — 可以出（⚠️ 違反頂大規則：若下家完賽將觸發包賠）`;
+      tone = 'text-amber-400';
+    } else {
+      message = `${TYPE_LABEL[candidate.type]} — 可以出`;
+      tone = 'text-emerald-300';
+    }
   } else if (opening && !candidate.cards.some((c) => c.id === LOWEST_CARD_ID)) {
     message = '開局第一手必須包含 ♣3';
     tone = 'text-amber-300';

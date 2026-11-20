@@ -14,11 +14,15 @@ loadScript('src/js/logic.js', context);
 loadScript('src/js/tactics.js', context);
 loadScript('src/js/missions.js', context);
 loadScript('src/js/daily.js', context);
+loadScript('src/js/audio.js', context);
+loadScript('src/js/juice.js', context);
 
 const L = context.window.PuyoLogic;
 const T = context.window.PuyoTactics;
 const M = context.window.PuyoMissions;
 const D = context.window.PuyoDaily;
+const A = context.window.PuyoAudio;
+const J = context.window.PuyoJuice;
 
 function runTests() {
   const board = L.createBoard();
@@ -968,6 +972,134 @@ function runTests() {
       goalLabel: '目標 3 連鎖',
     });
     assert.ok(shareFailed.includes('尚未通關'), 'un-cleared puzzle displays in-progress status');
+  }
+
+  // =========================================================================
+  // Deepened Test Suite 6: Pentatonic Chain Audio Scale & 7+ Mega Burst Mechanics
+  // =========================================================================
+  {
+    assert.ok(A, 'PuyoAudio module loaded successfully');
+    assert.ok(J, 'PuyoJuice module loaded successfully');
+
+    // 1. Pentatonic scale constants and progression integrity
+    assert.equal(A.BASE_PITCH_C5, 523.25, 'base pitch is C5 at 523.25 Hz');
+    assert.ok(Array.isArray(A.PENTATONIC_SEMITONES), 'PENTATONIC_SEMITONES is an array');
+    assert.ok(A.PENTATONIC_SEMITONES.length >= 16, 'pentatonic scale covers at least 16 chain steps');
+    assert.equal(A.PENTATONIC_SEMITONES[0], 0, 'first step is root C (0 semitones)');
+
+    // Verify strict monotonic increase of semitones
+    for (let i = 1; i < A.PENTATONIC_SEMITONES.length; i += 1) {
+      assert.ok(
+        A.PENTATONIC_SEMITONES[i] > A.PENTATONIC_SEMITONES[i - 1],
+        `semitone step ${i} is strictly higher than step ${i - 1}`
+      );
+    }
+
+    // Verify key octave semitone offsets (0: C5, 12: C6, 24: C7, 36: C8)
+    assert.equal(A.PENTATONIC_SEMITONES[0], 0);
+    assert.equal(A.PENTATONIC_SEMITONES[5], 12, 'chain 6 reaches C6 (+12 semitones / 1 octave)');
+    assert.equal(A.PENTATONIC_SEMITONES[10], 24, 'chain 11 reaches C7 (+24 semitones / 2 octaves)');
+    assert.equal(A.PENTATONIC_SEMITONES[15], 36, 'chain 16 reaches C8 (+36 semitones / 3 octaves)');
+
+    // 2. Chain sensory tier boundaries: 4 distinct escalation stages
+    // Tier 1: chains 1-2 (crisp bubble pops)
+    assert.equal(A.getChainTier(1), 1);
+    assert.equal(A.getChainTier(2), 1);
+    // Tier 2: chains 3-4 (major 3rd harmonic chime)
+    assert.equal(A.getChainTier(3), 2);
+    assert.equal(A.getChainTier(4), 2);
+    // Tier 3: chains 5-6 (sub-bass punch + octave shimmer)
+    assert.equal(A.getChainTier(5), 3);
+    assert.equal(A.getChainTier(6), 3);
+    // Tier 4: chains 7+ (Sakurai Mega Chain chord blast)
+    assert.equal(A.getChainTier(7), 4);
+    assert.equal(A.getChainTier(8), 4);
+    assert.equal(A.getChainTier(15), 4);
+
+    // 3. getChainPitch pitch calculation and harmonic overtone ratios
+    const pitch1 = A.getChainPitch(1);
+    assert.equal(pitch1.chain, 1);
+    assert.equal(pitch1.semitones, 0);
+    assert.equal(pitch1.baseFreq, 523.25);
+    assert.equal(pitch1.tier, 1);
+    // Harmonic intervals: major third is ~1.25992 ratio, fifth is ~1.4983 ratio, octave is exactly 2x
+    assert.ok(Math.abs(pitch1.thirdFreq - pitch1.baseFreq * Math.pow(2, 4 / 12)) < 0.1);
+    assert.ok(Math.abs(pitch1.fifthFreq - pitch1.baseFreq * Math.pow(2, 7 / 12)) < 0.1);
+    assert.equal(pitch1.octaveFreq, Math.round(523.25 * 2 * 100) / 100);
+
+    const pitch7 = A.getChainPitch(7);
+    assert.equal(pitch7.chain, 7);
+    assert.equal(pitch7.semitones, 14); // D6
+    assert.equal(pitch7.tier, 4);
+    assert.ok(pitch7.baseFreq > 1170 && pitch7.baseFreq < 1180, 'chain 7 fundamental is D6 (~1174.66 Hz)');
+
+    // Pitch rises monotonically with each chain
+    let prevFreq = 0;
+    for (let c = 1; c <= 16; c += 1) {
+      const p = A.getChainPitch(c);
+      assert.ok(p.baseFreq > prevFreq, `chain ${c} freq (${p.baseFreq}) > prev freq (${prevFreq})`);
+      prevFreq = p.baseFreq;
+    }
+
+    // Upper boundary clamping for chains > 16
+    const pitch20 = A.getChainPitch(20);
+    const pitch16 = A.getChainPitch(16);
+    assert.equal(pitch20.baseFreq, pitch16.baseFreq, 'chains beyond scale length clamp to highest note');
+
+    // 4. Mega-Burst Parameters (7+ chain screen shake & confetti parameters)
+    for (let c = 1; c <= 6; c += 1) {
+      const mb = A.getMegaBurstParams(c);
+      assert.equal(mb.isMega, false, `chain ${c} is below mega threshold`);
+      assert.equal(mb.shakeIntensity, 0, `chain ${c} has 0 mega shake intensity`);
+      assert.equal(mb.confettiCount, 0, `chain ${c} has 0 confetti`);
+      assert.equal(mb.sparkleArpeggioCount, c >= 3 ? 1 : 0);
+    }
+
+    const mb7 = A.getMegaBurstParams(7);
+    assert.equal(mb7.isMega, true, 'chain 7 is mega burst');
+    assert.equal(mb7.tier, 4);
+    assert.equal(mb7.shakeIntensity, 2.2, 'chain 7 base mega shake intensity is 2.2');
+    assert.equal(mb7.confettiCount, 42, 'chain 7 base confetti count is 42');
+    assert.equal(mb7.burstParticleCount, 18, 'chain 7 base burst particle count is 18');
+    assert.equal(mb7.subBassFreq, 65.41, 'chain 7 triggers visceral C2 65.41 Hz sub-bass shockwave');
+    assert.equal(mb7.sparkleArpeggioCount, 4, 'chain 7 triggers 4-tone cascading arpeggio flourish');
+
+    // Scaling above chain 7 (8, 9, 10, 12, 15)
+    let lastShake = mb7.shakeIntensity;
+    let lastConfetti = mb7.confettiCount;
+    let lastBurst = mb7.burstParticleCount;
+    for (let c = 8; c <= 15; c += 1) {
+      const mb = A.getMegaBurstParams(c);
+      assert.equal(mb.isMega, true);
+      assert.ok(mb.shakeIntensity >= lastShake, `chain ${c} shake >= previous`);
+      assert.ok(mb.confettiCount >= lastConfetti, `chain ${c} confetti >= previous`);
+      assert.ok(mb.burstParticleCount >= lastBurst, `chain ${c} burst particles >= previous`);
+      assert.ok(mb.shakeIntensity <= 3.2, 'shake intensity capped at 3.2');
+      assert.ok(mb.confettiCount <= 75, 'confetti count capped at 75');
+      assert.ok(mb.burstParticleCount <= 32, 'burst particle count capped at 32');
+      lastShake = mb.shakeIntensity;
+      lastConfetti = mb.confettiCount;
+      lastBurst = mb.burstParticleCount;
+    }
+
+    // 5. Audio state muting controls
+    A.setMuted(true);
+    assert.equal(A.isMuted(), true, 'audio muted flag is true');
+    // Calling playPop while muted must execute cleanly without error
+    A.playPop(1);
+    A.playPop(7);
+    A.playLand();
+    A.playRotate();
+    A.setMuted(false);
+    assert.equal(A.isMuted(), false, 'audio unmuted');
+    // Calling playPop while unmuted with null AudioContext runs safely
+    A.playPop(1);
+    A.playPop(4);
+    A.playPop(7);
+
+    // 6. PuyoJuice onMegaBurst integration
+    assert.equal(typeof J.onMegaBurst, 'function', 'PuyoJuice exports onMegaBurst function');
+    assert.equal(typeof J.onPop, 'function', 'PuyoJuice exports onPop function');
   }
 }
 

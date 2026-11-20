@@ -115,6 +115,7 @@ export default function App(): React.ReactElement {
   const accRef = useRef(0);
   const lastRef = useRef(0);
   const activeChallengeRef = useRef<RunChallenge | null>(null);
+  const challengeWonRef = useRef(false);
   const challengeResolvedRef = useRef(false);
   const runModeRef = useRef<RunMode>('free');
   const dailyDateRef = useRef('');
@@ -224,6 +225,7 @@ export default function App(): React.ReactElement {
       accRef.current = 0;
       lastRef.current = performance.now();
       setPaused(false);
+      challengeWonRef.current = false;
       setChallengeWon(false);
       setLastBolts(0);
       setLastNewBest(false);
@@ -273,9 +275,32 @@ export default function App(): React.ReactElement {
     return { laneStep, jump, slide };
   }, []);
 
+  const restartRun = useCallback(() => {
+    if (activeChallengeRef.current) {
+      startRun(activeChallengeRef.current.seedCode, activeChallengeRef.current, 'challenge');
+    } else if (runModeRef.current === 'daily') {
+      startRun(stateRef.current?.seedCode, null, 'daily', dailyDateRef.current);
+    } else {
+      startRun(stateRef.current?.seedCode, null, 'free');
+    }
+  }, [startRun]);
+
+  const restartRunRef = useRef(restartRun);
+  restartRunRef.current = restartRun;
+
   useEffect(() => {
     if (screen !== 'playing') return;
     const down = (e: KeyboardEvent): void => {
+      // Sakurai Rapid Retry (gameplay-ux-009): Space/Enter/R to immediately restart when run ended
+      const isRunEnded = stateRef.current?.phase === 'caught' || challengeWonRef.current;
+      if (isRunEnded) {
+        if (e.code === 'Space' || e.code === 'Enter' || e.code === 'KeyR') {
+          e.preventDefault();
+          restartRunRef.current();
+          return;
+        }
+      }
+
       if (e.code === 'KeyP' || e.code === 'Escape') {
         e.preventDefault();
         setPaused((p) => !p);
@@ -474,6 +499,7 @@ export default function App(): React.ReactElement {
         const challenge = activeChallengeRef.current;
         if (challenge && isChallengeCleared(challenge, next)) {
           justCleared = true;
+          challengeWonRef.current = true;
           setChallengeWon(true);
           applyChallengeEnd(next, challenge);
           break;
@@ -1152,7 +1178,7 @@ export default function App(): React.ReactElement {
             { label: '鐵道螺栓', value: `+${lastBolts}` },
             { label: '種子碼', value: s.seedCode },
           ]}
-          primaryLabel="再試一次"
+          primaryLabel="再試一次 (Space)"
           onPrimary={() => startRun(activeChallenge.seedCode, activeChallenge, 'challenge')}
           secondaryLabel="回選單"
           onSecondary={() => {
@@ -1192,7 +1218,11 @@ export default function App(): React.ReactElement {
             { label: '種子碼', value: s.seedCode },
           ]}
           primaryLabel={
-            activeChallenge ? '再試一次' : runMode === 'daily' ? '再挑戰今日' : '再跑一次'
+            activeChallenge
+              ? '再試一次 (Space)'
+              : runMode === 'daily'
+                ? '再挑戰今日 (Space)'
+                : '再跑一次 (Space)'
           }
           onPrimary={() => {
             if (activeChallenge) startRun(activeChallenge.seedCode, activeChallenge, 'challenge');

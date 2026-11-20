@@ -56,7 +56,7 @@
       stages:{runup:'01 加速助跑',wall:'02 攀上弧牆',climb:'03 起飛翻滾',descent:'04 準備落地',landed:'著陸成功',crash:'這次先記住一件事'},
       actions:{drive:'按住油門一路上牆，先別用噴射器。',prepare:'繼續油門；彎過頭頂前準備按住吸附。',stick:'反翹段：油門＋吸附一起按住，直到離牆。',level:'用單側噴射把車身轉正；接近水平就放開。',damp:'停止單側翻滾，讓轉速收住；先求穩再求圈數。',brake:'輪胎已朝下：按 B 或雙鍵噴射減緩下墜，留意空氣。',coast:'姿態已扶正；還在上升，放開噴射保留空氣。',hold:'保持輪胎朝下，放開單側噴射，穩住迎接地面。',empty:'空氣用盡：放開噴射；下一輪少做一次修正。',landed:'漂亮落地。下一趟試著收得更穩。',fall:'下次先練吸附：反翹段持續按住 X，再追翻滾。',wall:'下次先留出離牆距離，再開始翻滾。',tilt:'下次提早轉正，輪胎朝下後放開單側噴射。',hard:'下次更早扶正，再用雙鍵噴射減速；別等到貼地。'},
       keys:{drive:'SPACE / W',prepare:'SPACE ＋ 準備 X',stick:'SPACE ＋ X',level:'← 或 → / A 或 D',damp:'放開 ← →',brake:'B / ← ＋ →',coast:'放開 ← →',hold:'保持姿態',empty:'重新規劃用氣'},
-      tilt:'姿態',descent:'下墜',spin:'轉速',live:'目前狀態，不代表落地保證',fold:'收起教練',unfold:'展開教練',passed:'駕照任務通過',retry:'帶著這個提示再試 →',continue:'挑戰下一項 →',practice:'本輪練習重點',next:'下一項',mastered:'三項技巧完成，接著挑戰更高分。',checkpoint:'助跑 → 上牆 → 起飛 → 落地',
+      tilt:'姿態',descent:'下墜',spin:'轉速',live:'目前狀態，不代表落地保證',fold:'收起教練',unfold:'展開教練',passed:'駕照任務通過',retry:'帶著這個提示再試 (Space) →',continue:'挑戰下一項 (Space) →',practice:'本輪練習重點',next:'下一項',mastered:'三項技巧完成，接著挑戰更高分。',checkpoint:'助跑 → 上牆 → 起飛 → 落地',
     },
     en: {
       label:'FLIGHT LICENSE',goals:['01 Clean landing','02 Flip & land','03 Precision landing','Flight license complete'],
@@ -64,7 +64,7 @@
       stages:{runup:'01 Build speed',wall:'02 Climb the wall',climb:'03 Airborne',descent:'04 Landing approach',landed:'Touchdown confirmed',crash:'One thing to try next'},
       actions:{drive:'Hold the throttle all the way up. Save the jets for flight.',prepare:'Keep driving. Get ready to hold suction over the overhang.',stick:'Overhang: hold throttle + suction until you leave the wall.',level:'Use one jet to roll upright. Release it as you reach level.',damp:'Release the single jet to settle rotation. Stability before rolls.',brake:'Tires down: hold B or both jets to slow descent. Watch your air.',coast:'Aligned and still climbing. Release the jets to save air.',hold:'Keep tires down. Release the single jet and settle for touchdown.',empty:'Out of air. Next run, make fewer corrections.',landed:'Clean touchdown. Try a softer, flatter landing next run.',fall:'Next run: hold suction over the entire overhang before chasing rolls.',wall:'Next run: clear the wall before starting a roll.',tilt:'Next run: level out earlier and release the single jet when upright.',hard:'Next run: level out earlier, then hold B or both jets to slow descent.'},
       keys:{drive:'SPACE / W',prepare:'SPACE + prepare X',stick:'SPACE + X',level:'← or → / A or D',damp:'Release ← →',brake:'B / ← + →',coast:'Release ← →',hold:'Keep level',empty:'Plan your air'},
-      tilt:'Tilt',descent:'Descent',spin:'Spin',live:'Current state, not an impact prediction',fold:'Minimize coach',unfold:'Expand coach',passed:'License objective cleared',retry:'Try that adjustment →',continue:'Try the next skill →',practice:'This run’s practice target',next:'Next skill',mastered:'All three skills cleared. Chase a higher score.',checkpoint:'Run-up → Wall → Launch → Land',
+      tilt:'Tilt',descent:'Descent',spin:'Spin',live:'Current state, not an impact prediction',fold:'Minimize coach',unfold:'Expand coach',passed:'License objective cleared',retry:'Try that adjustment (Space) →',continue:'Try the next skill (Space) →',practice:'This run’s practice target',next:'Next skill',mastered:'All three skills cleared. Chase a higher score.',checkpoint:'Run-up → Wall → Launch → Land',
     }
   };
   function mount({ language, onRetry, mode, club, garage, onUpload, canUpload = () => false }) {
@@ -97,6 +97,13 @@
     });
     review.addEventListener('click', event => event.stopPropagation());
     review.querySelector('button').addEventListener('click', () => { onRetry(); review.querySelector('button').blur(); });
+    window.addEventListener('keydown', (e) => {
+      if (!review.hidden && (e.code === 'Space' || e.code === 'Enter' || e.code === 'KeyR')) {
+        e.preventDefault();
+        onRetry();
+        review.querySelector('button')?.blur();
+      }
+    });
     function begin(record=true) { club?.begin(record); target=completed;result=null;unlocked=false;review.hidden=true; }
     function finish(outcome, record=true) {
       if (result) return;

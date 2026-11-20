@@ -125,6 +125,19 @@
     particles('burst', { el: fieldEl || null, strength: strength });
   }
 
+  function onMegaBurst(chain, fieldEl) {
+    var n = Math.max(7, Number(chain) || 7);
+    var shell = fieldShell(fieldEl);
+    var extra = Math.max(0, n - 7);
+    var shakeIntensity = Math.min(3.2, 2.2 + extra * 0.25);
+    var confettiCount = Math.min(75, 42 + extra * 8);
+    var burstCount = Math.min(32, 18 + extra * 3);
+    haptic('win', 1.3);
+    shake(shell, shakeIntensity);
+    particles('confetti', { el: shell || fieldEl || null, count: confettiCount, strength: 1.35 });
+    particles('burst', { el: shell || fieldEl || null, count: burstCount, strength: 1.45 });
+  }
+
   function onAllClear(fieldEl) {
     var shell = fieldShell(fieldEl);
     haptic('win');
@@ -140,6 +153,7 @@
   }
 
   function bindSettingsControls() {
+    if (typeof document === 'undefined') return;
     var hapticsEl = document.getElementById('juice-haptics');
     var fxEl = document.getElementById('juice-fx');
     if (!hapticsEl && !fxEl) return;
@@ -162,10 +176,12 @@
     }
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', bindSettingsControls);
-  } else {
-    bindSettingsControls();
+  if (typeof document !== 'undefined') {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', bindSettingsControls);
+    } else {
+      bindSettingsControls();
+    }
   }
 
   global.PuyoJuice = {
@@ -173,6 +189,7 @@
     onRotate: onRotate,
     onLand: onLand,
     onPop: onPop,
+    onMegaBurst: onMegaBurst,
     onAllClear: onAllClear,
     onWin: onWin,
     haptic: haptic,
@@ -182,4 +199,4 @@
     saveSettings: saveSettings,
     storageKey: STORAGE_KEY,
   };
-})(window);
+})(typeof window !== 'undefined' ? window : this);

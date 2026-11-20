@@ -138,8 +138,8 @@ Pass 之後這一輪就不能再出，要等下一輪重新領出。
 |------|----------------|
 | **模式／變體** | 支援多元賽制：單局模式（快速隨選對局）、固定局數系列賽（4 / 8 / 12 局累計籌碼）、先達目標分系列賽（50 / 100 / 200 分搶分賽）、每日牌桌（Taipei UTC+8 確定性換日種子、固定 5 局系列挑戰）；名牌對戰天梯（5 位風格對手階梯解鎖：菜鳥阿明、拆牌阿美、囤貨阿強、記牌阿珍、牌桌魔王）；傳統台灣家規自選變體：順子比法（依序列位置 `topCard`：`23456` 最大／`A2345` 最小 vs 依最大點數 `sequence`：`10JQKA` 最大）、剩牌倍數階梯（8~9 張雙倍、10~12 張三倍、13 張四倍老挺）、留 2 加倍懲罰（手牌每殘留一張 2 牌分乘以 2）。相關實作請見：[`src/game/types.ts`](../Games/Big-Two/src/game/types.ts)、[`src/game/plays.ts`](../Games/Big-Two/src/game/plays.ts)、[`src/game/match.ts`](../Games/Big-Two/src/game/match.ts)、[`src/game/opponents.ts`](../Games/Big-Two/src/game/opponents.ts)。 |
 | **Replay hook & 經濟循環** | 本地戰績持久化（`big-two:stats:v1`）：完整記錄單局與各賽制勝負場數、勝率、累計籌碼、連勝紀錄、單局最佳彩池、系列賽總場次、系列賽勝率、最佳系列賽連勝與單場最高獲利；系列賽中斷進度存檔（`big-two:match:v1`）：進行中賽事隨時暫存，關閉分頁可無縫續玩；每日牌桌挑戰（`big-two:daily:v1`）：Taipei 時區換日連續打卡天數（streak）、今日最佳籌碼紀錄與格式化剪貼簿戰報分享；名牌對戰天梯進度（`big-two:ladder:v1`）：解鎖狀態與通關紀錄永久保存。相關實作請見：[`src/game/storage.ts`](../Games/Big-Two/src/game/storage.ts)、[`src/game/daily.ts`](../Games/Big-Two/src/game/daily.ts)。 |
-| **對手 AI & 決策輔助** | 經典三檔難度梯度（簡單／普通／困難）：經 1,000 局蒙地卡羅模擬驗證勝率嚴格單調遞增（Easy < Normal < Hard，統計檢定顯著超越零）；三位鮮明風格電腦對手（下家衝刺俠節奏優先、對家控場手死守控場牌、上家記牌師專盯尾聲）；尊榮牌廳雙翼戰情儀表板：左翼戰情情資雷達（追蹤 ♠2 掌控、四張 2 分佈盤、鐵支與同花順怪獸牌警戒、頂大保送防禦警戒線、勝勢輪數預估）、右翼對手檔案（記各家過牌歷程推論手牌上限、對手打出 2 數量即時追蹤）；大老二大師錦囊與教學提示（`advise`）：提供下一步推薦牌型並附帶繁體中文戰略剖析理由；出牌復原功能（Undo）：支援退回至上一手出牌前；局末複盤診斷（Hand Review）：自動總結局末攻防節奏與戰略亮點。相關實作請見：[`src/game/cpu.ts`](../Games/Big-Two/src/game/cpu.ts)、[`src/game/tactics.ts`](../Games/Big-Two/src/game/tactics.ts)、[`src/game/hints.ts`](../Games/Big-Two/src/game/hints.ts)、[`src/game/review.ts`](../Games/Big-Two/src/game/review.ts)。 |
-| **手感回饋 (Feedback)** | 擬真出牌落地動畫與強牌登場 Callout 高光視覺特效；WebAudio 原生合成音效（`synthAudio`）：出牌打擊音效、過牌 Pass 沉悶音、結算勝利與失敗專屬和弦；局末全螢幕尊榮結算面板：結算各家剩餘張數、底分、留 2 翻倍倍率、正負牌分明細與系列賽籌碼總和；局末 MVP 榮譽標籤（最快出清手牌、單局最多炸彈怪獸牌、最大逆轉勝手）。相關實作請見：[`src/App.tsx`](../Games/Big-Two/src/App.tsx)、[`src/components/CardView.tsx`](../Games/Big-Two/src/components/CardView.tsx)、[`src/components/TacticalRadarPanel.tsx`](../Games/Big-Two/src/components/TacticalRadarPanel.tsx)。 |
+| **對手 AI & 決策輔助** | 經典三檔難度梯度（簡單／普通／困難）：經 1,000 局蒙地卡羅模擬驗證勝率嚴格單調遞增（Easy < Normal < Hard，統計檢定顯著超越零）；三位鮮明風格電腦對手（下家衝刺俠節奏優先、對家控場手死守控場牌、上家記牌師專盯尾聲）；對手 AI 牌桌心理微表情系統（Thinking 思考盤算、Confident 勢在必得／掌控檯面／逼近完賽、Pass 過牌觀望、Critical 聽牌單張頂大戒備）；尊榮牌廳雙翼戰情儀表板：左翼戰情情資雷達（追蹤 ♠2 掌控、四張 2 分佈盤、鐵支與同花順怪獸牌警戒、頂大保送防禦警戒線、勝勢輪數預估）、右翼對手檔案（記各家過牌歷程推論手牌上限、對手打出 2 數量即時追蹤）；大老二大師錦囊與教學提示（`advise`）：提供下一步推薦牌型並附帶繁體中文戰略剖析理由；出牌復原功能（Undo）：支援退回至上一手出牌前；局末複盤診斷（Hand Review）：自動總結局末攻防節奏與戰略亮點。相關實作請見：[`src/game/cpu.ts`](../Games/Big-Two/src/game/cpu.ts)、[`src/game/tactics.ts`](../Games/Big-Two/src/game/tactics.ts)、[`src/game/hints.ts`](../Games/Big-Two/src/game/hints.ts)、[`src/game/review.ts`](../Games/Big-Two/src/game/review.ts)。 |
+| **手感回饋 (Feedback)** | 檯面強牌霸氣警報（Table Power Play Alerts：👑 同花順天霸至尊、💣 鐵支重砲轟炸、👑 ♠2 黑桃至尊降臨絕對壓制、⚡ 雙老二霸氣控場、💥 葫蘆重裝壓場、⚠️ 頂大防線警報）搭配牌桌震動反饋；擬真出牌落地動畫與強牌登場 Callout 高光視覺特效；WebAudio 原生合成音效（`synthAudio`）：出牌打擊音效、過牌 Pass 沉悶音、結算勝利與失敗專屬和弦；局末全螢幕尊榮結算面板：結算各家剩餘張數、底分、留 2 翻倍倍率、正負牌分明細與系列賽籌碼總和；局末 MVP 榮譽標籤（最快出清手牌、單局最多炸彈怪獸牌、最大逆轉勝手）。相關實作請見：[`src/App.tsx`](../Games/Big-Two/src/App.tsx)、[`src/components/CardView.tsx`](../Games/Big-Two/src/components/CardView.tsx)、[`src/components/TacticalRadarPanel.tsx`](../Games/Big-Two/src/components/TacticalRadarPanel.tsx)。 |
 | **Touch & Keyboard** | 實體鍵盤全功能精準導航覆蓋：<kbd>A</kbd> / <kbd>D</kbd>（方向鍵）左右游標移位、<kbd>Space</kbd> / <kbd>W</kbd> 彈起與取消勾選手牌、<kbd>Enter</kbd> 出牌、<kbd>P</kbd> 過牌 Pass、<kbd>H</kbd> 大師提示、<kbd>C</kbd> / <kbd>Esc</kbd> 清除全選手牌、<kbd>U</kbd> / <kbd>Z</kbd> 復原上一步、<kbd>1</kbd>～<kbd>9</kbd>、<kbd>0</kbd>、<kbd>-</kbd>、<kbd>=</kbd> 依序快速選牌；行動端全觸控適配：手牌觸控即時彈起／收回、頂部精簡戰情速報條（`TacticalMobileBar`）與一鍵展開全功能戰情情資抽屜。相關實作請見：[`src/App.tsx`](../Games/Big-Two/src/App.tsx)、[`src/components/TacticalMobileBar.tsx`](../Games/Big-Two/src/components/TacticalMobileBar.tsx)。 |
 | **Check & Lint** | 程式碼規範：`npm run lint -w big-two`（`tsc --noEmit` 零錯誤）；邏輯自我測試：`npm run check -w big-two`（`scripts/self-check.ts` >1,560 行深度驗證，涵蓋牌型全序關係、順子與同花比法、頂大防禦規則與包賠懲罰、計分階梯與留 2 倍率、AI 拆牌評估與出牌策略、Taipei 種子確定性、天梯與戰績存檔等 31 項測試全數通過）。相關實作請見：[`scripts/self-check.ts`](../Games/Big-Two/scripts/self-check.ts)。 |
 
@@ -168,6 +168,16 @@ Pass 之後這一輪就不能再出，要等下一輪重新領出。
     - <kbd>U</kbd> / <kbd>Z</kbd>：復原上一步。
     - <kbd>1</kbd>～<kbd>9</kbd>、<kbd>0</kbd>、<kbd>-</kbd>、<kbd>=</kbd>：對應手牌槽位快速勾選。
   - **行動端戰情速報條**：小螢幕裝置上提供頂部精簡速報條，點擊「戰情情報」可隨時呼出全功能抽屜面板。
+- **對手 AI 牌桌心理微表情系統（Opponent Micro-Expressions）**：
+  - **Thinking 思考微表情**（`🤔 思考中…`）：輪到該 AI 行動時動態呼吸閃爍，展現盤算拆牌過程。
+  - **Confident 信心微表情**（`👑 檯面主導`、`😈 勢在必得`、`⚡ 蓄勢待發`）：AI 取得檯面出牌主導權、手牌進入 ≤3 張威脅區或發動大牌時立即觸發信心金光徽章與檯主桂冠。
+  - **Pass 過牌微表情**（`💨 PASS`）：過牌後以暗色膠囊徽章與半透明狀態清晰呈現，讓牌桌行動狀態一目了然。
+  - **Critical 聽牌警報**（`🔥 聽牌剩 1 張`）：任何對手僅剩 1 張手牌時觸發赤色呼吸告警，並標記「頂大戒備」。
+- **檯面強牌霸氣警報（Table Power Play Alerts）**：
+  - **黑桃 2 至尊降臨**（`👑 ♠2 黑桃至尊降臨！絕對壓制！`）：打出全牌最大王牌時觸發全螢幕震撼粒子與桌面震動。
+  - **同花順與鐵支重砲**（`👑 同花順天霸至尊！`、`💣 鐵支重砲轟炸！`）：觸發怪獸牌專屬天霸慶祝音效與彩池高光。
+  - **雙老二與葫蘆強壓**（`⚡ 雙老二霸氣控場！`、`💥 葫蘆重裝壓場！`）：強化大牌出手的爽快打擊感。
+  - **頂大防線警戒**（`⚠️ 頂大防線警報：下家剩 1 張！單張必出最大！`）：即時於檯面與操作狀態欄提醒出單張必出最大，防範惡意包賠。
 - **系列賽**：打 N 局或先達目標分，累計籌碼；局末複盤教學。
 - **三角難度**＋**三位個性對手**（下家衝刺俠／對家控場手／上家記牌師）：記已出牌、控場牌、盯快出完的人；`check` 釘住三檔可分辨且有強弱排序。
 - **提示／復原**：提示附教學理由；復原回到你出手前。

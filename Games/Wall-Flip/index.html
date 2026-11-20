@@ -212,7 +212,7 @@ const STR = {
     s3a: '③ 左右推進器（← →）', s3b: '單鍵翻滾、雙鍵向上推；倒掛時雙鍵會推向地面！',
     s4a: '④ 輪胎朝下著地', s4b: '著地速度 ≤ 18 km/h、迴轉要收乾淨；翻滾一圈 50 分起跳',
     hint: '吸附與推進器共用壓縮空氣 · M 靜音 · R 重來 · L 排行榜',
-    start: '—— 按 SPACE 開始 ——', again: '—— 按 SPACE 再來一次 ——',
+    start: '—— 按 SPACE 開始 ——', again: '再試一次 (Space)',
     tapStart: '—— 點擊畫面開始 ——', tapAgain: '—— 點擊再來一次 ——',
     footer: '參數逆向自 tsuyatt.com 宙返りロードスター · 自製 2D 復刻',
     course: '賽道', arc: '弧', radius: '半徑', straight: '直線',
@@ -288,7 +288,7 @@ const STR = {
     s3a: '③ SIDE THRUSTERS (← →)', s3b: 'One key rolls you, both push up; both while inverted push you down!',
     s4a: '④ LAND ON THE TIRES', s4b: 'Touch down ≤ 18 km/h, settle the spin; 50 pts per full roll and up',
     hint: 'Stick and thrusters share compressed air · M mute · R restart · L ranking',
-    start: '—— PRESS SPACE TO START ——', again: '—— PRESS SPACE TO RETRY ——',
+    start: '—— PRESS SPACE TO START ——', again: 'Retry (Space)',
     tapStart: '—— TAP TO START ——', tapAgain: '—— TAP TO RETRY ——',
     footer: 'Physics reverse-engineered from tsuyatt.com 宙返りロードスター · 2D tribute',
     course: 'COURSE', arc: 'arc', radius: 'radius', straight: 'straight',
@@ -1110,6 +1110,7 @@ function audioFrame() {
 function keySet(e, down) {
   switch (e.code) {
     case 'Space': case 'ArrowUp': case 'KeyW': if (!e.repeat) { ensureAudio(); if (down) { if (rankOn) closeRank(); else pressStart(); } } inp.drive = down; return true;
+    case 'Enter': if (!e.repeat && down) { ensureAudio(); if (rankOn) closeRank(); else pressStart(); } return true;
     case 'KeyX': case 'ArrowDown': case 'KeyS': inp.stick = down; return true;
     case 'ArrowLeft': case 'KeyA': inp.left = down; return true;
     case 'ArrowRight': case 'KeyD': inp.right = down; return true;

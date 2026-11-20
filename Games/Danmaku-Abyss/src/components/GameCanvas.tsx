@@ -199,23 +199,57 @@ function drawEnemy(ctx: CanvasRenderingContext2D, e: Enemy, t: number): void {
 }
 
 function drawBossHud(ctx: CanvasRenderingContext2D, e: Enemy): void {
-  const w = 220;
+  const w = 240;
   const x0 = FIELD_W / 2 - w / 2;
   const frac = Math.max(0, e.hp / e.maxHp);
-  ctx.fillStyle = 'rgba(15, 10, 30, 0.65)';
-  ctx.fillRect(x0 - 4, 10, w + 8, 14);
-  ctx.fillStyle = 'rgba(255,255,255,0.18)';
-  ctx.fillRect(x0, 14, w, 5);
+  const timeLeft = e.card ? Math.max(0, Math.ceil(e.card.timeLimit - e.cardElapsed)) : null;
+
+  // Background frame with subtle purple glow
+  ctx.fillStyle = 'rgba(10, 6, 24, 0.88)';
+  ctx.strokeStyle = 'rgba(244, 114, 182, 0.45)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  if (typeof ctx.roundRect === 'function') {
+    ctx.roundRect(x0 - 6, 6, w + 12, 34, 6);
+  } else {
+    ctx.rect(x0 - 6, 6, w + 12, 34);
+  }
+  ctx.fill();
+  ctx.stroke();
+
+  // Boss & Spell card title
+  ctx.font = 'bold 10px monospace, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#fce7f3';
+  ctx.fillText(e.card?.name ? `BOSS: ${e.card.name}` : 'BOSS ENCOUNTER', x0, 18);
+
+  ctx.textAlign = 'right';
+  if (timeLeft !== null) {
+    ctx.fillStyle = timeLeft <= 5 ? '#f87171' : '#fbbf24';
+    ctx.fillText(`${timeLeft}s · ${Math.round(frac * 100)}%`, x0 + w, 18);
+  } else {
+    ctx.fillStyle = '#f472b6';
+    ctx.fillText(`${Math.round(frac * 100)}%`, x0 + w, 18);
+  }
+
+  // HP track
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+  ctx.fillRect(x0, 22, w, 6);
+
+  // HP gradient bar
   const bar = ctx.createLinearGradient(x0, 0, x0 + w, 0);
-  bar.addColorStop(0, '#f9a8d4');
-  bar.addColorStop(1, '#e879f9');
+  bar.addColorStop(0, '#f43f5e');
+  bar.addColorStop(0.5, '#f472b6');
+  bar.addColorStop(1, '#c084fc');
   ctx.fillStyle = bar;
-  ctx.fillRect(x0, 14, w * frac, 5);
+  ctx.fillRect(x0, 22, w * frac, 6);
+
+  // Phase markers
   for (const phase of e.card?.phases ?? []) {
     const px = x0 + w * phase.belowHpFrac;
     const passed = frac <= phase.belowHpFrac;
-    ctx.fillStyle = passed ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.4)';
-    ctx.fillRect(px - 0.75, 11, 1.5, 11);
+    ctx.fillStyle = passed ? 'rgba(255,255,255,0.95)' : 'rgba(251,191,36,0.85)';
+    ctx.fillRect(px - 1, 20, 2, 10);
   }
 }
 
@@ -264,7 +298,14 @@ function drawBullets(ctx: CanvasRenderingContext2D, bullets: Bullet[]): void {
     }
     ctx.fillStyle = isWall ? `hsla(${hue}, 95%, 82%, 0.98)` : `hsla(${hue}, 92%, 74%, 0.96)`;
     ctx.fill();
-    ctx.lineWidth = isWall ? 2.2 : 1.35;
+
+    // Sakurai Readability Rule: Dark outer contrast contour so bullets never disappear over light flashes/explosions
+    ctx.lineWidth = isWall ? 3.4 : 2.6;
+    ctx.strokeStyle = 'rgba(5, 5, 15, 0.88)';
+    ctx.stroke();
+
+    // Inner bright stroke
+    ctx.lineWidth = isWall ? 2.0 : 1.2;
     ctx.strokeStyle = `hsla(${hue}, 100%, ${isWall ? 97 : 94}%, ${isWall ? 1 : 0.9})`;
     ctx.stroke();
 

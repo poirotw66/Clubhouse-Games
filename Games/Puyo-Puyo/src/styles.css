@@ -387,6 +387,17 @@ h1 {
   animation: feverPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+.fever-banner-badge.is-mega-burst .fever-banner-img {
+  box-shadow: 0 0 24px rgba(255, 75, 75, 0.85), 0 0 42px rgba(255, 215, 0, 0.75);
+  border: 2px solid #ffd700;
+  animation: megaPulse 0.45s ease-in-out infinite alternate;
+}
+
+@keyframes megaPulse {
+  0% { transform: scale(1); filter: brightness(1); }
+  100% { transform: scale(1.08); filter: brightness(1.25); }
+}
+
 .fever-banner-img {
   width: 130px;
   max-width: 100%;
@@ -553,6 +564,21 @@ kbd {
 .chain-popup[data-intensity="5"] strong {
   color: #b56bff;
   font-size: 24px;
+}
+
+.chain-popup.is-mega {
+  background: rgba(26, 6, 38, 0.94);
+  border: 2px solid rgba(255, 215, 0, 0.85);
+  box-shadow: 0 0 26px rgba(255, 107, 138, 0.6), 0 0 50px rgba(255, 215, 0, 0.45);
+}
+
+.chain-popup[data-intensity="6"] strong,
+.chain-popup[data-intensity="7"] strong,
+.chain-popup.is-mega strong {
+  color: #ffe66d;
+  font-size: 26px;
+  text-shadow: 0 0 14px rgba(255, 230, 109, 0.95), 0 0 26px rgba(255, 107, 138, 0.75);
+  letter-spacing: 0.04em;
 }
 
 .chain-popup.is-visible {

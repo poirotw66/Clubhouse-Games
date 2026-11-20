@@ -170,6 +170,9 @@ export default function App(): React.ReactElement {
     freePlayResultAppliedRef.current = null;
     dailyResultAppliedRef.current = null;
     setShareCopied(false);
+    keysRef.current.clear();
+    bombRef.current = false;
+    specialRef.current = false;
     stateRef.current = state;
     prevSimRef.current = null;
     juiceRef.current = emptyJuice();
@@ -243,6 +246,26 @@ export default function App(): React.ReactElement {
     return map;
   }, []);
 
+  const retryCurrent = useCallback(() => {
+    if (runKindRef.current === 'daily') {
+      startDaily();
+      return;
+    }
+    const modeId = activeModeIdRef.current;
+    if (modeId) startMode(modeId);
+    else startRun();
+  }, [startMode, startRun, startDaily]);
+
+  const pick = useCallback((id: string) => {
+    const s = stateRef.current;
+    if (!s) return;
+    const next = takeUpgrade(s, id);
+    stateRef.current = next;
+    setHud(next);
+    accRef.current = 0;
+    lastRef.current = performance.now();
+  }, []);
+
   // ── Input ──────────────────────────────────────────────────────────────────
 
   const readInput = useCallback((s: RunState): PlayerInput => {
@@ -280,6 +303,39 @@ export default function App(): React.ReactElement {
   useEffect(() => {
     if (screen !== 'playing') return;
     const down = (e: KeyboardEvent): void => {
+      // Sakurai Rapid Retry (gameplay-ux-009): Space/Enter/R to immediately restart when run ended
+      const s = stateRef.current;
+      if (s && (s.phase === 'lost' || s.phase === 'won')) {
+        if (e.code === 'Space' || e.code === 'Enter' || e.code === 'KeyR') {
+          e.preventDefault();
+          retryCurrent();
+          return;
+        }
+      }
+
+      // Quick 1/2/3 selection during Roguelike upgrade draft
+      if (s?.phase === 'upgrade') {
+        if (e.code === 'Digit1' || e.code === 'Numpad1') {
+          if (s.offered[0]) {
+            e.preventDefault();
+            pick(s.offered[0]);
+            return;
+          }
+        } else if (e.code === 'Digit2' || e.code === 'Numpad2') {
+          if (s.offered[1]) {
+            e.preventDefault();
+            pick(s.offered[1]);
+            return;
+          }
+        } else if (e.code === 'Digit3' || e.code === 'Numpad3') {
+          if (s.offered[2]) {
+            e.preventDefault();
+            pick(s.offered[2]);
+            return;
+          }
+        }
+      }
+
       if (e.code === 'KeyP' || e.code === 'Escape') {
         e.preventDefault();
         setPaused((p) => !p);
@@ -449,26 +505,6 @@ export default function App(): React.ReactElement {
       haptic('error');
     }
   }, [hud]);
-
-  const pick = useCallback((id: string) => {
-    const s = stateRef.current;
-    if (!s) return;
-    const next = takeUpgrade(s, id);
-    stateRef.current = next;
-    setHud(next);
-    accRef.current = 0;
-    lastRef.current = performance.now();
-  }, []);
-
-  const retryCurrent = useCallback(() => {
-    if (runKindRef.current === 'daily') {
-      startDaily();
-      return;
-    }
-    const modeId = activeModeIdRef.current;
-    if (modeId) startMode(modeId);
-    else startRun();
-  }, [startMode, startRun, startDaily]);
 
   const shareDailyResult = useCallback(async () => {
     if (!hud) return;
@@ -948,7 +984,7 @@ export default function App(): React.ReactElement {
                   第 {s.stage} 階段結束 — 選擇一項強化
                 </p>
                 <div className="grid gap-2">
-                  {s.offered.map((id) => {
+                  {s.offered.map((id, idx) => {
                     const u = UPGRADE_BY_ID[id];
                     if (!u) return null;
                     return (
@@ -958,7 +994,7 @@ export default function App(): React.ReactElement {
                         onClick={() => pick(id)}
                         className={`da-upgrade-card ${RARITY_CLASS[u.rarity] ?? 'rarity-common'}`}
                       >
-                        <span className="font-black">{u.name}</span>
+                        <span className="font-black">[{idx + 1}] {u.name}</span>
                         <span className="mt-0.5 block text-sm text-slate-400">{u.text}</span>
                         {u.conditional && (
                           <span className="mt-1 block text-xs text-fuchsia-300">
@@ -1110,7 +1146,7 @@ export default function App(): React.ReactElement {
                   ]
                 : []),
             ]}
-            primaryLabel={activeMode ? '再挑戰' : isDailyRun ? '再刷今日' : '再潛一次'}
+            primaryLabel={activeMode ? '再挑戰 (Space)' : isDailyRun ? '再刷今日 (Space)' : '再潛一次 (Space)'}
             onPrimary={retryCurrent}
             secondaryLabel="回標題"
             onSecondary={() => setScreen('menu')}

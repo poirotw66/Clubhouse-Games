@@ -1126,7 +1126,7 @@ const STR = {
     s3a: '③ 左右推進器（← →）', s3b: '單鍵翻滾、雙鍵向上推；倒掛時雙鍵會推向地面！',
     s4a: '④ 輪胎朝下著地', s4b: '著地速度 ≤ 18 km/h、迴轉要收乾淨；翻滾一圈 50 分起跳',
     hint: '吸附與推進器共用壓縮空氣 · M 靜音 · R 重來 · L 排行榜',
-    start: '—— 按 SPACE 開始 ——', again: '—— 按 SPACE 再來一次 ——',
+    start: '—— 按 SPACE 開始 ——', again: '再試一次 (Space)',
     footer: '參數逆向自 tsuyatt.com 宙返りロードスター · Three.js 3D 復刻',
     hudAir: '空氣 AIR', hudSpeed: '速度 SPEED', hudHeight: '高度 HEIGHT', hudDist: '距離 DIST', hudRolls: '翻滾 ROLLS', best: '最佳',
     suckOn: '◉ 吸附中',
@@ -1243,7 +1243,7 @@ const STR = {
     s3a: '③ SIDE THRUSTERS (← →)', s3b: 'One key rolls you, both push up; both while inverted push you into the ground!',
     s4a: '④ LAND ON THE TIRES', s4b: 'Touch down ≤ 18 km/h, settle the spin; 50 pts per full roll and up',
     hint: 'Stick and thrusters share compressed air · M mute · R restart · L ranking',
-    start: '—— PRESS SPACE TO START ——', again: '—— PRESS SPACE TO RETRY ——',
+    start: '—— PRESS SPACE TO START ——', again: 'Retry (Space)',
     footer: 'Physics reverse-engineered from tsuyatt.com 宙返りロードスター · Three.js 3D tribute',
     hudAir: 'AIR', hudSpeed: 'SPEED', hudHeight: 'HEIGHT', hudDist: 'DIST', hudRolls: 'ROLLS', best: 'BEST',
     suckOn: '◉ STICKING',
@@ -2478,8 +2478,19 @@ addEventListener('keydown', e => {
   }
   if (boardOn) { // ranking overlay open: game keys do nothing, Space closes
     if (KEYMAP[e.code]) e.preventDefault();
-    if (e.code === 'Space' && !e.repeat) closeBoard();
+    if ((e.code === 'Space' || e.code === 'Enter' || e.code === 'Escape') && !e.repeat) closeBoard();
     return;
+  }
+  // Sakurai Rapid Retry (gameplay-ux-009): Space/Enter/R to immediately restart when run ended
+  if (screen === 'result') {
+    if (e.code === 'Space' || e.code === 'Enter' || e.code === 'KeyR') {
+      e.preventDefault();
+      if (!e.repeat) {
+        ensureAudio();
+        resetRun();
+      }
+      return;
+    }
   }
   const act = KEYMAP[e.code];
   if (!act) return;

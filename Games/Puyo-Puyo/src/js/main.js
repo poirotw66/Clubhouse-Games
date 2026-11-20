@@ -696,8 +696,8 @@
     ui.resultP2Label.textContent = solo ? '模式' : players[1].label + ' 分數';
     ui.resultP2ChainLabel.textContent = solo
       ? match.timeLimitSec
-        ? '剩餘時間／手数'
-        : '剩餘手数'
+        ? '剩餘時間／手數'
+        : '剩餘手數'
       : players[1].label + ' 最大連鎖';
     ui.p2ControlsList.innerHTML = isVersusMode()
       ? '<li><kbd>A</kbd> <kbd>D</kbd> 左右移動</li>'
@@ -870,7 +870,7 @@
     }
 
     if (isSoloMode() && match.quest && match.movesLeft <= 0 && !state.pair) {
-      finishSolo(false, '手数用盡，未達成任務目標。');
+      finishSolo(false, '手數用盡，未達成任務目標。');
       return;
     }
 
@@ -1160,6 +1160,26 @@
       }
       A.playPop(state.chain);
       if (J) J.onPop(state.chain, player.field);
+      if (state.chain >= 7 && J) {
+        if (typeof J.onMegaBurst === 'function') {
+          J.onMegaBurst(state.chain, player.field);
+        } else {
+          var shell = (player.field && player.field.closest) ? player.field.closest('.field-frame') : player.field;
+          var extra = Math.max(0, state.chain - 7);
+          var shakeIntensity = Math.min(3.2, 2.2 + extra * 0.25);
+          var confettiCount = Math.min(75, 42 + extra * 8);
+          if (typeof J.shake === 'function') J.shake(shell, shakeIntensity);
+          if (typeof J.particles === 'function') {
+            J.particles('confetti', { el: shell || player.field, count: confettiCount, strength: 1.35 });
+            J.particles('burst', { el: shell || player.field, count: 20, strength: 1.4 });
+          }
+        }
+        var arena = document.getElementById('versus-layout');
+        if (arena && typeof J.shake === 'function') {
+          var extraArena = Math.max(0, state.chain - 7);
+          J.shake(arena, Math.min(2.0, 1.25 + extraArena * 0.2));
+        }
+      }
       showPopup(
         player,
         state.chain > 1 ? state.chain + ' 連鎖！' : '消除！',
@@ -1295,7 +1315,7 @@
     } else {
       ui.matchStatus.textContent = '難度 ' + match.difficulty.label + '：CPU 會做 '
         + match.difficulty.lookahead + ' 手前瞻'
-        + (match.difficulty.asyncPlan ? '（分帧思考，不卡住畫面）' : '')
+        + (match.difficulty.asyncPlan ? '（分幀思考，不卡住畫面）' : '')
         + (match.difficulty.buildBias > 0.5 ? '並主動蓄連鎖／伺機反擊' : '')
         + '，垃圾每回合最多落下 '
         + match.difficulty.garbageDropCap + ' 顆。';
@@ -1304,29 +1324,35 @@
 
   function showPopup(player, title, detail, intensity) {
     var chainNum = intensity > 1 ? intensity : 0;
-    var isFever = chainNum >= 4 || (title && (title.indexOf('全清') >= 0 || title.indexOf('All Clear') >= 0));
-    var feverBannerHtml = isFever
-      ? '<div class="fever-banner-badge"><img class="fever-banner-img" src="./art/banner-fever.jpg" alt="FEVER!!" /></div>'
-      : '';
+    var isFever = chainNum >= 4 || (title && (title.indexOf('全清') >= 0 || title.indexOf('All Clear') >= 0 || title.indexOf('全消') >= 0));
+    var isMega = chainNum >= 7;
+    var feverBannerHtml = isMega
+      ? '<div class="fever-banner-badge is-mega-burst"><img class="fever-banner-img" src="./art/banner-fever.jpg" alt="FEVER MEGA BURST!!" /></div>'
+      : (isFever
+        ? '<div class="fever-banner-badge"><img class="fever-banner-img" src="./art/banner-fever.jpg" alt="FEVER!!" /></div>'
+        : '');
     if (chainNum > 1 && !prefersReducedMotion) {
       player.popup.innerHTML =
         feverBannerHtml +
         '<strong><span class="chain-count" data-target="' +
         chainNum +
-        '">1</span> 連鎖！</strong><span>' +
+        '">1</span> 連鎖！' +
+        (isMega ? ' 💥 MEGA' : '') +
+        '</strong><span>' +
         detail +
         '</span>';
       animateChainCount(player.popup.querySelector('.chain-count'), chainNum);
     } else {
-      player.popup.innerHTML = feverBannerHtml + '<strong>' + title + '</strong><span>' + detail + '</span>';
+      player.popup.innerHTML = feverBannerHtml + '<strong>' + title + (isMega ? ' 💥 MEGA' : '') + '</strong><span>' + detail + '</span>';
     }
-    player.popup.dataset.intensity = String(Math.min(intensity, 5));
+    player.popup.dataset.intensity = String(Math.min(intensity, 7));
+    player.popup.classList.toggle('is-mega', isMega);
     player.popup.classList.toggle('reduced-motion', prefersReducedMotion);
     player.popup.classList.remove('is-visible');
     void player.popup.offsetWidth;
     player.popup.classList.add('is-visible');
     if (player.popupTimer) global.clearTimeout(player.popupTimer);
-    player.popupTimer = global.setTimeout(function () { hidePopup(player); }, prefersReducedMotion ? 700 : 1200);
+    player.popupTimer = global.setTimeout(function () { hidePopup(player); }, prefersReducedMotion ? 700 : (isMega ? 1600 : 1200));
   }
 
   function animateChainCount(el, target) {

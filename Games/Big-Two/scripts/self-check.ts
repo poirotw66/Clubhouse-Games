@@ -61,7 +61,7 @@ import {
   opponentById,
   opponentCount,
 } from '../src/game/opponents.js';
-import { buildHandReview } from '../src/game/review.js';
+import { buildHandReview, powerPlayAlert } from '../src/game/review.js';
 import {
   computeTacticalRadar,
   dangerLevelForCount,
@@ -752,7 +752,7 @@ function expectCardMemory(): void {
   assert.equal(remainingCards(state).length, 52 - open.cards.length);
 }
 
-/** Hand review always yields at least one lesson. */
+/** Hand review and table power play alerts. */
 function expectHandReview(): void {
   const state = playOut('review-seed', 'normal', 'topCard');
   const end = outcome(state);
@@ -760,6 +760,79 @@ function expectHandReview(): void {
   const review = buildHandReview(state, end!);
   assert.ok(review.lessons.length >= 1);
   assert.ok(review.highlight.length > 0);
+
+  // Power play alerts verification across all power hierarchies
+  assert.equal(powerPlayAlert(null), null);
+  assert.equal(powerPlayAlert({ type: 'single', cards: [{ rank: 3, suit: 'clubs' }] }), null);
+
+  const sf = powerPlayAlert({
+    type: 'straightFlush',
+    cards: [
+      { rank: 3, suit: 'spades' },
+      { rank: 4, suit: 'spades' },
+      { rank: 5, suit: 'spades' },
+      { rank: 6, suit: 'spades' },
+      { rank: 7, suit: 'spades' },
+    ],
+  });
+  assert.ok(sf);
+  assert.equal(sf.tone, 'bomb');
+  assert.ok(sf.text.includes('同花順'));
+
+  const quads = powerPlayAlert({
+    type: 'quads',
+    cards: [
+      { rank: 9, suit: 'spades' },
+      { rank: 9, suit: 'hearts' },
+      { rank: 9, suit: 'diamonds' },
+      { rank: 9, suit: 'clubs' },
+      { rank: 3, suit: 'clubs' },
+    ],
+  });
+  assert.ok(quads);
+  assert.equal(quads.tone, 'bomb');
+  assert.ok(quads.text.includes('鐵支'));
+
+  const spadeTwo = powerPlayAlert({
+    type: 'single',
+    cards: [{ rank: 2, suit: 'spades' }],
+  });
+  assert.ok(spadeTwo);
+  assert.equal(spadeTwo.tone, 'spade2');
+  assert.ok(spadeTwo.text.includes('黑桃至尊'));
+
+  const pairDeuce = powerPlayAlert({
+    type: 'pair',
+    cards: [
+      { rank: 2, suit: 'hearts' },
+      { rank: 2, suit: 'diamonds' },
+    ],
+  });
+  assert.ok(pairDeuce);
+  assert.equal(pairDeuce.tone, 'deuce');
+  assert.ok(pairDeuce.text.includes('雙老二'));
+
+  const singleDeuce = powerPlayAlert({
+    type: 'single',
+    cards: [{ rank: 2, suit: 'hearts' }],
+  });
+  assert.ok(singleDeuce);
+  assert.equal(singleDeuce.tone, 'deuce');
+  assert.ok(singleDeuce.text.includes('老二強勢控場'));
+
+  const fullHouse = powerPlayAlert({
+    type: 'fullHouse',
+    cards: [
+      { rank: 8, suit: 'spades' },
+      { rank: 8, suit: 'hearts' },
+      { rank: 8, suit: 'diamonds' },
+      { rank: 4, suit: 'clubs' },
+      { rank: 4, suit: 'diamonds' },
+    ],
+  });
+  assert.ok(fullHouse);
+  assert.equal(fullHouse.tone, 'monster');
+  assert.ok(fullHouse.text.includes('葫蘆'));
 }
 
 /** Taipei daily seed is stable for a calendar day and drives a 5-hand table. */
