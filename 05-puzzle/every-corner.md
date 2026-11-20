@@ -266,6 +266,28 @@ src/game/
   storage.ts       進度、每日／週挑戰、統計（含 parse 驗證）
 ```
 
+## 櫻井政博風格打擊感與手感強化（Sakurai Game Feel Upgrades）
+
+本作在第 7 波體驗優化中，全面落實櫻井政博（Masahiro Sakurai）遊戲設計哲學：
+
+1. **實體撞擊與震屏層級（fx-004 Impact & Screen Shake）**：
+   - **走線微震**：每次電路向前延伸觸發輕微觸覺回饋（`haptic('tap')`）與微小震動（`shake 0.08`），呈現電子線路通電的咬合手感。
+   - **檢查點導通（Checkpoint Latch）**：當線頭接通編號繼電器時，觸發成功觸感（`haptic('success')`）、中度螢幕微震（`shake 0.22`）與金色火花粒子（`particles('sparkle')`）。
+   - **孤島斷路過載警報**：當拓撲演算法偵測到有格子被封死形成斷路時，觸發警告震動（`shake 0.35`）與錯誤觸覺（`haptic('error')`）。
+   - **全盤大放電通關衝擊**：成功走滿全盤時，配合 7 階層疊光速琶音觸發終極螢幕衝擊（`shake 0.75`）、勝利觸感（`haptic('win')`）與滿屏彩帶紙花（`particles('confetti')`）。
+
+2. **音高階梯與節奏回饋（fx-005 Audio Pitch Ramp）**：
+   - 採用原生 Web Audio 合成五聲音階琶音，連線越長頻率逐漸上揚；回溯時觸發平滑降頻回流音；全盤導通時釋放超重低音下潛脈衝。
+
+3. **風險與回報（gameplay-core-001 Risk & Reward）**：
+   - 線路拓撲即時遙測（等效阻抗、導通百分比、斷路孤島偵測），在斷路形成的瞬間給予直觀視覺與聽覺警報，並提供「⚡ 倒回安全點」快速脫困。
+
+4. **極速重試與零延遲再戰（gameplay-ux-009 Rapid Retry）**：
+   - 在結算彈窗（`ResultOverlay`）出現時，支援鍵盤 <kbd>Space</kbd>、<kbd>Enter</kbd> 或 <kbd>R</kbd> 鍵秒速觸發再試或開新題，省去滑鼠精確瞄準點擊之操作延遲。
+
+5. **打擊感偏好面板（Juice Settings Integration）**：
+   - 在標題選單與右側遙測儀表板皆內嵌 `<JuiceSettingsPanel compact />`，讓玩家自由調整震動強弱、紙花火花特效與觸覺回饋。
+
 ## 備註
 
 題目全部由程式即時生成，不含任何第三方的題庫或美術資源。

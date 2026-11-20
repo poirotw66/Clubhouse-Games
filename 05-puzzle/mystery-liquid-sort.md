@@ -114,6 +114,24 @@ Home「機制挑戰」入口；6 關新手感機制：
 - **行動端頂部緊湊戰術速報條（Tactical Quick Strip）**：
   - 行動版頂部整合戰術微型速報條，支援一鍵開啟左翼光譜儀與右翼錦囊抽屜，兼顧觸控舒適度與決策深度。
 
+## 櫻井政博遊戲手感與體驗設計
+
+本遊戲遵循櫻井政博遊戲設計哲學進行手感與操作流暢度調校：
+
+- **fx-004 物理注水與試管著底微震（Physical Pour & Shake）**：
+  - 試管倒水時具備微物理液體下落流束與著底微震（`juice.shake(..., 0.15)`），強化流體注水觸感。
+  - 完成單管純色封裝時激發昇華星芒微粒與著底肯定震動（`shake 0.35`，`juice.haptic('win')`）。
+  - 全場通關時觸發彩帶粒子爆發與全螢幕勝利慶典震動（`shake 0.8`）；死局無路可走時給予柔和警告微震（`shake 0.5`，`haptic('error')`）。
+- **fx-005 滿管水晶音階與連鎖節奏（Crystal Chime & Pitch Ascent）**：
+  - 接入 Web Audio 物理注水汩汩聲與滿管昇華金色晶瑩和弦（Sublimation Chime），連續滿管觸發音高遞增琶音。
+- **gameplay-core-001 風險回報與決策深度（Risk vs Return）**：
+  - 快速遊玩提供限步與限時雙重極限挑戰模式，機制挑戰設置 3 星最少步數（Min Steps）標竿。
+  - 雙翼座艙即時預警可行航道與死局過載指數，降低盲目嘗試的無謂挫折感。
+- **gameplay-ux-009 快速重試與全鍵盤零摩擦操作（Rapid Retry & Zero Friction）**：
+  - 結算畫面（過關或失敗）全局監聽 <kbd>Space</kbd>、<kbd>Enter</kbd>、<kbd>R</kbd> 快捷鍵，瞬間進入下一關或原地重開局，無須移動滑鼠。
+  - 結算主要按鈕標註 `(Space / Enter / R)`。
+  - 設定選單內嵌手感與打擊反饋控制面板（`JuiceSettingsPanel`），尊重玩家個別震動偏好。
+
 ## 品質門檻對齊
 
 對照 [`docs/GAME-QUALITY-BAR.md`](../docs/GAME-QUALITY-BAR.md)：

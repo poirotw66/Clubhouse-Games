@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { haptic, particles, shake } from '@clubhouse/shared/juice';
+import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { playGoal, playLose, playScore, playWin } from '@clubhouse/shared/synthAudio';
 import { TouchButton } from '@clubhouse/shared/TouchButton';
@@ -98,6 +100,7 @@ export default function App(): React.ReactElement {
   const dailyStats = useMemo(() => summarise(dailyRecords, today), [dailyRecords, today]);
   const startedAt = useRef<number>(0);
   const prevDeadEnd = useRef(false);
+  const boardRef = useRef<HTMLDivElement>(null);
 
   const total = puzzle ? playableCount(puzzle.size, puzzle.blocked) : 0;
   const complete = puzzle !== null && path.length === total && path.length > 0;
@@ -126,6 +129,8 @@ export default function App(): React.ReactElement {
     if (!circuit || complete) return;
     if (circuit.hasDeadEnd && !prevDeadEnd.current) {
       playOverloadAlarm();
+      haptic('error');
+      shake(boardRef.current, 0.35);
     }
     prevDeadEnd.current = circuit.hasDeadEnd;
   }, [circuit?.hasDeadEnd, complete]);
@@ -134,6 +139,8 @@ export default function App(): React.ReactElement {
   const rollbackToSafe = useCallback(() => {
     if (!circuit || circuit.safeRollbackLength === null) return;
     playSafeRollback();
+    haptic('impact');
+    shake(boardRef.current, 0.15);
     setPath((current) => current.slice(0, circuit.safeRollbackLength!));
     setRevealed([]);
     setHintMessage(null);
@@ -145,6 +152,8 @@ export default function App(): React.ReactElement {
       const idx = path.indexOf(cell);
       if (idx !== -1 && idx < path.length - 1) {
         playCircuitRetract();
+        haptic('impact');
+        shake(boardRef.current, 0.15);
         setPath((current) => current.slice(0, idx + 1));
         setRevealed([]);
         setHintMessage(null);
@@ -262,6 +271,8 @@ export default function App(): React.ReactElement {
     if (!gaveUp || sfxDone.current) return;
     sfxDone.current = true;
     playLose();
+    haptic('error');
+    shake(boardRef.current, 0.35);
     setShowResult(true);
   }, [gaveUp]);
 
@@ -272,6 +283,9 @@ export default function App(): React.ReactElement {
     }
     sfxDone.current = true;
     playFullGridDischarge();
+    haptic('win');
+    shake(boardRef.current, 0.75);
+    particles('confetti');
     window.setTimeout(() => {
       playWin();
       setShowResult(true);
@@ -343,12 +357,14 @@ export default function App(): React.ReactElement {
       if (event.key === 'Backspace' || event.key === 'z' || event.key === 'Z') {
         event.preventDefault();
         playCircuitRetract();
+        haptic('tap');
         setPath((p) => p.slice(0, -1));
         return;
       }
       if (event.key === 'r' || event.key === 'R') {
         event.preventDefault();
         playCircuitRetract();
+        haptic('tap');
         setPath([]);
         setRevealed([]);
         setHintMessage(null);
@@ -375,6 +391,9 @@ export default function App(): React.ReactElement {
           if (start) {
             const startCell = Number(start[0]);
             playCircuitExtend(1, true);
+            haptic('success');
+            shake(boardRef.current, 0.22);
+            particles('sparkle');
             return [startCell];
           }
           return current;
@@ -387,6 +406,7 @@ export default function App(): React.ReactElement {
         if (holes.has(next)) return current;
         if (current.length >= 2 && next === current[current.length - 2]) {
           playCircuitRetract();
+          haptic('tap');
           return current.slice(0, -1);
         }
         if (current.includes(next)) return current;
@@ -394,12 +414,51 @@ export default function App(): React.ReactElement {
 
         const isCp = puzzle.checkpoints[next] !== undefined;
         playCircuitExtend(current.length + 1, isCp);
+        if (isCp) {
+          haptic('success');
+          shake(boardRef.current, 0.22);
+          particles('sparkle');
+        } else {
+          haptic('tap');
+          shake(boardRef.current, 0.08);
+        }
         return [...current, next];
       });
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [screen, puzzle, useHint, complete]);
+
+  // Rapid Retry on result overlay
+  useEffect(() => {
+    if (!showResult || (!solved && !gaveUp) || !puzzle) return;
+    const handleOverlayKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+      if (e.key === ' ' || e.key === 'Enter' || e.key === 'r' || e.key === 'R') {
+        e.preventDefault();
+        if (gaveUp) {
+          open(puzzle.seedCode, puzzle.difficulty, {
+            daily: isDaily,
+            weekly: isWeekly,
+            weeklyDay: weeklyDayIndex,
+            blocked: blockedCount,
+          });
+        } else if (solved) {
+          if (isWeekly) {
+            setScreen('weekly');
+          } else {
+            open(randomSeedCode(), puzzle.difficulty, {
+              blocked: puzzle.variant === 'blocked' ? blockedCount : 0,
+            });
+          }
+        }
+      }
+    };
+    window.addEventListener('keydown', handleOverlayKey);
+    return () => window.removeEventListener('keydown', handleOverlayKey);
+  }, [showResult, solved, gaveUp, puzzle, isDaily, isWeekly, weeklyDayIndex, blockedCount, open]);
 
   const modeLabel = (): string => {
     if (!puzzle) return '';
@@ -675,6 +734,11 @@ export default function App(): React.ReactElement {
               <div />
             )}
           </div>
+
+          <section className="ec-card p-4">
+            <h2 className="text-sm font-bold text-slate-200 mb-2">打擊回饋偏好</h2>
+            <JuiceSettingsPanel compact />
+          </section>
         </div>
         <AchievementToast ids={toastIds} onDismiss={() => setToastIds([])} />
       </div>
@@ -897,7 +961,7 @@ export default function App(): React.ReactElement {
             )}
 
             {/* Board Container */}
-            <div className="ec-card p-3 shadow-2xl relative border border-violet-500/30">
+            <div ref={boardRef} className="ec-card p-3 shadow-2xl relative border border-violet-500/30">
               <Board
                 puzzle={puzzle}
                 path={path}
@@ -907,8 +971,17 @@ export default function App(): React.ReactElement {
                     const lastCell = next[next.length - 1];
                     const isCp = puzzle.checkpoints[lastCell] !== undefined;
                     playCircuitExtend(next.length, isCp);
+                    if (isCp) {
+                      haptic('success');
+                      shake(boardRef.current, 0.22);
+                      particles('sparkle');
+                    } else {
+                      haptic('tap');
+                      shake(boardRef.current, 0.08);
+                    }
                   } else if (next.length < path.length) {
                     playCircuitRetract();
+                    haptic('tap');
                   }
                   setPath(next);
                   setRevealed([]);
@@ -1050,6 +1123,12 @@ export default function App(): React.ReactElement {
                   </div>
                 </div>
               </div>
+
+              {/* Juice & Haptic Settings */}
+              <div className="mb-3.5 p-2.5 rounded-xl bg-slate-900/80 border border-violet-500/20">
+                <div className="text-[11px] font-medium text-violet-200/80 mb-1.5">打擊回饋設定</div>
+                <JuiceSettingsPanel compact />
+              </div>
             </div>
 
             <div className="pt-2 border-t border-violet-500/20 text-[10px] text-slate-400 flex items-center justify-between">
@@ -1062,7 +1141,7 @@ export default function App(): React.ReactElement {
         {gaveUp && showResult && (
           <ResultOverlay
             title="這是答案"
-            subtitle="沒有計入紀錄。看一遍它怎麼繞過去，下一題會好一點。"
+            subtitle="沒有計入紀錄。看一遍它怎麼繞過去，下一題會好一點。(Space / Enter / R 鍵立即重試)"
             variant="neutral"
             stats={[
               { label: '用時', value: formatDuration(elapsedMs) },
@@ -1091,13 +1170,13 @@ export default function App(): React.ReactElement {
           <ResultOverlay
             title="走透透了！"
             subtitle={
-              isWeekly
+              (isWeekly
                 ? `本週進度 ${weeklyProgressCount(thisWeek)} / 7`
                 : isDaily && dailyStats.streak > 0
                   ? `連續 ${dailyStats.streak} 天完成每日挑戰`
                   : hintsUsed > 0
                     ? `用了 ${hintsUsed} 次提示`
-                    : '沒有用提示・完美閉環！'
+                    : '沒有用提示・完美閉環！') + ' (Space / Enter / R 繼續)'
             }
             variant="win"
             stats={[

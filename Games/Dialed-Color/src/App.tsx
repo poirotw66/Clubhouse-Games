@@ -24,6 +24,8 @@ import {
 } from 'lucide-react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
+import { haptic, particles, shake } from '@clubhouse/shared/juice';
 import { playLose, playScore, playWin, playGoal, playMove } from '@clubhouse/shared/synthAudio';
 import { calculateScore, scoreToAccuracy, scoreEmoji } from './score.mjs';
 import {
@@ -116,6 +118,7 @@ export default function App() {
   const [mobileTab, setMobileTab] = useState<MobileTab>('cockpit');
 
   const blitzEndRef = useRef(0);
+  const boardRef = useRef<HTMLDivElement>(null);
   const finishedRef = useRef(false);
   const todayKey = useMemo(() => dateKey(), []);
   const dailyStreak = useMemo(
@@ -302,9 +305,20 @@ export default function App() {
         setDailyRecords(updated);
       }
 
-      if (failed) playLose();
-      else if (newBest || avg >= 700) playWin();
-      else playLose();
+      if (failed) {
+        playLose();
+        haptic('error');
+        shake(boardRef.current, 0.35);
+      } else if (newBest || avg >= 700) {
+        playWin();
+        haptic('success');
+        shake(boardRef.current, 0.7);
+        particles('confetti');
+      } else {
+        playLose();
+        haptic('error');
+        shake(boardRef.current, 0.3);
+      }
     },
     [bests, stats, gameMode, showMs, dailyRecords, todayKey],
   );
@@ -392,7 +406,15 @@ export default function App() {
     const newScores = [...roundScores, roundScore];
     setUserGuesses(newGuesses);
     setRoundScores(newScores);
-    if (roundScore >= 850) playGoal();
+    if (roundScore >= 850) {
+      playGoal();
+      haptic('success');
+      shake(boardRef.current, 0.25);
+      particles('sparkle');
+    } else {
+      haptic('tap');
+      shake(boardRef.current, 0.12);
+    }
     setGameState('feedback');
   }, [userGuesses, currentColor, targetColors, currentStep, roundScores]);
 
@@ -428,6 +450,14 @@ export default function App() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement && e.target.type === 'text') return;
       if (e.target instanceof HTMLTextAreaElement) return;
+
+      if (gameState === 'results' && showResultOverlay) {
+        if (e.key === ' ' || e.key === 'Enter' || e.key === 'r' || e.key === 'R') {
+          e.preventDefault();
+          setShowResultOverlay(false);
+          return;
+        }
+      }
 
       if (gameState === 'guessing') {
         const step = e.shiftKey ? 10 : 1;
@@ -506,7 +536,7 @@ export default function App() {
       <BackToMenu />
 
       {/* Main Cockpit Stage Container */}
-      <div className="stage-content w-full max-w-7xl flex flex-col items-center justify-center py-6 sm:py-10">
+      <div ref={boardRef} className="stage-content w-full max-w-7xl flex flex-col items-center justify-center py-6 sm:py-10">
         {/* Mobile Tactical Bar (Visible < lg screens) */}
         <TacticalMobileBar
           activeTab={mobileTab}
@@ -1105,6 +1135,10 @@ export default function App() {
                   ? '不蒐集個人資料。分數、統計與每日連勝僅存在你的瀏覽器本機，不會上傳。'
                   : '分數依猜測色與目標色在 HSL 空間的距離計算。完全一致為 999 分。每日挑戰以台北時區日期種子產生，當天所有人同一組色。闖關與生存需達門檻才繼續；閃擊限時 60 秒累計分數。分享結果以 🟩🟨🟧⬛ 表示各回合精準度。亦可在戰情室體驗 360° 光譜調色雷達、波長估算與光矩陣點燈解鎖模式。'}
               </p>
+              <div className="pt-2 border-t border-white/10">
+                <span className="text-white text-xs font-semibold block mb-2">手感與打擊反饋</span>
+                <JuiceSettingsPanel compact />
+              </div>
               <button type="button" onClick={() => setShowModal(null)} className="btn-primary w-full">
                 關閉
               </button>

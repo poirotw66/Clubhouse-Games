@@ -89,3 +89,23 @@
 | Feedback | **永久 ～**（專屬 3D 馬場環繞運鏡、完賽慢鏡頭重播黑邊、三連戰頒獎台結算 UI；詳見 `docs/GAME-QUALITY-BAR.md`）、全合成 WebAudio 有機椰殼／原木馬蹄與草皮摩擦聲、步態和弦、柔和歡呼與倒數鐘聲、4段音量與快速靜音 |
 | Touch | 底部四色馬腿藥丸按鈕、破風衝刺鍵、跨欄跳躍鍵、左右重心平衡鍵，支援多點觸控與行動抽屜遙測儀表 |
 | Check | `npm run check` → `src/check-physics.mjs`、`src/check-stride-coach.mjs`、`src/check-paddock.mjs` |
+
+## 櫻井政博風格打擊感與手感強化（Sakurai Game Feel Upgrades）
+
+本作在第 7 波體驗優化中，全面落實櫻井政博（Masahiro Sakurai）遊戲設計哲學：
+
+1. **實體撞擊與多層級震屏（fx-004 Impact & Screen Shake）**：
+   - **完美跨欄衝擊（Perfect Hurdle Impact）**：抓準黃金起跳視窗觸發「★ PERFECT HURDLE」時，伴隨金色璀璨星光釋放中高強度鏡頭震動（`camShake 0.42`）與三段觸覺節奏脈衝（`buzz([70, 40, 100])`）。
+   - **高空騰躍著地微震（Landing Micro-shake）**：起跳越過障礙或高速騰空下墜觸地瞬間，觸發著地微震（`camShake 0.24`）、草皮塵土爆裂與蹄部著地觸感（`buzz(40)`）。
+   - **欄架碰撞重擊**：未及時起跳擦撞障礙欄時，鏡頭強烈震顫（`camShake 0.55`）伴隨木欄碎裂聲響與體力扣減。
+   - **衝線勝利震撼**：衝過 50 公尺終點線時，配合看台歡呼、號角樂與漫天彩帶，觸發強烈勝利震屏（`camShake 0.65`）與勝利觸覺（`buzz([60, 50, 60, 50, 180])`）。
+   - **失衡翻滾跌倒**：側翻或前後倒地時，觸發雙重沉悶撞擊與相機搖晃（`camShake 0.5`）。
+
+2. **音高階梯與步態律動（fx-005 Audio Pitch Ramp）**：
+   - 有機椰殼／原木馬蹄音效，隨連續對角步態推進，在進階至 Trot（x4）、Fever（x8）與 Super Fever（x16）時分別釋放逐級上升的鋼片琴諧和音階；完美跨欄釋放五階層疊三角波滑音與馬嘶鼻息。
+
+3. **風險與回報（gameplay-core-001 Risk & Reward）**：
+   - 壓身破風衝刺（Shift）可大幅降低風阻換取極速，但急遽耗損體力；黃金跨欄視窗給予速度爆發與體力回補，若猶豫過早或過晚則會失速撞欄。
+
+4. **極速重試與零延遲再跑（gameplay-ux-009 Rapid Retry）**：
+   - 在完賽或時間到結算畫面（`resultScreen`）出現時，支援鍵盤 <kbd>Space</kbd>、<kbd>Enter</kbd> 或 <kbd>R</kbd> 鍵秒速開啟下一場或再跑一次，完全省去滑鼠點擊延遲。

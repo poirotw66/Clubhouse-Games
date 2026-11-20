@@ -408,6 +408,7 @@ export default function Game() {
             sounds.win();
             juice.haptic('win');
             juice.particles('confetti', { count: 48, strength: 1.5 });
+            juice.shake(document.getElementById('cockpit-stage'), 0.8);
             setCelebratedWin(true);
             if (gameState.mode === 'quick_play' && gameState.difficultyLabel) {
               const moves = gameState.history.length;
@@ -866,6 +867,7 @@ export default function Game() {
                 sounds.bottleComplete();
                 juice.haptic('win');
                 juice.particles('confetti', { count: 28, strength: 1.2 });
+                juice.shake(document.getElementById('cockpit-stage'), 0.35);
             }
 
             const isWin = checkLevelComplete(currentBottles, prev.orders);
@@ -1191,7 +1193,20 @@ export default function Game() {
                 }
                 return;
             }
-            if (gameState.isWin || isLose || processingMatch) return;
+
+            if (gameState.isWin || isLose) {
+                if (e.key === ' ' || e.key === 'Enter' || e.key === 'r' || e.key === 'R') {
+                    e.preventDefault();
+                    if (gameState.isWin) {
+                        handleNextLevel();
+                    } else {
+                        handleRestart();
+                    }
+                    return;
+                }
+            }
+
+            if (processingMatch) return;
 
             const key = e.key;
 
@@ -1626,7 +1641,7 @@ export default function Game() {
                           : []),
                     ]}
                     primaryLabel={
-                      gameState.mode === 'adventure'
+                      (gameState.mode === 'adventure'
                         ? '下一關'
                         : gameState.mode === 'puzzle_pack' ||
                             gameState.mode === 'mix_challenge' ||
@@ -1636,7 +1651,7 @@ export default function Game() {
                             : '下一關'
                           : gameState.mode === 'daily'
                             ? '回主頁'
-                          : '再來一局'
+                          : '再來一局') + ' (Space / Enter / R)'
                     }
                     onPrimary={handleNextLevel}
                 />
@@ -1660,7 +1675,7 @@ export default function Game() {
                           ? [{ label: '時限（秒）', value: initialTimeLimitSec }]
                           : []),
                     ]}
-                    primaryLabel="再來一局"
+                    primaryLabel="再來一局 (Space / Enter / R)"
                     onPrimary={() => {
                       setIsLose(false);
                       setLoseReason('');

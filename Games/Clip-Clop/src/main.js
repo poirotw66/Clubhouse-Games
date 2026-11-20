@@ -88,7 +88,7 @@ const I18N = {
     fallen:'跌倒了！點擊或按 R 起身',
     result_title:'RESULT · 比賽結果', rank_label:'RANK · 稱號',
     st_time:'用時（秒）', st_falls:'跌倒次數', st_steps:'總步數', st_speed:'最高時速',
-    dnf:'時間到！', retry:'按 Space 再跑一次',
+    dnf:'時間到！', retry:'再跑一次 (Space / Enter / R)',
     legQ:'左後', legW:'右後', legO:'左前', legP:'右前',
     ranks:['傳奇賽馬','賽馬','小馬','新生小馬'],
     tip_warn:'快倒了！', practice:'練習模式',
@@ -213,7 +213,7 @@ const I18N = {
     fallen:'Whoops! Tap or press R to get up',
     result_title:'RESULT', rank_label:'RANK',
     st_time:'Time (s)', st_falls:'Falls', st_steps:'Steps', st_speed:'Top speed',
-    dnf:"TIME'S UP!", retry:'Press SPACE to run again',
+    dnf:"TIME'S UP!", retry:'Run Again (Space / Enter / R)',
     legQ:'L-hind', legW:'R-hind', legO:'L-front', legP:'R-front',
     ranks:['Legendary Racehorse','Racehorse','Pony','Foal'],
     tip_warn:'Tilting!', practice:'Practice',
@@ -1794,13 +1794,16 @@ function triggerHurdleJump(){
     if(res.grade === 'perfect'){
       G.vx += res.boost || 0.9;
       sfx.jumpPerfect();
-      camShake = 0.28;
+      camShake = 0.42;
+      buzz([70, 40, 100]);
       cockpit.restoreStamina(15);
       triggerCadenceHit((G.cadenceCombo || 0) + 2);
       toast(tr('perfect_hurdle'));
     }else if(res.grade === 'great'){
       G.vx += res.boost || 0.45;
       sfx.jumpWhoosh();
+      camShake = 0.24;
+      buzz(45);
       cockpit.restoreStamina(8);
       toast(tr('great_hurdle'));
     }else{
@@ -1935,6 +1938,7 @@ function finishRace(){
   sfx.whinny();
   setTimeout(()=>sfx.fanfare(),500);
   buzz([60,50,60,50,180]);
+  camShake = 0.65;
   burstConfetti(G.x,0);
   fallPromptEl.classList.add('hidden');
   if(!startReplay())G.doneT=0.9;   // no replay (short/DNF) -> result comes sooner
@@ -2015,6 +2019,7 @@ function showResult(){
     }
   }else{
     retryBtn.textContent=tr('retry');
+    retryBtn.title='Space / Enter / R 再跑一次';
     if(AI.level){
       const at=AI.finishTime;
       let msg;
@@ -2159,6 +2164,8 @@ function simStep(dt){
     toast(tr('hurdle_clatter'));
   }
 
+  const prevVy = G.vy;
+  const wasHighAir = G.y > 1.25;
   const inp=[held.KeyQ,held.KeyW,held.KeyO,held.KeyP,false];
   const ev=simHorse(G,legs,inp,dt);
   for(const e of ev){
@@ -2199,6 +2206,11 @@ function simStep(dt){
       G.suggestedPair = 'A';
       sfx.getup(); dustAt(G.x,0,2);
     }
+  }
+  if(wasHighAir && G.y <= 1.25 && prevVy < -1.1 && !G.fallPose){
+    camShake = Math.max(camShake, 0.24);
+    buzz(40);
+    dustAt(G.x, 0, 3);
   }
   if(!G.fallPose){
     strideCoach.advance(G.elapsed, G.x);
@@ -2254,6 +2266,7 @@ addEventListener('keydown',e=>{
     if(e.repeat)return;
     setHeld('Space', true);
     if(G.replay&&G.replay.active)endReplay();   // skip the finish replay
+    else if(G.state==='done'&&G.resultShown)primaryAction();
     else if(G.state==='fallen'||G.fallPose)tryGetUp();
     else if(G.state==='run')triggerHurdleJump();
     else primaryAction();
@@ -2263,7 +2276,8 @@ addEventListener('keydown',e=>{
   if(e.code==='KeyR'){
     if(!e.repeat){
       setHeld('KeyR', true);
-      if(G.fallPose||G.state==='fallen')tryGetUp();
+      if(G.state==='done'&&G.resultShown)primaryAction();
+      else if(G.fallPose||G.state==='fallen')tryGetUp();
       else if(G.state==='run')startRun(G.practice, G.daily);
     }
     return;
@@ -2298,13 +2312,16 @@ window.__handleMatrixKeyDown = function(code){
   sfx.ensure();
   setHeld(code, true);
   if(code === 'KeyR'){
-    if(G.fallPose || G.state === 'fallen'){
+    if(G.state === 'done' && G.resultShown){
+      primaryAction();
+    } else if(G.fallPose || G.state === 'fallen'){
       tryGetUp();
     } else if(G.state === 'run'){
       startRun(G.practice, G.daily);
     }
   } else if(code === 'Space'){
     if(G.replay && G.replay.active) endReplay();
+    else if(G.state === 'done' && G.resultShown) primaryAction();
     else if(G.state === 'fallen' || G.fallPose) tryGetUp();
     else if(G.state === 'run') triggerHurdleJump();
     else primaryAction();

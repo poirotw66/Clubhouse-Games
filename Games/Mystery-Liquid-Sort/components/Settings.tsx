@@ -1,5 +1,6 @@
 import React from 'react';
 import { X } from 'lucide-react';
+import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
 import { useLocale } from '../context/LocaleContext';
 import { t } from '../utils/i18n';
 import { getSoundEnabled, setSoundEnabled } from '../utils/sound';
@@ -83,6 +84,11 @@ export const Settings: React.FC<SettingsProps> = ({ isOpen, onClose }) => {
                 English
               </button>
             </div>
+          </div>
+
+          <div className="pt-2 border-t border-white/10">
+            <span className="text-white font-medium block mb-2 text-sm md:text-base">手感與打擊反饋</span>
+            <JuiceSettingsPanel className="text-white" />
           </div>
 
           <button
