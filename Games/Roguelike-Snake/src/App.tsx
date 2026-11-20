@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { haptic, shake } from '@clubhouse/shared/juice';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { ScoreFlash } from '@clubhouse/shared/ScoreFlash';
 import {
   playCapture,
+  playCombo,
   playError,
   playGoal,
   playLose,
@@ -159,6 +161,7 @@ export default function App() {
   const swipeRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const challengeSettledRef = useRef(false);
   const runSettledRef = useRef(false);
+  const comboRef = useRef<{ count: number; lastEatAt: number }>({ count: 0, lastEatAt: 0 });
   const runOptsRef = useRef<{ ironsnake: boolean; daily: boolean; buildId: string }>({
     ironsnake: false,
     daily: false,
@@ -261,6 +264,7 @@ export default function App() {
       signatureRef.current = '';
       challengeSettledRef.current = false;
       runSettledRef.current = false;
+      comboRef.current = { count: 0, lastEatAt: 0 };
       runOptsRef.current = { ironsnake, daily, buildId };
       setActiveChallenge(challenge ?? null);
       setChallengeCleared(null);
@@ -309,13 +313,29 @@ export default function App() {
 
       for (const event of events) {
         switch (event.type) {
-          case 'eat':
-            playMove();
+          case 'eat': {
+            const now = performance.now();
+            if (now - comboRef.current.lastEatAt < 2200) {
+              comboRef.current.count = Math.min(8, comboRef.current.count + 1);
+            } else {
+              comboRef.current.count = 1;
+            }
+            comboRef.current.lastEatAt = now;
+            playCombo(comboRef.current.count);
             break;
-          case 'golden':
+          }
+          case 'golden': {
+            const now = performance.now();
+            if (now - comboRef.current.lastEatAt < 2200) {
+              comboRef.current.count = Math.min(8, comboRef.current.count + 1);
+            } else {
+              comboRef.current.count = 1;
+            }
+            comboRef.current.lastEatAt = now;
             playScore();
             setFlash({ text: '金蘋果 +3 金幣', tone: 'neutral', key: Date.now() });
             break;
+          }
           case 'cursed':
             playError();
             break;
@@ -330,6 +350,8 @@ export default function App() {
             break;
           case 'hurt':
             playError();
+            shake(arenaRef.current, 1.4);
+            haptic('impact');
             if (state.ironsnake) {
               setFlash({ text: '一擊！', tone: 'bad', key: Date.now() });
             }
@@ -339,6 +361,8 @@ export default function App() {
             break;
           case 'bossDown':
             playGoal();
+            shake(arenaRef.current, 1.6);
+            haptic('win');
             setFlash({ text: '首領擊破！', tone: 'good', key: Date.now() });
             break;
           case 'exit':
@@ -368,6 +392,8 @@ export default function App() {
             break;
           case 'die':
             playLose();
+            shake(arenaRef.current, 1.2);
+            haptic('error');
             settleMeta(state, false);
             settleChallenge(state);
             if (!prefersReducedMotion()) {
@@ -433,6 +459,16 @@ export default function App() {
     return () => cancelAnimationFrame(frameId);
   }, [screen, drainEvents]);
 
+  const retryRun = useCallback(() => {
+    if (activeChallenge) startRun(activeChallenge.seedInput, activeChallenge.id);
+    else {
+      startRun(stateRef.current?.seedInput || '', null, {
+        ironsnake: runOptsRef.current.ironsnake,
+        daily: runOptsRef.current.daily,
+      });
+    }
+  }, [activeChallenge, startRun]);
+
   useEffect(() => {
     if (screen !== 'run') return;
 
@@ -440,6 +476,22 @@ export default function App() {
       const state = stateRef.current;
       if (!state) return;
       const key = event.key.toLowerCase();
+
+      // Sakurai Rapid Retry (gameplay-ux-009): On death / ResultOverlay, Space / Enter / KeyR restarts instantly
+      if (state.phase === 'dead' || state.phase === 'won') {
+        if (
+          event.code === 'Space' ||
+          event.code === 'Enter' ||
+          event.code === 'KeyR' ||
+          key === ' ' ||
+          key === 'enter' ||
+          key === 'r'
+        ) {
+          event.preventDefault();
+          retryRun();
+          return;
+        }
+      }
 
       if (KEY_TO_DIR[key]) {
         event.preventDefault();
@@ -461,20 +513,11 @@ export default function App() {
         if (state.phase === 'playing') setPaused((value) => !value);
         return;
       }
-      if (key === 'r' && (state.phase === 'dead' || state.phase === 'won')) {
-        if (activeChallenge) startRun(activeChallenge.seedInput, activeChallenge.id);
-        else {
-          startRun(state.seedInput || '', null, {
-            ironsnake: runOptsRef.current.ironsnake,
-            daily: runOptsRef.current.daily,
-          });
-        }
-      }
     };
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [screen, startRun, activeChallenge]);
+  }, [screen, retryRun]);
 
   const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
     swipeRef.current = { x: event.clientX, y: event.clientY, time: performance.now() };
@@ -509,15 +552,6 @@ export default function App() {
     playScore();
   };
 
-  const retryRun = () => {
-    if (activeChallenge) startRun(activeChallenge.seedInput, activeChallenge.id);
-    else {
-      startRun(stateRef.current?.seedInput || '', null, {
-        ironsnake: runOptsRef.current.ironsnake,
-        daily: runOptsRef.current.daily,
-      });
-    }
-  };
 
   const returnToTitle = () => {
     stateRef.current = null;
@@ -576,6 +610,11 @@ export default function App() {
   }
 
   const state = stateRef.current;
+  const isLowHealth =
+    hud.phase === 'playing' &&
+    hud.hp > 0 &&
+    (hud.hp / hud.maxHp <= 0.25 || (hud.hp === 1 && hud.maxHp <= 4));
+
   const challengeBanner = activeChallenge
     ? `挑戰・${activeChallenge.name}｜目標：${activeChallenge.goalLabel}`
     : hud.ironsnake
@@ -587,6 +626,15 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-50 flex flex-col items-center p-3 pt-14 sm:pt-4">
       <BackToMenu />
+
+      {/* Low-Health Tension (Sakurai gameplay-core-002 Stress & Release) */}
+      {isLowHealth && (
+        <div
+          className="pointer-events-none fixed inset-0 z-30 snake-low-health-vignette"
+          aria-hidden="true"
+          data-low-health="true"
+        />
+      )}
 
       {/* Dual-wing Cockpit Layout: Left Wing (lg) + Center Bay + Right Wing (lg) */}
       <div className="w-full max-w-7xl flex justify-center items-start gap-4">

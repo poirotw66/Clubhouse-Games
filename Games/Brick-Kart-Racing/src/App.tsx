@@ -20,6 +20,7 @@ import {
 import {CHARACTERS, type DifficultyId} from './data/characters';
 import {cupById, pointsForPlace} from './data/cups';
 import {TRACKS} from './data/tracks';
+import {haptic, particles, shake} from '@clubhouse/shared/juice';
 import {
   isMuted,
   playCountdownTick,
@@ -28,6 +29,7 @@ import {
   setMuted,
   startEngine,
   stopEngine,
+  updateDriftScreech,
   updateEngine,
 } from './engine/audio';
 import {LAP_TOTAL, SURFACE_GRASS} from './engine/constants';
@@ -391,6 +393,18 @@ export default function App() {
               raceLapStartRef.current = state.time;
             }
           }
+          if (
+            ev === 'heavy-bump' ||
+            ev === 'wall-collision' ||
+            ev === 'player-hit' ||
+            ev === 'respawn'
+          ) {
+            shake(canvasRef.current, 1.2);
+            haptic('impact');
+          } else if (ev === 'bump') {
+            shake(canvasRef.current, 0.6);
+            haptic('tap');
+          }
           playEvent(ev);
         }
         state.events.length = 0;
@@ -400,11 +414,16 @@ export default function App() {
           Math.min(1, Math.max(0, player.speed / 340)),
           player.boostTime > 0 || player.slipstream > 0.3,
         );
+        updateDriftScreech(
+          player.drifting && !player.finished,
+          player.driftCharge,
+        );
 
         if (lapFlashRef.current > 0) lapFlashRef.current -= dt;
 
         if (player.finished && !finishedHandled) {
           finishedHandled = true;
+          updateDriftScreech(false, 0);
           ghostRecording = false;
           const laps = player.lapTimes.filter((t) => t > 0);
           const best = laps.length ? Math.min(...laps) : 0;
@@ -430,10 +449,23 @@ export default function App() {
           setProgress(nextProgress);
           progressRef.current = nextProgress;
 
+          const won = player.place === 1;
+          if (won) {
+            // Celebratory confetti fanfare upon winning a race (Sakurai fx-004)
+            particles('confetti', {el: canvasRef.current, count: 60, strength: 1.4});
+            haptic('win');
+            setTimeout(() => {
+              particles('confetti', {el: canvasRef.current, count: 50, strength: 1.2});
+            }, 300);
+            setTimeout(() => {
+              particles('confetti', {el: canvasRef.current, count: 55, strength: 1.5});
+            }, 600);
+          }
+
           playFinish(
             opts.mode === 'timeTrial' ||
               opts.mode === 'grandPrix' ||
-              player.place === 1,
+              won,
           );
 
           if (opts.mode === 'grandPrix' && session) {
@@ -533,6 +565,8 @@ export default function App() {
         });
         const mini = minimapRef.current;
         if (mini) drawMinimap(mini.getContext('2d')!, state, mini.width);
+      } else {
+        updateDriftScreech(false, 0);
       }
     };
 
@@ -540,11 +574,13 @@ export default function App() {
     return () => {
       cancelAnimationFrame(raf);
       stopEngine();
+      updateDriftScreech(false, 0);
     };
     // Re-run when a new race is staged (track / cup race index / options).
   }, [screen, loading, trackId, charId, difficulty, raceOptions, cupSession?.raceIndex]);
 
   const startRace = useCallback(() => {
+    updateDriftScreech(false, 0);
     tiresRef.current = INITIAL_TIRES;
     setShowMobileDossier(false);
     setResult(null);
@@ -607,6 +643,7 @@ export default function App() {
   }, [cupOverlay, startRace]);
 
   const backToMenu = useCallback(() => {
+    updateDriftScreech(false, 0);
     setResult(null);
     setCupOverlay(null);
     setCupSession(null);

@@ -164,11 +164,8 @@ const HOMING_HIT_DIST = 26;
 const HOMING_SPEED = 470;
 const MAX_LATERAL = 330;
 
-const DRIFT_LEVELS = [
-  {charge: 0.85, boost: 0.55},
-  {charge: 1.8, boost: 1.0},
-  {charge: 3.0, boost: 1.7},
-];
+import {DRIFT_LEVELS, driftFill, driftLevel} from './drift';
+export {DRIFT_LEVELS, driftFill, driftLevel};
 
 function wrapAngle(a: number): number {
   while (a > Math.PI) a -= Math.PI * 2;
@@ -178,18 +175,6 @@ function wrapAngle(a: number): number {
 
 function char(id: string) {
   return CHARACTERS.find((c) => c.id === id) ?? CHARACTERS[0];
-}
-
-export function driftLevel(charge: number): number {
-  let level = 0;
-  for (let i = 0; i < DRIFT_LEVELS.length; i++) if (charge >= DRIFT_LEVELS[i].charge) level = i + 1;
-  return level;
-}
-
-/** 0–1 fill toward max mini-turbo charge (for HUD meter). */
-export function driftFill(charge: number): number {
-  const max = DRIFT_LEVELS[DRIFT_LEVELS.length - 1].charge;
-  return Math.max(0, Math.min(1, charge / max));
 }
 
 export function createRace(
@@ -509,7 +494,12 @@ function stepRacer(state: RaceState, r: Racer, input: RaceInput, dt: number): vo
     }
 
     if (r.drifting) {
+      const oldLevel = driftLevel(r.driftCharge);
       r.driftCharge += dt;
+      const newLevel = driftLevel(r.driftCharge);
+      if (r.isPlayer && newLevel > oldLevel && newLevel >= 1 && newLevel <= 3) {
+        state.events.push(`drift-tier-${newLevel}`);
+      }
       // Steering into the slide tightens it, away from it opens it up.
       const bias = 0.62 + 0.38 * Math.max(0, input.steer * r.driftDir);
       r.angle += r.driftDir * agility * 1.25 * bias * speedFactor * dt;
@@ -614,7 +604,10 @@ function stepRacer(state: RaceState, r: Racer, input: RaceInput, dt: number): vo
     r.vy = 0;
     r.speed = 0;
     r.drifting = false;
-    if (r.isPlayer) state.events.push('respawn');
+    if (r.isPlayer) {
+      state.events.push('wall-collision');
+      state.events.push('respawn');
+    }
   }
 
   if (!r.finished) {
@@ -709,11 +702,15 @@ function resolveCollisions(state: RaceState): void {
       if (a.shields > 0 && b.shields === 0) {
         a.shields--;
         spinOut(state, b, 1.1);
+        if (a.isPlayer || b.isPlayer) state.events.push('heavy-bump');
       } else if (b.shields > 0 && a.shields === 0) {
         b.shields--;
         spinOut(state, a, 1.1);
+        if (a.isPlayer || b.isPlayer) state.events.push('heavy-bump');
       } else if (a.isPlayer || b.isPlayer) {
-        state.events.push('bump');
+        const relSpeed = Math.hypot(a.vx - b.vx, a.vy - b.vy);
+        const isHeavy = relSpeed > 130 || Math.abs(a.speed) > 170 || Math.abs(b.speed) > 170;
+        state.events.push(isHeavy ? 'heavy-bump' : 'bump');
       }
     }
   }

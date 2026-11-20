@@ -1,3 +1,4 @@
+import {useEffect} from 'react';
 import {CHARACTERS} from '../data/characters';
 import {cupById, CUP_POINTS} from '../data/cups';
 import {TRACKS} from '../data/tracks';
@@ -26,6 +27,27 @@ export function CupStandingsOverlay({
   const order = cupStandings(session);
   const player = order.find((e) => e.isPlayer);
   const won = final && player?.points === order[0]?.points && player?.isPlayer;
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea') return;
+      if (
+        e.code === 'Space' ||
+        e.code === 'Enter' ||
+        e.code === 'KeyR' ||
+        e.key === ' ' ||
+        e.key === 'Enter' ||
+        e.key === 'r' ||
+        e.key === 'R'
+      ) {
+        e.preventDefault();
+        onContinue();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onContinue]);
 
   // raceIndex is already advanced after applyRacePlaces; show completed count.
   const completed = Math.min(session.raceIndex, cup?.trackIds.length ?? 0);
@@ -126,7 +148,7 @@ export function CupStandingsOverlay({
           onClick={onContinue}
           className="inline-flex w-full items-center justify-center rounded-xl bg-emerald-600 px-6 py-3 font-semibold text-white transition-colors hover:bg-emerald-500"
         >
-          {final ? '完成盃賽' : '下一場比賽'}
+          {final ? '完成盃賽' : '下一場比賽'} (Space / Enter / R)
         </button>
         <button
           type="button"

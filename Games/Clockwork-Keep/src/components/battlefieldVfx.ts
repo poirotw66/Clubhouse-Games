@@ -4,10 +4,11 @@
  * - Tesla coil lightning chain arcs, frost mist pulses, hammer smash shockwaves
  * - Dynamic hit particles and floating kill reward text (+XX⚙)
  */
-import { CHAIN_RADIUS, GRID_H, GRID_W, TOWER_DEFS } from '../game/constants';
-import { chainTargets, enemiesInRange, selectPrimaryTarget } from '../game/combat';
-import { resolveTowerStats } from '../game/economy';
-import type { GameState } from '../game/types';
+import { CHAIN_RADIUS, GRID_H, GRID_W, TOWER_DEFS } from '../game/constants.ts';
+import { chainTargets, enemiesInRange, selectPrimaryTarget } from '../game/combat.ts';
+import { resolveTowerStats } from '../game/economy.ts';
+import type { GameState } from '../game/types.ts';
+import { playImpact, playTone } from '@clubhouse/shared/synthAudio';
 
 export const CELL = 64;
 
@@ -76,6 +77,74 @@ export function createVfxManager(): VfxManager {
     floatingTexts: [],
     nextId: 1,
   };
+}
+
+let lastMortarSoundTime = 0;
+export function playMortarBoom(): void {
+  const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  if (now - lastMortarSoundTime < 80) return;
+  lastMortarSoundTime = now;
+  playImpact(0.65);
+  playTone(55, 'sawtooth', 0.22, 0.02, 0.09);
+  playTone(40, 'sine', 0.28, 0.04, 0.08);
+}
+
+let lastTeslaSoundTime = 0;
+export function playTeslaZap(): void {
+  const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  if (now - lastTeslaSoundTime < 70) return;
+  lastTeslaSoundTime = now;
+  playTone(720, 'sawtooth', 0.07, 0, 0.06);
+  playTone(980, 'square', 0.05, 0.015, 0.05);
+  playTone(450, 'triangle', 0.09, 0.03, 0.04);
+}
+
+let lastHammerSoundTime = 0;
+export function playHammerCrunch(): void {
+  const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  if (now - lastHammerSoundTime < 70) return;
+  lastHammerSoundTime = now;
+  playImpact(0.85);
+  playTone(85, 'square', 0.14, 0, 0.08);
+  playTone(130, 'triangle', 0.1, 0.02, 0.07);
+}
+
+let lastRicochetSoundTime = 0;
+export function playArmorRicochet(): void {
+  const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  if (now - lastRicochetSoundTime < 60) return;
+  lastRicochetSoundTime = now;
+  playTone(1200, 'triangle', 0.07, 0, 0.07);
+  playTone(1800, 'sine', 0.05, 0.01, 0.05);
+  playTone(480, 'square', 0.05, 0.02, 0.04);
+}
+
+let lastBossAlertSoundTime = 0;
+export function playBossAlertTone(): void {
+  const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  if (now - lastBossAlertSoundTime < 1000) return;
+  lastBossAlertSoundTime = now;
+  playTone(110, 'sawtooth', 0.45, 0, 0.12);
+  playTone(146.83, 'square', 0.35, 0.12, 0.1);
+  playTone(82.4, 'sawtooth', 0.6, 0.25, 0.14);
+  playImpact(1.0);
+}
+
+/**
+ * Keyboard input recognizer for Sakurai gameplay-ux-009 Rapid Retry.
+ * Detects Space, Enter, or KeyR (r / R).
+ */
+export function isRapidRetryKey(event: { key: string; code?: string }): boolean {
+  const { key, code } = event;
+  return (
+    key === ' ' ||
+    key === 'Enter' ||
+    key === 'r' ||
+    key === 'R' ||
+    code === 'Space' ||
+    code === 'Enter' ||
+    code === 'KeyR'
+  );
 }
 
 export function spawnCombatVfx(
@@ -192,6 +261,7 @@ export function spawnCombatVfx(
             splashRadius: splashR,
           });
         } else if (t.type === 'coil') {
+          playTeslaZap();
           const chainMax = stats.chainTargets ?? def.chainTargets ?? 3;
           const chained = chainTargets(primary, inRange, chainMax, CHAIN_RADIUS);
           const pts = [{ x: cx, y: cy }];
@@ -208,6 +278,7 @@ export function spawnCombatVfx(
             type: 'coil',
           });
         } else if (t.type === 'hammer') {
+          playHammerCrunch();
           vfx.beams.push({
             id: vfx.nextId++,
             points: [{ x: tx, y: ty }],
@@ -230,20 +301,39 @@ export function spawnCombatVfx(
     const ex = e.worldX * CELL;
     const ey = e.worldY * CELL;
     if (prevHp !== undefined && e.hp < prevHp) {
-      const sparkCount = isOverdrive ? 5 : 3;
-      for (let k = 0; k < sparkCount; k++) {
-        const ang = Math.random() * Math.PI * 2;
-        const spd = 30 + Math.random() * 50;
-        vfx.particles.push({
-          x: ex,
-          y: ey,
-          vx: Math.cos(ang) * spd,
-          vy: Math.sin(ang) * spd,
-          color: isOverdrive ? '#fef08a' : '#fde047',
-          size: 2,
-          life: 0.2,
-          maxLife: 0.2,
-        });
+      if (e.type === 'ironclad') {
+        playArmorRicochet();
+        const sparkCount = isOverdrive ? 8 : 5;
+        for (let k = 0; k < sparkCount; k++) {
+          const ang = -Math.PI / 2 + (Math.random() - 0.5) * Math.PI * 1.2;
+          const spd = 70 + Math.random() * 80;
+          vfx.particles.push({
+            x: ex,
+            y: ey,
+            vx: Math.cos(ang) * spd,
+            vy: Math.sin(ang) * spd,
+            color: k % 2 === 0 ? '#f8fafc' : '#38bdf8',
+            size: 2.6,
+            life: 0.22,
+            maxLife: 0.22,
+          });
+        }
+      } else {
+        const sparkCount = isOverdrive ? 5 : 3;
+        for (let k = 0; k < sparkCount; k++) {
+          const ang = Math.random() * Math.PI * 2;
+          const spd = 30 + Math.random() * 50;
+          vfx.particles.push({
+            x: ex,
+            y: ey,
+            vx: Math.cos(ang) * spd,
+            vy: Math.sin(ang) * spd,
+            color: isOverdrive ? '#fef08a' : '#fde047',
+            size: 2,
+            life: 0.2,
+            maxLife: 0.2,
+          });
+        }
       }
     }
     if (e.dead && (prevHp === undefined || prevHp > 0)) {
@@ -352,6 +442,7 @@ export function updateVfx(vfx: VfxManager, dt: number): void {
     if (p.progress >= 1) {
       vfx.projectiles.splice(i, 1);
       if (p.type === 'mortar' && p.splashRadius) {
+        playMortarBoom();
         vfx.beams.push({
           id: vfx.nextId++,
           points: [{ x: p.targetX, y: p.targetY }],
@@ -364,6 +455,21 @@ export function updateVfx(vfx: VfxManager, dt: number): void {
           cx: p.targetX,
           cy: p.targetY,
         });
+        // Fiery debris and explosion sparks
+        for (let s = 0; s < 10; s++) {
+          const ang = Math.random() * Math.PI * 2;
+          const spd = 40 + Math.random() * 70;
+          vfx.particles.push({
+            x: p.targetX,
+            y: p.targetY,
+            vx: Math.cos(ang) * spd,
+            vy: Math.sin(ang) * spd,
+            color: s % 3 === 0 ? '#ea580c' : s % 3 === 1 ? '#f97316' : '#78350f',
+            size: 3.2,
+            life: 0.3,
+            maxLife: 0.3,
+          });
+        }
       }
     }
   }

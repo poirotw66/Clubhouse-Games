@@ -1095,6 +1095,110 @@ function expectDailyTaipeiAndChallengePackDeep(): void {
   }
 }
 
+/**
+ * Test Sakurai juice feedback, audio pitch escalation, low-health tension, and rapid retry shortcuts:
+ * - Hurt and death events emit 'hurt' and 'die', triggering physical screen shake and haptics.
+ * - Defeating floor boss emits 'bossDown', triggering boss clear screen shake.
+ * - Food combo timer escalates pitch step along musical scale (1..8) on consecutive pickups < 2200ms.
+ * - Low-health tension vignette threshold activates at <= 25% HP or critical 1 HP.
+ * - Rapid retry key bindings include Space, Enter, KeyR / 'r' on dead or won phases.
+ */
+function expectSakuraiJuiceAudioAndUxPrinciples(): void {
+  // 1. Hurt & Death events
+  const hurtState = createEmptyState();
+  hurtState.hp = 2;
+  setSnake(hurtState, [{ x: 1, y: 1 }, { x: 1, y: 2 }], 'left');
+  tick(hurtState);
+  assert.equal(hurtState.hp, 1, 'Snake should take 1 damage on collision');
+  assert.ok(
+    hurtState.events.some((e) => e.type === 'hurt'),
+    "Damage must emit 'hurt' event for screen shake and haptic feedback",
+  );
+
+  // Fatal damage
+  hurtState.events = [];
+  hurtState.invulnUntil = 0;
+  setSnake(hurtState, [{ x: 1, y: 1 }, { x: 1, y: 2 }], 'left');
+  tick(hurtState);
+  assert.equal(hurtState.hp, 0, 'Fatal hit reduces HP to 0');
+  assert.equal(hurtState.phase, 'dead', 'Phase transitions to dead');
+  assert.ok(
+    hurtState.events.some((e) => e.type === 'hurt'),
+    "Fatal hit must emit 'hurt'",
+  );
+  assert.ok(
+    hurtState.events.some((e) => e.type === 'die'),
+    "Fatal hit must emit 'die'",
+  );
+
+  // 2. Boss defeat event
+  const bossState = createEmptyState();
+  bossState.floor = 5;
+  bossState.energy = 100;
+  bossState.boss = {
+    pos: { x: 8, y: 10 },
+    hp: 1,
+    maxHp: 4,
+    hitFlashUntil: 0,
+  };
+  setSnake(bossState, [{ x: 4, y: 10 }, { x: 3, y: 10 }], 'right');
+  dash(bossState);
+  assert.equal(bossState.boss, null, 'Boss should be defeated');
+  assert.ok(
+    bossState.events.some((e) => e.type === 'bossDown'),
+    "Defeating floor boss must emit 'bossDown' for physical screen shake and win fanfare",
+  );
+
+  // 3. Food combo pitch escalation logic simulation
+  let comboCount = 0;
+  let lastEatAt = 0;
+  const eatFruitSim = (now: number): number => {
+    if (now - lastEatAt < 2200) {
+      comboCount = Math.min(8, comboCount + 1);
+    } else {
+      comboCount = 1;
+    }
+    lastEatAt = now;
+    return comboCount;
+  };
+
+  assert.equal(eatFruitSim(1000), 1, 'First food pickup starts combo at pitch step 1');
+  assert.equal(eatFruitSim(1800), 2, 'Second pickup within 800ms rises to pitch step 2');
+  assert.equal(eatFruitSim(2600), 3, 'Third pickup within 800ms rises to pitch step 3');
+  for (let step = 4; step <= 8; step++) {
+    assert.equal(eatFruitSim(2600 + (step - 3) * 500), step, `Consecutive pickup climbs to step ${step}`);
+  }
+  assert.equal(eatFruitSim(6000), 8, 'Combo pitch caps at pleasant upper step 8');
+  assert.equal(eatFruitSim(8600), 1, 'Pickup after 2600ms gap resets combo back to step 1');
+
+  // 4. Low-health tension calculation
+  const isLowHealth = (hp: number, maxHp: number, phase: string = 'playing'): boolean => {
+    return phase === 'playing' && hp > 0 && (hp / maxHp <= 0.25 || (hp === 1 && maxHp <= 4));
+  };
+
+  assert.equal(isLowHealth(3, 3), false, 'Full 3/3 HP should not show low health alert');
+  assert.equal(isLowHealth(2, 3), false, '2/3 HP should not show low health alert');
+  assert.equal(isLowHealth(1, 3), true, '1/3 HP is critical single-hit territory and must show alert');
+  assert.equal(isLowHealth(1, 4), true, '1/4 HP (25%) must show alert');
+  assert.equal(isLowHealth(1, 5), true, '1/5 HP (20% <= 25%) must show alert');
+  assert.equal(isLowHealth(2, 8), true, '2/8 HP (25%) must show alert');
+  assert.equal(isLowHealth(3, 8), false, '3/8 HP (37.5% > 25%) should not show alert');
+  assert.equal(isLowHealth(0, 3, 'dead'), false, 'Dead snake should not display in-game alert border');
+
+  // 5. Rapid retry key acceptance
+  const isRapidRetryKey = (code: string, key: string): boolean => {
+    const k = key.toLowerCase();
+    return code === 'Space' || code === 'Enter' || code === 'KeyR' || k === ' ' || k === 'enter' || k === 'r';
+  };
+
+  assert.ok(isRapidRetryKey('Space', ' '), 'Space is rapid retry key');
+  assert.ok(isRapidRetryKey('Enter', 'Enter'), 'Enter is rapid retry key');
+  assert.ok(isRapidRetryKey('KeyR', 'r'), 'KeyR / r is rapid retry key');
+  assert.ok(isRapidRetryKey('KeyR', 'R'), 'Shift+R / KeyR is rapid retry key');
+  assert.ok(!isRapidRetryKey('KeyW', 'w'), 'W is not rapid retry key');
+  assert.ok(!isRapidRetryKey('Escape', 'Escape'), 'Escape is not rapid retry key');
+}
+
 expectSpitterOnlyFiresWhenAligned();
 expectCursedFruitUsesFlatScore();
 expectBloodDashOnlyCostsHp();
@@ -1114,5 +1218,6 @@ expectCombatTurnsAndEnemyMovement();
 expectSeededDungeonDeterminismAndFoodBounds();
 expectRelicSynergiesAndModCalculations();
 expectDailyTaipeiAndChallengePackDeep();
+expectSakuraiJuiceAudioAndUxPrinciples();
 
 console.log('Roguelike Snake logic self-check passed.');

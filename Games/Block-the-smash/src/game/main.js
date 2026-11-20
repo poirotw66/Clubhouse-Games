@@ -17,6 +17,7 @@ import {
   POS_PERFECT,
   aimZoneFromMouse,
   combineContact,
+  comboPitchMultiplier,
   etaToImpact,
   getTimingWindowsMs,
   gradePosition,
@@ -117,21 +118,24 @@ const AudioSys = {
     noise.start();
   },
 
-  playHit(kind) {
+  playHit(kind, combo = 1) {
     if (this.muted || !this.ctx) return;
     const t = this.ctx.currentTime;
+    // Scale pitch up with state.combo across pentatonic semitones (Sakurai coordinate-audio-visual-priority)
+    const pitchMultiplier = kind === 'block' ? 1.0 : comboPitchMultiplier(combo ?? (state?.combo || 1));
+
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
     if (kind === 'perfect') {
       osc.type = 'triangle';
-      osc.frequency.setValueAtTime(920, t);
-      osc.frequency.exponentialRampToValueAtTime(220, t + 0.12);
+      osc.frequency.setValueAtTime(920 * pitchMultiplier, t);
+      osc.frequency.exponentialRampToValueAtTime(220 * pitchMultiplier, t + 0.12);
       gain.gain.setValueAtTime(0.85, t);
       gain.gain.exponentialRampToValueAtTime(0.01, t + 0.18);
       const osc2 = this.ctx.createOscillator();
       const g2 = this.ctx.createGain();
       osc2.type = 'sine';
-      osc2.frequency.setValueAtTime(1320, t);
+      osc2.frequency.setValueAtTime(1320 * pitchMultiplier, t);
       g2.gain.setValueAtTime(0.35, t);
       g2.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
       osc2.connect(g2);
@@ -153,8 +157,8 @@ const AudioSys = {
       subOsc.stop(t + 0.2);
     } else if (kind === 'good' || kind === 'smash') {
       osc.type = 'triangle';
-      osc.frequency.setValueAtTime(800, t);
-      osc.frequency.exponentialRampToValueAtTime(100, t + 0.1);
+      osc.frequency.setValueAtTime(800 * pitchMultiplier, t);
+      osc.frequency.exponentialRampToValueAtTime(100 * pitchMultiplier, t + 0.1);
       gain.gain.setValueAtTime(0.75, t);
       gain.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
     } else {
@@ -402,6 +406,9 @@ window.addEventListener('message', (e) => {
     } else {
       startMatch({ mode: 'drill', balls: payload ?? 25, difficulty: 'normal' });
     }
+  }
+  if (e.data.type === 'REPLAY_MATCH') {
+    replayDrill();
   }
 });
 
@@ -941,6 +948,17 @@ window.addEventListener('mousedown', () => trySwing());
 window.addEventListener('keydown', (e) => {
   if (e.repeat) return;
   state.keysPressed[e.code] = true;
+
+  // Rapid Retry on result overlay (Sakurai gameplay-ux-009)
+  const gameOverEl = document.getElementById('game-over');
+  const isGameOverVisible = gameOverEl && gameOverEl.style.display !== 'none';
+  if (isGameOverVisible) {
+    if (e.code === 'Space' || e.code === 'Enter' || e.code === 'KeyR') {
+      e.preventDefault();
+      replayDrill();
+      return;
+    }
+  }
 
   const hudKey = document.querySelector(`.hud-key[data-key="${e.code}"]`);
   if (hudKey) hudKey.classList.add('active');
@@ -1878,13 +1896,47 @@ function createFeatherExplosion(pos, count = 8) {
     if (!p) continue;
     p.position.copy(pos);
     p.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
+    const isSpark = Math.random() > 0.4;
+    p.userData.isSpark = isSpark;
+    p.userData.maxLife = isSpark ? 0.35 : 0.6;
+    p.userData.life = p.userData.maxLife;
+    p.material.color.setHex(isSpark ? (Math.random() > 0.5 ? 0xffea00 : 0x00e5ff) : 0xffffff);
+    const speed = isSpark ? 22 : 15;
     p.userData.velocity.set(
-      (Math.random() - 0.5) * 15,
-      (Math.random() - 0.5) * 15,
-      (Math.random() - 0.5) * 15 + 10,
+      (Math.random() - 0.5) * speed,
+      (Math.random() - 0.5) * speed,
+      (Math.random() - 0.5) * speed + (isSpark ? 12 : 10),
     );
-    p.userData.life = 0.6;
-    p.scale.setScalar(1);
+    p.scale.setScalar(isSpark ? 0.6 : 1);
+  }
+}
+
+function updateEffects(delta) {
+  for (let i = shockwavePool.active.length - 1; i >= 0; i--) {
+    const sw = shockwavePool.active[i];
+    sw.userData.life -= delta;
+    if (sw.userData.life <= 0) {
+      shockwavePool.release(sw);
+    } else {
+      const progress = 1 - sw.userData.life / sw.userData.maxLife;
+      const currentScale = 0.4 + progress * (sw.userData.maxRadius - 0.4);
+      sw.scale.setScalar(currentScale);
+      sw.material.opacity = (1 - progress) * 0.9;
+    }
+  }
+
+  for (let i = particlePool.active.length - 1; i >= 0; i--) {
+    const p = particlePool.active[i];
+    p.userData.life -= delta;
+    if (p.userData.life <= 0) {
+      particlePool.release(p);
+    } else {
+      p.position.addScaledVector(p.userData.velocity, delta);
+      p.userData.velocity.y -= (p.userData.isSpark ? 16 : 10) * delta;
+      const progress = p.userData.life / (p.userData.maxLife || 0.6);
+      p.scale.setScalar(Math.max(0.01, progress * (p.userData.isSpark ? 0.6 : 1)));
+      p.rotation.z += (p.userData.isSpark ? 10 : 5) * delta;
+    }
   }
 }
 
@@ -1983,7 +2035,7 @@ function applyContactResult(s, grade) {
     createFeatherExplosion(s.position, 16);
     // Hold shuttle near impact while player picks a return lane.
     s.userData.velocity.set(0, 2, -8);
-    AudioSys.playHit('perfect');
+    AudioSys.playHit('perfect', state.combo);
     notifyParentHaptic('success');
     if (!PREFERS_REDUCED) {
       state.shake = 0.65;
@@ -2003,7 +2055,7 @@ function applyContactResult(s, grade) {
     createFeatherExplosion(s.position, 10);
     const dirX = aimZone === 'left' ? -14 : aimZone === 'right' ? 14 : (state.rng() - 0.5) * 8;
     s.userData.velocity.set(dirX, 10, -Math.abs(s.userData.velocity.z) - 12);
-    AudioSys.playHit('good');
+    AudioSys.playHit('good', state.combo);
     notifyParentHaptic('impact');
     if (!PREFERS_REDUCED) {
       state.shake = 0.4;
@@ -2048,7 +2100,7 @@ function applyContactResult(s, grade) {
     state.combo = 0;
     createFeatherExplosion(s.position, 3);
     s.userData.velocity.set((state.rng() - 0.5) * 8, 5, 5);
-    AudioSys.playHit('block');
+    AudioSys.playHit('block', 0);
     showToast(`輕擋${offsetStr}`, 'good');
     if (state.mode === 'scoreAttack' || state.mode === 'daily') {
       state.score += scoreForContact('block', 0, 'center');
@@ -2312,7 +2364,7 @@ function animate() {
   const delta = clock.getDelta();
   const now = clock.getElapsedTime();
 
-  // Hit-stop: freeze sim, keep rendering (juice).
+  // Hit-stop: freeze sim (camera and shuttle freeze), keep particles and debris flying in 3D (Sakurai fx-005).
   if (state.hitStop > 0) {
     state.hitStop -= delta;
     if (state.shake > 0 && !PREFERS_REDUCED) {
@@ -2323,6 +2375,7 @@ function animate() {
       );
       state.shake *= 0.85;
     }
+    updateEffects(delta);
     composer.render();
     return;
   }
@@ -2619,31 +2672,7 @@ function animate() {
       strings.material.opacity = 0.7;
     }
 
-    for (let i = shockwavePool.active.length - 1; i >= 0; i--) {
-      const sw = shockwavePool.active[i];
-      sw.userData.life -= delta;
-      if (sw.userData.life <= 0) {
-        shockwavePool.release(sw);
-      } else {
-        const progress = 1 - sw.userData.life / sw.userData.maxLife;
-        const currentScale = 0.4 + progress * (sw.userData.maxRadius - 0.4);
-        sw.scale.setScalar(currentScale);
-        sw.material.opacity = (1 - progress) * 0.9;
-      }
-    }
-
-    for (let i = particlePool.active.length - 1; i >= 0; i--) {
-      const p = particlePool.active[i];
-      p.userData.life -= delta;
-      if (p.userData.life <= 0) {
-        particlePool.release(p);
-      } else {
-        p.position.addScaledVector(p.userData.velocity, delta);
-        p.userData.velocity.y -= 10 * delta;
-        p.scale.setScalar(p.userData.life);
-        p.rotation.z += 5 * delta;
-      }
-    }
+    updateEffects(delta);
   }
 
   composer.render();

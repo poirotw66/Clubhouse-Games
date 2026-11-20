@@ -200,6 +200,7 @@ function App() {
   const [mode, setMode] = useState<Mode>('drill');
   const [opponentId, setOpponentId] = useState('hao');
   const [isLoading, setIsLoading] = useState(true);
+  const [isMatchOver, setIsMatchOver] = useState(false);
   const [statsTick, setStatsTick] = useState(0);
   const [shareNote, setShareNote] = useState('');
   const [lastDaily, setLastDaily] = useState<{
@@ -239,6 +240,7 @@ function App() {
 
   const startMatch = (payload: Record<string, unknown>) => {
     setShowMenu(false);
+    setIsMatchOver(false);
     setShareNote('');
     if (iframeRef.current?.contentWindow) {
       iframeRef.current.contentWindow.postMessage({ type: 'START_MATCH', payload }, '*');
@@ -254,6 +256,24 @@ function App() {
     }
   }, [showMenu, handedness, muted, isLoading]);
 
+  // Rapid Retry on result overlay (Sakurai gameplay-ux-009)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.repeat) return;
+      if (isMatchOver && !showMenu) {
+        if (e.code === 'Space' || e.code === 'Enter' || e.code === 'KeyR') {
+          e.preventDefault();
+          if (iframeRef.current?.contentWindow) {
+            iframeRef.current.contentWindow.postMessage({ type: 'REPLAY_MATCH' }, '*');
+          }
+          setIsMatchOver(false);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isMatchOver, showMenu]);
+
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
       if (event.data?.type === 'GAME_READY') setIsLoading(false);
@@ -264,12 +284,14 @@ function App() {
       }
       if (event.data?.type === 'SHOW_MENU') {
         setShowMenu(true);
+        setIsMatchOver(false);
         setStatsTick((n) => n + 1);
         if (iframeRef.current?.contentWindow) {
           iframeRef.current.contentWindow.postMessage({ type: 'PAUSE_GAME', payload: true }, '*');
         }
       }
       if (event.data?.type === 'DRILL_OVER') {
+        setIsMatchOver(true);
         const payload = event.data.payload ?? {};
         if (!muted) {
           const grade = String(payload.grade ?? '');
@@ -612,7 +634,7 @@ function App() {
               <div>• 左右步法：<kbd style={{ background: '#222', padding: '1px 5px', borderRadius: 4, color: '#00e5ff' }}>A</kbd> <kbd style={{ background: '#222', padding: '1px 5px', borderRadius: 4, color: '#00e5ff' }}>D</kbd> 左右橫移步法（或滑鼠／觸控拖曳）</div>
               <div>• 魚躍撲救：<kbd style={{ background: '#222', padding: '1px 5px', borderRadius: 4, color: '#ffe566' }}>Space</kbd> 極限撲救（消耗體能 30%）</div>
               <div>• 拍面角度：<kbd style={{ background: '#222', padding: '1px 5px', borderRadius: 4 }}>W</kbd> 封網上揚 · <kbd style={{ background: '#222', padding: '1px 5px', borderRadius: 4 }}>S</kbd> 下沉挑球</div>
-              <div>• 回殺落點：<kbd style={{ background: '#222', padding: '1px 5px', borderRadius: 4 }}>1</kbd> 左路 · <kbd style={{ background: '#222', padding: '1px 5px', borderRadius: 4 }}>2</kbd> 中路 · <kbd style={{ background: '#222', padding: '1px 5px', borderRadius: 4 }}>3</kbd> 右路 · <kbd style={{ background: '#222', padding: '1px 5px', borderRadius: 4 }}>R</kbd> 快速重置</div>
+              <div>• 回殺落點：<kbd style={{ background: '#222', padding: '1px 5px', borderRadius: 4 }}>1</kbd> 左路 · <kbd style={{ background: '#222', padding: '1px 5px', borderRadius: 4 }}>2</kbd> 中路 · <kbd style={{ background: '#222', padding: '1px 5px', borderRadius: 4 }}>3</kbd> 右路 · <kbd style={{ background: '#222', padding: '1px 5px', borderRadius: 4 }}>Space</kbd>/<kbd style={{ background: '#222', padding: '1px 5px', borderRadius: 4 }}>Enter</kbd>/<kbd style={{ background: '#222', padding: '1px 5px', borderRadius: 4 }}>R</kbd> 快速重置</div>
             </div>
 
             <p style={{ margin: '14px 0 0', color: '#777', fontSize: 12 }}>

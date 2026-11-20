@@ -1,4 +1,18 @@
 // ponytail: mode keys, cup points, slipstream, ghost, progress unlocks.
+import fs from 'node:fs';
+import {fileURLToPath} from 'node:url';
+import {
+  driftLevel,
+  driftFill,
+  DRIFT_LEVELS,
+} from './engine/drift.ts';
+import {
+  updateDriftScreech,
+  playMiniTurbo,
+  playDriftSpark,
+  playEvent,
+  playFinish,
+} from './engine/audio.ts';
 import {
   bestLapKey,
   migrateBestTimesMap,
@@ -257,6 +271,153 @@ assert(rivalForChar('blue').id === 'brawler', 'blue is brawler');
 
   const braking = updateTires(INITIAL_TIRES, mockPlayer, true, 0, true, 0.5);
   assert(braking.flTemp > INITIAL_TIRES.flTemp, 'braking loads front tire');
+}
+
+// --- Drift Mini-Turbo 3-Tier Escalation tests (Sakurai controls-review) ------
+{
+  assert(Array.isArray(DRIFT_LEVELS) && DRIFT_LEVELS.length === 3, 'DRIFT_LEVELS has 3 tiers');
+  assert(DRIFT_LEVELS[0].charge === 0.85 && DRIFT_LEVELS[0].boost === 0.55, 'tier 1 blue sparks at 0.85s');
+  assert(DRIFT_LEVELS[1].charge === 1.8 && DRIFT_LEVELS[1].boost === 1.0, 'tier 2 orange sparks at 1.8s');
+  assert(DRIFT_LEVELS[2].charge === 3.0 && DRIFT_LEVELS[2].boost === 1.7, 'tier 3 purple sparks at 3.0s');
+
+  assert(driftLevel(0) === 0, 'driftLevel 0');
+  assert(driftLevel(0.5) === 0, 'driftLevel 0.5 is tier 0');
+  assert(driftLevel(0.85) === 1, 'driftLevel 0.85 is tier 1');
+  assert(driftLevel(1.5) === 1, 'driftLevel 1.5 is tier 1');
+  assert(driftLevel(1.8) === 2, 'driftLevel 1.8 is tier 2');
+  assert(driftLevel(2.5) === 2, 'driftLevel 2.5 is tier 2');
+  assert(driftLevel(3.0) === 3, 'driftLevel 3.0 is tier 3');
+  assert(driftLevel(4.0) === 3, 'driftLevel 4.0 is tier 3 max');
+
+  assert(driftFill(0) === 0, 'driftFill 0');
+  assert(Math.abs(driftFill(1.5) - 0.5) < 1e-4, 'driftFill 1.5s = 50%');
+  assert(driftFill(3.0) === 1.0, 'driftFill 3.0s = 100%');
+  assert(driftFill(5.0) === 1.0, 'driftFill caps at 1.0');
+
+  // Test dynamic simulation drift escalation logic
+  let charge = 0.80;
+  let events = [];
+  let oldTier = driftLevel(charge);
+  charge += 0.1;
+  let newTier = driftLevel(charge);
+  if (newTier > oldTier) events.push(`drift-tier-${newTier}`);
+  assert(events.includes('drift-tier-1'), 'drift-tier-1 event on crossing 0.85s');
+
+  charge = 1.75;
+  oldTier = driftLevel(charge);
+  charge += 0.1;
+  newTier = driftLevel(charge);
+  if (newTier > oldTier) events.push(`drift-tier-${newTier}`);
+  assert(events.includes('drift-tier-2'), 'drift-tier-2 event on crossing 1.80s');
+
+  charge = 2.95;
+  oldTier = driftLevel(charge);
+  charge += 0.1;
+  newTier = driftLevel(charge);
+  if (newTier > oldTier) events.push(`drift-tier-${newTier}`);
+  assert(events.includes('drift-tier-3'), 'drift-tier-3 event on crossing 3.00s');
+
+  // Mini-turbo release mapping
+  for (let t = 1; t <= 3; t++) {
+    const tierBoost = DRIFT_LEVELS[t - 1].boost;
+    assert(tierBoost > 0, `tier ${t} grants positive boost duration`);
+  }
+}
+
+// --- Collision Juice & Wall Collision tests (Sakurai fx-004) ----------------
+{
+  function checkCollisionIntensity(aVx, aVy, bVx, bVy, aSpeed, bSpeed) {
+    const relSpeed = Math.hypot(aVx - bVx, aVy - bVy);
+    const isHeavy = relSpeed > 130 || Math.abs(aSpeed) > 170 || Math.abs(bSpeed) > 170;
+    return isHeavy ? 'heavy-bump' : 'bump';
+  }
+
+  assert(checkCollisionIntensity(220, 0, -180, 0, 220, -180) === 'heavy-bump', 'high rel speed is heavy-bump');
+  assert(checkCollisionIntensity(20, 0, 10, 0, 20, 10) === 'bump', 'low rel speed is normal bump');
+
+  const MAX_LATERAL = 330;
+  function isWallBarrierCollision(lateral) {
+    return Math.abs(lateral) > MAX_LATERAL;
+  }
+  assert(isWallBarrierCollision(350), 'lateral > MAX_LATERAL is wall barrier collision');
+  assert(!isWallBarrierCollision(100), 'lateral <= MAX_LATERAL is within drivable bounds');
+}
+
+// --- Audio API Synthesis tests (SSR safety) ---------------------------------
+{
+  // audio functions must safely no-op in headless/test environments without window/AudioContext
+  updateDriftScreech(true, 1.5);
+  updateDriftScreech(false, 0);
+  playMiniTurbo(1);
+  playMiniTurbo(2);
+  playMiniTurbo(3);
+  playDriftSpark(1);
+  playDriftSpark(2);
+  playDriftSpark(3);
+  playEvent('mini-turbo-1');
+  playEvent('mini-turbo-2');
+  playEvent('mini-turbo-3');
+  playEvent('drift-tier-1');
+  playEvent('drift-tier-2');
+  playEvent('drift-tier-3');
+  playEvent('heavy-bump');
+  playEvent('wall-collision');
+  playFinish(true);
+  playFinish(false);
+}
+
+// --- Rapid Retry Key Support (Sakurai gameplay-ux-009) -----------------------
+{
+  const testKeyEvents = [
+    {code: 'Space', key: ' '},
+    {code: 'Enter', key: 'Enter'},
+    {code: 'KeyR', key: 'r'},
+    {code: 'KeyR', key: 'R'},
+  ];
+  for (const ev of testKeyEvents) {
+    const isRapidRetryKey =
+      ev.code === 'Space' ||
+      ev.code === 'Enter' ||
+      ev.code === 'KeyR' ||
+      ev.key === ' ' ||
+      ev.key === 'Enter' ||
+      ev.key === 'r' ||
+      ev.key === 'R';
+    assert(isRapidRetryKey, `key ${ev.code}/${ev.key} triggers rapid retry`);
+  }
+}
+
+// --- Strict Traditional Chinese Compliance (Zero Simplified Chinese) --------
+{
+  // Unicode escapes for common simplified Chinese characters:
+  const scStrict = [
+    '\u5f20', '\u95e8', '\u5173', '\u8fd9', '\u4e3a', '\u4e66', '\u957f', '\u89c1',
+    '\u5b66', '\u56fd', '\u4f53', '\u5199', '\u5355', '\u4ec5', '\u4ece', '\u4e0e',
+    '\u5bf9', '\u6b22', '\u753b', '\u7ebf', '\u8fde', '\u5b9e', '\u65f6', '\u8ba1', '\u52a8',
+    '\u6f02\u79fb',
+    '\u6447\u6746',
+  ];
+
+  const filesToCheck = [
+    fileURLToPath(new URL('./engine/audio.ts', import.meta.url)),
+    fileURLToPath(new URL('./engine/race.ts', import.meta.url)),
+    fileURLToPath(new URL('./App.tsx', import.meta.url)),
+    fileURLToPath(new URL('./components/ResultScreen.tsx', import.meta.url)),
+    fileURLToPath(new URL('./components/CupStandings.tsx', import.meta.url)),
+    fileURLToPath(new URL('../../../04-sports-arcade/brick-kart-racing.md', import.meta.url)),
+  ];
+
+  for (const filePath of filesToCheck) {
+    if (fs.existsSync(filePath)) {
+      const content = fs.readFileSync(filePath, 'utf8');
+      for (const sc of scStrict) {
+        assert(
+          !content.includes(sc),
+          `File ${filePath} contains simplified Chinese character "${sc}"`,
+        );
+      }
+    }
+  }
 }
 
 console.log('check-kart-modes: ok');

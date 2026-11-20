@@ -1,3 +1,4 @@
+import {useEffect} from 'react';
 import {CHARACTERS} from '../data/characters';
 import {TRACKS} from '../data/tracks';
 import {formatTime, type Racer} from '../engine/race';
@@ -43,6 +44,27 @@ export function ResultScreen({
       ? finishedLaps.reduce((a, b) => a + b, 0) / finishedLaps.length
       : 0;
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea') return;
+      if (
+        e.code === 'Space' ||
+        e.code === 'Enter' ||
+        e.code === 'KeyR' ||
+        e.key === ' ' ||
+        e.key === 'Enter' ||
+        e.key === 'r' ||
+        e.key === 'R'
+      ) {
+        e.preventDefault();
+        onRetry();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onRetry]);
+
   const badge = [track?.name, mirror ? '鏡像' : null, timeTrial ? '計時賽' : '對戰賽']
     .filter(Boolean)
     .join(' · ');
@@ -54,7 +76,7 @@ export function ResultScreen({
       : '再壓一點彎道，單圈還能更快。'
     : won
       ? isNewRecord
-        ? '冠軍兼最佳單圈——漂亮的一場。'
+        ? '冠軍兼最佳單圈——精彩絕倫的一場。'
         : '搶下第一名！要不要再比一場？'
       : isNewRecord
         ? '名次雖非第一，但單圈破了紀錄。'
@@ -139,7 +161,7 @@ export function ResultScreen({
           onClick={onRetry}
           className="inline-flex w-full items-center justify-center rounded-xl bg-emerald-600 px-6 py-3 font-semibold text-white transition-colors hover:bg-emerald-500"
         >
-          再玩一局
+          再玩一局 (Space / Enter / R)
         </button>
         <button
           type="button"

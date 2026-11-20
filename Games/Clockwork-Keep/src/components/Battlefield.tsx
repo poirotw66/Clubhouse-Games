@@ -310,13 +310,35 @@ function draw(
     const cx = t.x * CELL + CELL / 2;
     const cy = t.y * CELL + CELL / 2;
     const isSelected = t.id === selectedTowerId;
-    if (isSelected) {
-      const range = resolveTowerStats(t).range;
+    const isHovered =
+      hoverCell !== null && hoverCell.x === t.x && hoverCell.y === t.y && !selectedTowerType;
+    const isFocused = isSelected || isHovered;
+    const range = resolveTowerStats(t).range;
+
+    if (isFocused) {
+      // Actively hovered or selected tower: bright dynamic pulsing range circle
+      const pulse = 0.5 + 0.5 * Math.sin(dashOffset * 0.6);
+      ctx.save();
       ctx.beginPath();
       ctx.arc(cx, cy, range * CELL, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
-      ctx.lineWidth = 2;
+      ctx.fillStyle = `rgba(250, 204, 21, ${0.08 + 0.06 * pulse})`;
+      ctx.fill();
+      ctx.strokeStyle = `rgba(253, 224, 71, ${0.75 + 0.25 * pulse})`;
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([8, 5]);
+      ctx.lineDashOffset = -dashOffset * 0.9;
       ctx.stroke();
+      ctx.restore();
+    } else {
+      // Existing towers remain faint/unobtrusive to prevent visual clutter
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, cy, range * CELL, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 7]);
+      ctx.stroke();
+      ctx.restore();
     }
     ctx.save();
     ctx.strokeStyle = isSelected ? '#fff' : 'rgba(0,0,0,0.5)';

@@ -173,7 +173,7 @@
 | 猛毒脈衝 | E | 脈衝按鈕 |
 | 戰術情報儀 | — | 頂部情報按鈕 |
 | 暫停／繼續 | P、Esc | 暫停按鈕 |
-| 重新開始 | R（結算畫面） | 再玩一局按鈕 |
+| 重新開始（極速重試） | Space、Enter、R（結算／死亡畫面） | 再玩一局按鈕 |
 
 ## 變體與可選規則
 
@@ -198,9 +198,9 @@
 | **模式／變體** | 自由探索闖關（15 層深度地窟 + 首領戰 + 通關後無盡模式）／硬派模式（Ironsnake：HP 嚴格鎖定 1、遺物四選一且過濾無效回血遺物、專屬「鐵蛇脫殼」成就）／每日挑戰（Asia/Taipei 日曆日種子、每日天梯與連勝 Streak、戰績分享複製）／挑戰種子包（6 關手編固定種子闖關階梯：初探三層、分數門檻、首殺首領、十層深淵、雙核連斬、逃出蛇窟）／4 大起始身分流派（青鱗幼蛇、疾行遊蛇、鐵鱗守蛇、血祭狂蛇） |
 | **Replay hook** | 雙軌持久化至 `localStorage`：自由探索與每日紀錄 `clubhouse:roguelike-snake:best`（最高分、最深樓層、通關次數、Ironsnake 最佳紀錄、每日連勝天數、起始身分解鎖、7 項本機成就徽章）與挑戰種子包專屬 `clubhouse:roguelike-snake:challenges`（解鎖進度、通關狀態、各關最佳高分） |
 | **對手／輔助（Undo／Hint）** | 多樣化地窟威脅生態（遊魂、追獵者、吐酸者、三階段腐化核心首領、週期尖刺陷阱）；即時輔助具備**雙翼賽博生體戰術座艙**：左翼 BFS 連通腹地熱圖與圍困死角雷達（前/左/右三向逃生淨空測距）、致命死角高警報、基因拓撲演化儀；右翼天賦聖物箱流派分析、首領弱點情報與吞噬者大師錦囊戰術指引 |
-| **回饋（Feedback）** | 標準 `ResultOverlay`（逃出勝負結算、樓層、得分、擊殺數、取得遺物展示、新高分徽章）+ WebAudio 生體合成音效（吃果實、衝刺音效、猛毒脈衝震波、受傷音效、首領受創與擊破）+ Canvas 粒子特效系統（圓環脈衝、金蘋果光爆、斬擊殘影、受傷紅閃、傳送門波動）+ 電競鍵盤實時走位與技能 HUD 高亮反饋 |
+| **回饋（Feedback）** | 標準 `ResultOverlay`（逃出勝負結算、樓層、得分、擊殺數、取得遺物展示、新高分徽章，支援櫻井政博 Rapid Retry 極速重試 <kbd>Space</kbd>／<kbd>Enter</kbd>／<kbd>KeyR</kbd> 無縫重啟）+ 櫻井政博打擊汁液（Sakurai fx-005 & fx-004）：整合 `@clubhouse/shared/juice`，受傷時觸發競技場實體劇烈震顫（`shake(arenaRef.current, 1.4)`）與衝擊觸覺脈衝（`haptic('impact')`），首領擊破觸發大震顫（`shake(arenaRef.current, 1.6)`）與勝利用和弦（`haptic('win')`）+ 連續進食音高階梯爬升（Sakurai coordinate-audio-visual-priority）：快速進食 Combo 時音效音高沿音樂音階（`playCombo(1..8)`）逐級半音階爬升 + 低血壓迫光暈（Sakurai gameplay-core-002 Stress & Release）：生命值 <= 25% 或瀕死 1 HP 時全螢幕浮現呼吸式深紅暈影警戒框（`snake-low-health-vignette`）營造極限緊張感 + WebAudio 生體合成音效（吃果實、衝刺音效、猛毒脈衝震波、受傷音效、首領受創與擊破）+ Canvas 粒子特效系統（圓環脈衝、金蘋果光爆、斬擊殘影、受傷紅閃、傳送門波動）+ 電競鍵盤實時走位與技能 HUD 高亮反饋 |
 | **觸控與操作（Touch）** | 原生觸控手勢滑動（Swipe 轉向）+ 畫面下方虛擬戰術控制器（十字方向鍵、Space 衝刺鍵、E 猛毒脈衝鍵）+ 響應式佈局適配：窄螢幕頂部整合戰術速報條（整合死角警戒、關卡目標、快發脈衝與戰術情報儀展開彈窗） |
-| **驗證腳本（Check）** | `npm run lint -w roguelike-snake`（TypeScript 零錯誤）與 `npm run check -w roguelike-snake` → `scripts/self-check.ts`（>850 行深度測試：Ironsnake 規則嚴格鎖定 HP=1 與回血遺物過濾、4 大身分初始屬性與解鎖鏈驗證、猛毒脈衝與首領戰鬥回合計時、地窟種子地形確定性與果實邊界、遺物組合流派綜效、Asia/Taipei 日期格式化與連勝遞迴、6 關手編挑戰包通關邏輯） |
+| **驗證腳本（Check）** | `npm run lint -w roguelike-snake`（TypeScript 零錯誤）與 `npm run check -w roguelike-snake` → `scripts/self-check.ts`（>1200 行深度測試：包含櫻井政博打擊感震動、連續進食音階爬升、低血壓迫判定、Rapid Retry 按鍵映射、Ironsnake 規則嚴格鎖定 HP=1 與回血遺物過濾、4 大身分初始屬性與解鎖鏈驗證、猛毒脈衝與首領戰鬥回合計時、地窟種子地形確定性與果實邊界、遺物組合流派綜效、Asia/Taipei 日期格式化與連勝遞迴、6 關手編挑戰包通關邏輯） |
 
 ## 實作
 

@@ -3,9 +3,9 @@ import { GRID } from '../game/config';
 import { drawArena } from '../render/draw';
 import type { GameState } from '../game/types';
 
-export interface ArenaHandle {
+export type ArenaHandle = HTMLDivElement & {
   draw: (state: GameState, alpha: number) => void;
-}
+};
 
 /** Canvas host: owns sizing/DPR, exposes an imperative draw so the loop lives in App. */
 export const Arena = forwardRef<ArenaHandle>(function Arena(_props, ref) {
@@ -40,13 +40,23 @@ export const Arena = forwardRef<ArenaHandle>(function Arena(_props, ref) {
     return () => observer.disconnect();
   }, []);
 
-  useImperativeHandle(ref, () => ({
-    draw(state, alpha) {
-      const ctx = canvasRef.current?.getContext('2d');
-      if (!ctx) return;
-      drawArena(ctx, state, alpha, cellRef.current);
+  useImperativeHandle(
+    ref,
+    () => {
+      const el = wrapRef.current;
+      if (!el) {
+        return {} as ArenaHandle;
+      }
+      return Object.assign(el, {
+        draw(state: GameState, alpha: number) {
+          const ctx = canvasRef.current?.getContext('2d');
+          if (!ctx) return;
+          drawArena(ctx, state, alpha, cellRef.current);
+        },
+      });
     },
-  }));
+    [],
+  );
 
   return (
     <div ref={wrapRef} className="w-full flex justify-center">

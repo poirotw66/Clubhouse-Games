@@ -18,6 +18,24 @@ export const HIT_STOP_PERFECT = 0.14;
 export const HIT_STOP_GOOD = 0.07;
 
 /**
+ * Pentatonic scale semitones for combo hits (Sakurai coordinate-audio-visual-priority).
+ * Sustained rallies climb the pitch ladder to heighten auditory tension.
+ */
+export const COMBO_PENTATONIC_SEMITONES = [0, 2, 4, 7, 9, 12, 14, 16];
+
+/**
+ * Calculate pitch multiplier for a combo count.
+ * @param {number} [combo]
+ * @returns {number}
+ */
+export function comboPitchMultiplier(combo = 1) {
+  const current = combo ?? 1;
+  const effectiveStep = Math.max(0, Math.min(COMBO_PENTATONIC_SEMITONES.length - 1, Math.floor(current) - 1));
+  const semitones = COMBO_PENTATONIC_SEMITONES[effectiveStep];
+  return Math.pow(2, semitones / 12);
+}
+
+/**
  * @param {number} waveTier  0–2 drill phase or score-attack wave floor
  * @param {number} [combo]
  * @param {number} [bonusMs]  reaction calibration offset (e.g. mobile touch tolerance)

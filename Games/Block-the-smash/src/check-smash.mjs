@@ -10,6 +10,7 @@ import {
   resolveAimX,
 } from './game/smashTypes.js';
 import {
+  COMBO_PENTATONIC_SEMITONES,
   IMPACT_Z,
   POS_GOOD,
   POS_PERFECT,
@@ -18,6 +19,7 @@ import {
   WINDOW_PERFECT_MS,
   aimZoneFromMouse,
   combineContact,
+  comboPitchMultiplier,
   etaToImpact,
   getTimingWindowsMs,
   gradePosition,
@@ -121,6 +123,17 @@ assert(
   drillAccuracy({ perfects: 5, goods: 0, blocks: 0, misses: 5, maxBalls: 10 }) === 50,
   'half misses 50%',
 );
+
+// Pentatonic pitch ladder checks (Sakurai coordinate-audio-visual-priority)
+assert(COMBO_PENTATONIC_SEMITONES.length === 8, 'eight pentatonic steps');
+assert(comboPitchMultiplier(1) === 1, 'combo 1 multiplier base 1.0');
+assert(Math.abs(comboPitchMultiplier(2) - Math.pow(2, 2 / 12)) < 1e-6, 'combo 2 semitone 2');
+assert(Math.abs(comboPitchMultiplier(4) - Math.pow(2, 7 / 12)) < 1e-6, 'combo 4 semitone 7');
+assert(Math.abs(comboPitchMultiplier(6) - 2.0) < 1e-6, 'combo 6 octave 2.0');
+assert(Math.abs(comboPitchMultiplier(8) - Math.pow(2, 16 / 12)) < 1e-6, 'combo 8 semitone 16');
+assert(Math.abs(comboPitchMultiplier(99) - Math.pow(2, 16 / 12)) < 1e-6, 'combo > 8 clamps to max');
+assert(comboPitchMultiplier(0) === 1, 'combo 0 multiplier base');
+assert(comboPitchMultiplier(null) === 1, 'combo null multiplier base');
 
 // ============================================================================
 // 2. Smash Arsenal & Aim Profiles

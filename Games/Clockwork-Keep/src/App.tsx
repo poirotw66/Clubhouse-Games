@@ -10,7 +10,12 @@ import {
   playMove,
   playWin,
 } from '@clubhouse/shared/synthAudio';
+import { shake } from '@clubhouse/shared/juice';
 import { Battlefield } from './components/Battlefield';
+import {
+  isRapidRetryKey,
+  playBossAlertTone,
+} from './components/battlefieldVfx';
 import { ClockworkOverdriveGauge } from './components/ClockworkOverdriveGauge';
 import { WaveThreatRadar } from './components/WaveThreatRadar';
 import { EnemyCodexModal } from './components/EnemyCodexModal';
@@ -35,6 +40,7 @@ import {
   type MapId,
   type TowerType,
 } from './game/constants';
+import { isBossWave } from './game/waves';
 import {
   dailyChallengeFor,
   loadDailyBest,
@@ -162,6 +168,10 @@ export default function App(): ReactElement {
   const [shakeClass, setShakeClass] = useState('');
   const shakeTimer = useRef<number | null>(null);
 
+  const battlefieldRef = useRef<HTMLDivElement>(null);
+  const [bossAlertActive, setBossAlertActive] = useState(false);
+  const lastAlertedWaveRef = useRef<number>(-1);
+
   const recordedRef = useRef(false);
 
   const [bestWave, setBestWave] = useState(0);
@@ -261,6 +271,8 @@ export default function App(): ReactElement {
       recordedRef.current = false;
       setLastMissionCleared(null);
       setActiveMissionId(opts.mission?.id ?? null);
+      lastAlertedWaveRef.current = -1;
+      setBossAlertActive(false);
       setScreen('playing');
     },
     [],
@@ -296,6 +308,8 @@ export default function App(): ReactElement {
   );
 
   const backToSetup = useCallback(() => {
+    lastAlertedWaveRef.current = -1;
+    setBossAlertActive(false);
     setScreen('setup');
     stateRef.current = null;
     setState(null);
@@ -387,6 +401,27 @@ export default function App(): ReactElement {
       }
     }
   }, [state]);
+
+  // ── Boss wave alert & stress/release (Sakurai gameplay-core-002) ──────────
+  useEffect(() => {
+    if (!state) return;
+    if (state.phase === 'wave' && isBossWave(state.wave)) {
+      if (lastAlertedWaveRef.current !== state.wave) {
+        lastAlertedWaveRef.current = state.wave;
+        setBossAlertActive(true);
+        if (battlefieldRef.current) {
+          shake(battlefieldRef.current, 2.0);
+        }
+        playBossAlertTone();
+        const timer = window.setTimeout(() => {
+          setBossAlertActive(false);
+        }, 4500);
+        return () => window.clearTimeout(timer);
+      }
+    } else if (state.phase !== 'wave') {
+      setBossAlertActive(false);
+    }
+  }, [state?.phase, state?.wave]);
 
   // ── Commands ─────────────────────────────────────────────────────────────
   const handleCellClick = useCallback(
@@ -486,11 +521,31 @@ export default function App(): ReactElement {
     startMission(activeMission);
   }, [activeMission, startMission]);
 
+  const handleRapidRetry = useCallback(() => {
+    lastAlertedWaveRef.current = -1;
+    setBossAlertActive(false);
+    if (activeMission) {
+      retryMission();
+    } else if (stateRef.current?.dailyDate) {
+      startDaily();
+    } else {
+      startGame();
+    }
+  }, [activeMission, retryMission, startDaily, startGame]);
+
   // ── Keyboard shortcuts ───────────────────────────────────────────────────
   useEffect(() => {
     if (screen !== 'playing') return;
     const onKey = (e: KeyboardEvent) => {
       if (e.repeat) return;
+      const cur = stateRef.current;
+      if (cur && (cur.phase === 'won' || cur.phase === 'lost')) {
+        if (isRapidRetryKey(e)) {
+          e.preventDefault();
+          handleRapidRetry();
+          return;
+        }
+      }
       if (TOWER_HOTKEYS[e.key]) {
         e.preventDefault();
         const type = TOWER_HOTKEYS[e.key];
@@ -562,6 +617,7 @@ export default function App(): ReactElement {
     return () => window.removeEventListener('keydown', onKey);
   }, [
     screen,
+    handleRapidRetry,
     handleStartWave,
     handleUndo,
     handleTriggerOverdrive,
@@ -1039,16 +1095,49 @@ export default function App(): ReactElement {
         </div>
       </div>
 
-      <Battlefield
-        state={state}
-        hoverCell={hoverCell}
-        selectedTowerType={selectedTowerType}
-        selectedTowerId={selectedTowerId}
-        onCellHover={setHoverCell}
-        onCellClick={handleCellClick}
-        previewDelta={previewDelta}
-        isSealed={isSealed}
-      />
+      <div
+        ref={battlefieldRef}
+        className="w-full max-w-3xl mx-auto relative transition-transform"
+        data-testid="battlefield-container"
+      >
+        <Battlefield
+          state={state}
+          hoverCell={hoverCell}
+          selectedTowerType={selectedTowerType}
+          selectedTowerId={selectedTowerId}
+          onCellHover={setHoverCell}
+          onCellClick={handleCellClick}
+          previewDelta={previewDelta}
+          isSealed={isSealed}
+        />
+
+        {/* Pulsing red alarm vignette border */}
+        {bossAlertActive && (
+          <div
+            className="absolute inset-0 pointer-events-none rounded-xl border-4 border-red-600/90 shadow-[inset_0_0_50px_rgba(220,38,38,0.7)] animate-pulse z-20"
+            aria-hidden="true"
+          />
+        )}
+
+        {/* Boss Title announcement badge */}
+        {bossAlertActive && (
+          <div
+            className="absolute top-4 left-1/2 -translate-x-1/2 z-30 pointer-events-none flex items-center gap-2 px-5 py-2.5 rounded-full bg-red-950/95 border-2 border-red-500 shadow-[0_0_30px_rgba(239,68,68,0.85)] text-red-100 animate-bounce"
+            role="alert"
+            aria-live="assertive"
+          >
+            <span className="text-xl">⚠️</span>
+            <div className="flex flex-col items-center">
+              <span className="text-[10px] font-black tracking-widest text-red-400 uppercase">
+                BOSS ALERT · 首領進犯
+              </span>
+              <span className="text-xs sm:text-sm font-extrabold text-white tracking-wider">
+                【蒸氣泰坦·發條巨獸】現身！
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Prep / wave status bar */}
       <div className="w-full max-w-3xl mt-3 flex items-center justify-between gap-2 text-sm">

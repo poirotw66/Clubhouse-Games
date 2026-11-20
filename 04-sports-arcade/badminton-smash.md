@@ -21,6 +21,7 @@
   - <kbd>W</kbd> <kbd>S</kbd>：球拍角度切換（<kbd>W</kbd> 封網上揚 +0.28 rad / <kbd>S</kbd> 下沉挑球 -0.28 rad）。
   - <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd>：完美回殺落點快捷鍵（左路／中路／右路）。
   - <kbd>R</kbd>：重新訓練（Quick Reset / Replay）。
+  - <kbd>Space</kbd> / <kbd>Enter</kbd> / <kbd>R</kbd>：結算面板瞬時重啟（Rapid Retry，Sakurai gameplay-ux-009），對局結束時無需滑鼠游標操作即可瞬間再戰一局。
   - 鍵盤實體按鍵或點擊 HUD 按鈕時，矩陣按鍵即時霓虹高亮。
 - **指標與觸控**：
   - 移動球拍：滑鼠拖曳或觸控拖曳。
@@ -28,7 +29,7 @@
   - 行動端專屬觸控面板：底部提供「◀ 步法」「⚡ 魚躍撲救」「步法 ▶」「⯅ 截擊」「⯆ 挑球」大尺寸觸控鈕。
 - **回殺落點**：完美擋後點選左／中／右路（逾時則依指標位置自動決定）；尊重 `prefers-reduced-motion`（略過等待、直接依指標落點）。
 - **慣用手**：選單可切換左手／右手。
-- **音效與回饋**：選單靜音；局內合成音（揮拍／打擊／漏接／預備／超音速音爆／魚躍撲救／連擊倍率升級／體能警戒）；接入 `@clubhouse/shared/synthAudio` 與 `clubhouse:juice`（撞擊震動、衝擊波、羽毛爆散）；父層於結算依評等播放 `synthAudio`。
+- **音效與回饋**：選單靜音；局內合成音（揮拍／打擊／漏接／預備／超音速音爆／魚躍撲救／體能警戒）；回殺連擊音階爬升（Pentatonic Pitch Ladder，Sakurai coordinate-audio-visual-priority），連擊 1 至 8 階逐級攀升五聲音階基頻半音（0, 2, 4, 7, 9, 12, 14, 16 semitones），在連續多拍相持中層層堆疊聽覺張力；接入 `@clubhouse/shared/synthAudio` 與 `clubhouse:juice`（撞擊震動、衝擊波、羽毛與火花碎片爆散）；父層於結算依評等播放 `synthAudio`。
 
 ## 雙翼接殺電競座艙（Dual-wing Defense Cockpit）
 
@@ -70,6 +71,7 @@
 - **縮圈時機判定（Shrinking Timing Ring）**：同心時機外圈隨球速向靶心平滑收縮，外圈與靶心完全重合瞬間即為揮拍命中頂峰的極致完美窗口。
 - **甜區鎖定反應（Sweet-Spot Lock-On）**：當球拍甜區對齊預判靶心時，靶心與拍線瞬間轉化為螢光霓虹綠閃爍鎖定，提供直覺對位回饋。
 - **擊球衝擊波與音效（Sonic Shockwave）**：成功擋球於接觸點引爆放射狀霓虹光環衝擊波與羽毛散落，完美擋觸發低音震擊與 Hit-Stop。
+- **打擊定格與粒子動靜解耦（Hitstop Particle Decoupling，Sakurai fx-005）**：在 `state.hitStop > 0` 期間，羽球位置與鏡頭晃動受定格約束，但羽毛爆散碎片（feather explosion particles）、火花拖尾（spark debris）與衝擊波光環持續以 `delta` 推進 3D 空間飛行軌跡與淡出，徹底杜絕畫面全面凍結的停滯感（Anti-pattern），營造強烈的動靜衝擊反差。
 - **毫秒級反饋（ms Precision Feedback）**：打擊即時顯示誤差毫秒（如 `+8ms`、`-35ms`），協助精準微調反應節奏。
 - **完美**：揮拍高峰對準來球過拍平面，且球拍對位良好 → hit-stop、強震動、爆裂衝擊波、進入回殺選擇。
 - **良好**：時機或位置略寬 → 正常殺回、光環擴散。
@@ -131,9 +133,9 @@
 | 項目 | 本實作規範與對齊成果 |
 |------|----------------------|
 | 模式／變體 | 四種深度模式：訓練（10／25／50 球 × 簡單／普通／困難 3 難度）、波次加壓得分挑戰（每 8 球升階）、8 位招牌對手對戰階梯（BO3 系列賽制）、台北 Asia/Taipei（UTC+8）每日挑戰（18 球固定種子腳本）。 |
-| Replay hook | 採用 v3 結構化本機儲存（`clubhouse:block-the-smash-stats-v3`），向下相容並自動遷移 v2 準確率；持久化記錄各難度訓練準確率、得分挑戰最高分、對戰系列勝場與最佳連勝、每日挑戰今日最高分與連續天數（streak）、生涯完美數、最大連擊數、總局數與完美回殺成功次數。 |
+| Replay hook | 採用 v3 結構化本機儲存（`clubhouse:block-the-smash-stats-v3`），向下相容並自動遷移 v2 準確率；持久化記錄各難度訓練準確率、得分挑戰最高分、對戰系列勝場與最佳連勝、每日挑戰今日最高分與連續天數（streak）、生涯完美數、最大連擊數、總局數與完美回殺成功次數；結算面板支援 Rapid Retry（<kbd>Space</kbd> / <kbd>Enter</kbd> / <kbd>R</kbd> 瞬時重啟，Sakurai gameplay-ux-009），極小化操作空窗期以維繫心流衝動。 |
 | Board / card opponents | 8 位具備鮮明招牌習慣與覆蓋特性的 CPU 階梯（閃電阿豪、斜線美美、假動作阿鬼、鐵壁教練、節奏阿律、連殺猛寶、追身小敏、羽球魔王）；終關「羽球魔王」進行高階反應校準（+20ms 引拍預備 tell 補償與 +20ms 容錯時機窗，兼顧行動端觸控公平性與高技巧天花板）；具備引拍動作（tell）視覺提早示警與假動作偵測問號；即時動作遊戲不適用 Undo，以 3 向完美回殺落點策略抉擇作為可讀資訊回饋。 |
-| Feedback | 雙翼接殺電競座艙 HUD（StatCast 初速遙測、毫秒級反應延遲即時線圖、完美防守連擊倍率、體能耐力條、九宮格落點熱區雷達、威脅警報與戰術錦囊）；±ms 精度時機反饋；擊球 Hit-Stop、低音震擊、衝擊波光環與羽毛爆散粒子；父層深度接入 `@clubhouse/shared/synthAudio`；依據品質規範列為**永久 ～** honest exception（結算面板內嵌於 Three.js iframe 專屬電競座艙戰報）。 |
+| Feedback | 雙翼接殺電競座艙 HUD（StatCast 初速遙測、毫秒級反應延遲即時線圖、完美防守連擊倍率、體能耐力條、九宮格落點熱區雷達、威脅警報與戰術錦囊）；±ms 精度時機反饋；擊球 Hit-Stop 期間羽毛爆散粒子與火花拖尾持續以 `delta` 飛行推進（Sakurai fx-005）；回殺連擊爬升五聲音階基頻梯階（Sakurai coordinate-audio-visual-priority，1 至 8 連擊 semitones 遞增）；低音震擊、衝擊波光環；父層深度接入 `@clubhouse/shared/synthAudio`；依據品質規範列為**永久 ～** honest exception（結算面板內嵌於 Three.js iframe 專屬電競座艙戰報）。 |
 | Touch | 完整行動端原生觸控支援：底部電競虛擬按鍵（◀ 步法、⚡ 魚躍撲救、步法 ▶、⯅ 截擊、⯆ 挑球），支援觸控即時拖曳定位球拍、點擊揮拍防守與大尺寸完美回殺落點觸控卡片。 |
 | Check | 專屬深度驗證腳本 `check-smash.mjs`（>650 行），嚴密覆蓋連續重殺不變量（shouldStartBurst）、節奏打亂機率（counterDisruptsRhythm）、橫向瞄準與難度邊界外推（resolveAimX）、極限時機與空間幾何接觸判定（gradePosition, gradeTiming, combineContact）、完美回殺窗口與得分乘數（COUNTER_WINDOW_SEC, counterScoreBonus）、8 對手天梯進度與系列賽賽制（seriesWinsNeeded, isOpponentUnlocked）、台北每日挑戰種子確定性、跨日連續天數保持與分享文本格式化。 |
 

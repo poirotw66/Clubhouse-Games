@@ -22,6 +22,17 @@ import {
   triggerOverdrive,
   windMainspring,
 } from './game/engine.ts';
+import { isBossWave } from './game/waves.ts';
+import {
+  createVfxManager,
+  isRapidRetryKey,
+  playArmorRicochet,
+  playBossAlertTone,
+  playHammerCrunch,
+  playMortarBoom,
+  playTeslaZap,
+  spawnCombatVfx,
+} from './components/battlefieldVfx.ts';
 
 let nextId = 1;
 function makeEnemy(overrides = {}) {
@@ -193,6 +204,53 @@ function makeEnemy(overrides = {}) {
   assert.equal(activated.state.overdriveRemaining, 8.0);
   assert.equal(activated.state.steamPressure, 0);
   assert.equal(activated.state.overdriveCount, 1);
+}
+
+// ── 6) Boss Wave Identification & Pacing (Sakurai gameplay-core-002) ────────
+{
+  assert.equal(isBossWave(10), true, 'Wave 10 must be recognized as a boss wave');
+  assert.equal(isBossWave(20), true, 'Wave 20 must be recognized as a boss wave');
+  assert.equal(isBossWave(30), true, 'Wave 30 must be recognized as a boss wave');
+  assert.equal(isBossWave(1), false, 'Wave 1 must not be a boss wave');
+  assert.equal(isBossWave(9), false, 'Wave 9 must not be a boss wave');
+}
+
+// ── 7) Rapid Retry Key Detection (Sakurai gameplay-ux-009) ──────────────────
+{
+  assert.equal(isRapidRetryKey({ key: ' ' }), true, 'Space key triggers rapid retry');
+  assert.equal(isRapidRetryKey({ key: 'Enter' }), true, 'Enter key triggers rapid retry');
+  assert.equal(isRapidRetryKey({ key: 'r' }), true, 'r key triggers rapid retry');
+  assert.equal(isRapidRetryKey({ key: 'R' }), true, 'R key triggers rapid retry');
+  assert.equal(isRapidRetryKey({ key: 'k', code: 'KeyR' }), true, 'KeyR code triggers rapid retry');
+  assert.equal(isRapidRetryKey({ key: 'Escape' }), false, 'Escape is not a rapid retry trigger');
+  assert.equal(isRapidRetryKey({ key: 'Tab' }), false, 'Tab is not a rapid retry trigger');
+}
+
+// ── 8) Combat Feedback Audio & Ricochet Sparks (Sakurai fx-005) ─────────────
+{
+  // Audio functions safely execute without audio context in headless environment
+  assert.doesNotThrow(() => playMortarBoom());
+  assert.doesNotThrow(() => playTeslaZap());
+  assert.doesNotThrow(() => playHammerCrunch());
+  assert.doesNotThrow(() => playArmorRicochet());
+  assert.doesNotThrow(() => playBossAlertTone());
+
+  // Verify ricochet sparks spawn on damaged ironclad enemies
+  const vfx = createVfxManager();
+  const ironclad = makeEnemy({ id: 99, type: 'ironclad', hp: 80, maxHp: 100, worldX: 2, worldY: 3 });
+  const mockState = {
+    ...createInitialState('standard', 'open', false),
+    enemies: [ironclad],
+  };
+  const prevEnemies = new Map([[ironclad.id, 100]]);
+  const prevTowers = new Map();
+
+  spawnCombatVfx(vfx, mockState, prevTowers, prevEnemies);
+
+  // Should have generated particles for the ironclad hit
+  assert.ok(vfx.particles.length >= 5, 'Ironclad hit should generate at least 5 ricochet sparks');
+  const hasSilverWhiteSparks = vfx.particles.some((p) => p.color === '#f8fafc' || p.color === '#38bdf8');
+  assert.ok(hasSilverWhiteSparks, 'Ironclad deflection should generate metallic silver/white sparks');
 }
 
 console.log('check-combat: ok');
