@@ -22,6 +22,7 @@ export const NAMED_OPPONENTS: readonly NamedOpponent[] = [
     style: 'split',
     personality: 'rusher',
     difficulty: 'easy',
+    avatar: 'avatar-ming.jpg',
   },
   {
     id: 'mei',
@@ -31,6 +32,7 @@ export const NAMED_OPPONENTS: readonly NamedOpponent[] = [
     style: 'split',
     personality: 'rusher',
     difficulty: 'normal',
+    avatar: 'avatar-mei.jpg',
   },
   {
     id: 'qiang',
@@ -40,6 +42,7 @@ export const NAMED_OPPONENTS: readonly NamedOpponent[] = [
     style: 'hoard',
     personality: 'controller',
     difficulty: 'normal',
+    avatar: 'avatar-qiang.jpg',
   },
   {
     id: 'zhen',
@@ -49,6 +52,7 @@ export const NAMED_OPPONENTS: readonly NamedOpponent[] = [
     style: 'count',
     personality: 'counter',
     difficulty: 'hard',
+    avatar: 'avatar-zhen.jpg',
   },
   {
     id: 'king',
@@ -58,8 +62,30 @@ export const NAMED_OPPONENTS: readonly NamedOpponent[] = [
     style: 'chaos',
     personality: 'counter',
     difficulty: 'hard',
+    avatar: 'avatar-king.jpg',
   },
 ] as const;
+
+export function avatarForOpponent(id?: string | null): string {
+  if (!id) return 'avatar-ming.jpg';
+  const found = opponentById(id);
+  return found?.avatar ?? 'avatar-ming.jpg';
+}
+
+export function avatarForSeat(seat: number, ladderOpponentId?: string | null): string {
+  if (seat === 0) return 'avatar-player.jpg';
+  if (seat === 1 && ladderOpponentId) return avatarForOpponent(ladderOpponentId);
+  switch (seat) {
+    case 1:
+      return 'avatar-ming.jpg';
+    case 2:
+      return 'avatar-mei.jpg';
+    case 3:
+      return 'avatar-qiang.jpg';
+    default:
+      return 'avatar-player.jpg';
+  }
+}
 
 const STYLE_TO_PERSONALITY: Record<MemoryStyle, PersonalityId> = {
   split: 'rusher',

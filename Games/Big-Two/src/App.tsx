@@ -61,6 +61,7 @@ import {
 import {
   MEMORY_STYLE_LABEL,
   NAMED_OPPONENTS,
+  avatarForSeat,
   isOpponentUnlocked,
   ladderDifficulty,
   opponentById,
@@ -719,6 +720,7 @@ export default function App(): React.ReactElement {
                       key={seat}
                       name={name}
                       personality={person?.name ?? ''}
+                      avatar={avatarForSeat(seat, match?.config.ladderOpponentId)}
                       count={state.hands[seat].length}
                       active={state.turn === seat && state.phase === 'playing'}
                       passed={state.passed.includes(seat)}
@@ -749,7 +751,20 @@ export default function App(): React.ReactElement {
               />
 
               <section aria-label="你的手牌">
-                <div className="bt-hand flex justify-center px-2 pt-3">
+                <div className="flex items-center justify-between px-2 pt-1 text-xs text-slate-400">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-full overflow-hidden border border-emerald-400/60 shadow">
+                      <img
+                        src={`${import.meta.env.BASE_URL}avatar-player.jpg`}
+                        alt="你"
+                        className="w-full h-full object-cover object-top"
+                      />
+                    </div>
+                    <span className="font-bold text-slate-200">你的手牌</span>
+                  </div>
+                  <span className="text-[11px] font-mono text-indigo-300">剩 {state.hands[HUMAN].length} 張</span>
+                </div>
+                <div className="bt-hand flex justify-center px-2 pt-2">
                   {state.hands[HUMAN].map((card, idx) => (
                     <CardView
                       key={card.id}
@@ -892,6 +907,7 @@ export default function App(): React.ReactElement {
 function Opponent({
   name,
   personality,
+  avatar,
   count,
   active,
   passed,
@@ -899,6 +915,7 @@ function Opponent({
 }: {
   name: string;
   personality: string;
+  avatar?: string;
   count: number;
   active: boolean;
   passed: boolean;
@@ -956,7 +973,7 @@ function Opponent({
 
   return (
     <div
-      className={`relative rounded-xl px-2 py-2 text-center text-xs transition-all duration-200 flex flex-col items-center justify-between min-h-[5.5rem] border ${
+      className={`relative rounded-xl px-2 py-2 text-center text-xs transition-all duration-200 flex flex-col items-center justify-between min-h-[6.5rem] border ${
         isCritical
           ? 'bg-rose-950/40 border-rose-500 ring-2 ring-rose-500/60 scale-[1.03] shadow-lg shadow-rose-950/50'
           : active
@@ -968,13 +985,38 @@ function Opponent({
                 : 'bg-slate-900/60 border-slate-800/80'
       } ${isThreat ? 'bt-threat' : ''}`}
     >
-      <div className="w-full flex items-center justify-between gap-1">
-        <span className="font-bold truncate text-indigo-100">{name}</span>
+      <div className="relative mb-1">
+        <div
+          className={`w-11 h-11 rounded-full overflow-hidden border-2 transition-all duration-200 ${
+            isCritical
+              ? 'border-rose-400 ring-2 ring-rose-500/80 scale-105 shadow-md shadow-rose-950/70'
+              : active
+                ? 'border-indigo-400 ring-2 ring-indigo-400/80 scale-105 shadow-md shadow-indigo-950/70'
+                : isTableOwner
+                  ? 'border-amber-400 ring-2 ring-amber-400/60'
+                  : passed
+                    ? 'border-slate-700 opacity-60 grayscale-[35%]'
+                    : 'border-slate-700/80'
+          }`}
+        >
+          <img
+            src={`${import.meta.env.BASE_URL}${avatar || 'avatar-ming.jpg'}`}
+            alt={name}
+            className="w-full h-full object-cover object-top"
+          />
+        </div>
         {isTableOwner && (
-          <span className="text-[10px] px-1 py-0.2 rounded bg-amber-400/20 text-amber-300 border border-amber-400/30 font-bold shrink-0">
-            👑 檯主
+          <span
+            className="absolute -top-1 -right-1 text-[10px] drop-shadow rounded-full bg-amber-400 px-1 text-slate-950 font-black shadow"
+            title="檯主"
+          >
+            👑
           </span>
         )}
+      </div>
+
+      <div className="w-full flex items-center justify-center gap-1">
+        <span className="font-bold truncate text-indigo-100">{name}</span>
       </div>
 
       {personality && (
@@ -1249,30 +1291,41 @@ function Setup({
                       type="button"
                       disabled={!unlocked}
                       onClick={() => unlocked && onStartLadder(index)}
-                      className={`w-full text-left min-h-[56px] rounded-xl px-4 py-3 border touch-manipulation ${
+                      className={`w-full text-left min-h-[64px] rounded-xl px-3 py-2.5 border touch-manipulation flex items-center gap-3 ${
                         unlocked
                           ? 'border-indigo-400/50 bg-indigo-500/10 hover:bg-indigo-500/20'
                           : 'border-slate-800 bg-slate-900/40 opacity-60'
                       }`}
                     >
-                      <div className="flex items-baseline justify-between gap-2">
-                        <span className="font-bold">
-                          {unlocked ? op.name : '？？？'}
-                          {cleared && (
-                            <span className="ml-2 text-[10px] font-normal text-emerald-300">
-                              已擊敗
-                            </span>
-                          )}
-                        </span>
-                        <span className="text-[11px] text-indigo-200/60">
-                          {unlocked ? MEMORY_STYLE_LABEL[op.style] : '未解鎖'}
-                        </span>
+                      <div className={`w-12 h-12 rounded-xl overflow-hidden shrink-0 border-2 ${
+                        unlocked ? 'border-indigo-400/70 shadow-md shadow-indigo-950/50' : 'border-slate-700/50 grayscale'
+                      }`}>
+                        <img
+                          src={`${import.meta.env.BASE_URL}${op.avatar || 'avatar-ming.jpg'}`}
+                          alt={op.name}
+                          className={`w-full h-full object-cover object-top ${unlocked ? '' : 'filter brightness-40 contrast-125'}`}
+                        />
                       </div>
-                      {unlocked && (
-                        <p className="mt-1 text-xs text-indigo-100/55 leading-relaxed">
-                          {op.blurb}
-                        </p>
-                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="font-bold">
+                            {unlocked ? op.name : '？？？'}
+                            {cleared && (
+                              <span className="ml-2 text-[10px] font-normal text-emerald-300">
+                                已擊敗
+                              </span>
+                            )}
+                          </span>
+                          <span className="text-[11px] text-indigo-200/60">
+                            {unlocked ? MEMORY_STYLE_LABEL[op.style] : '未解鎖'}
+                          </span>
+                        </div>
+                        {unlocked && (
+                          <p className="mt-1 text-xs text-indigo-100/55 leading-relaxed truncate">
+                            {op.blurb}
+                          </p>
+                        )}
+                      </div>
                     </button>
                   </li>
                 );

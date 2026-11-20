@@ -207,6 +207,7 @@ export interface NamedOpponent {
   /** Personality weights this opponent leans on. */
   personality: PersonalityId;
   difficulty: DifficultyId;
+  avatar?: string;
 }
 
 /** One completed (or in-progress best) daily table attempt. */

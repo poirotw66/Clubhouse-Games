@@ -1,4 +1,5 @@
 import React from 'react';
+import { avatarForSeat } from '../game/opponents';
 import type { TacticalRadar } from '../game/tactics';
 import type { MatchState } from '../game/types';
 
@@ -64,18 +65,29 @@ export function OpponentDossierPanel({
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-bold text-indigo-100">
-                      {seatLabel(op.seat)}
-                    </span>
-                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300">
-                      {op.personalityName}
-                    </span>
-                    {op.isNextSeat && (
-                      <span className="text-[9px] px-1 py-0.2 rounded bg-amber-400/20 text-amber-300 font-semibold">
-                        下家
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full overflow-hidden border border-indigo-400/50 shrink-0 shadow">
+                      <img
+                        src={`${import.meta.env.BASE_URL}${avatarForSeat(op.seat, match?.config.ladderOpponentId)}`}
+                        alt={seatLabel(op.seat)}
+                        className="w-full h-full object-cover object-top"
+                      />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-indigo-100">
+                          {seatLabel(op.seat)}
+                        </span>
+                        {op.isNextSeat && (
+                          <span className="text-[9px] px-1 py-0.2 rounded bg-amber-400/20 text-amber-300 font-semibold">
+                            下家
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300">
+                        {op.personalityName}
                       </span>
-                    )}
+                    </div>
                   </div>
                   <span
                     className={`tabular-nums font-black px-2 py-0.5 rounded-full border text-[11px] ${
