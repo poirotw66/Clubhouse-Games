@@ -120,6 +120,29 @@ export function DraftShowcase({ state, onDismiss }: DraftShowcaseProps): React.R
           </div>
         </div>
 
+        {/* Draft Broadcast Stage Art Banner */}
+        <div className="relative h-28 w-full overflow-hidden border-b border-amber-500/20 sm:h-36">
+          <img
+            src={`${import.meta.env.BASE_URL}chapter-draft.jpg`}
+            alt="中華職棒年度新人球員選拔會現場實況"
+            className="h-full w-full object-cover object-center filter brightness-90 contrast-110"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent" />
+          <div className="absolute bottom-2 left-4 right-4 flex items-end justify-between">
+            <div>
+              <span className="rounded bg-rose-600/90 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-white shadow">
+                Live Broadcast
+              </span>
+              <p className="mt-1 text-sm font-black text-amber-200 drop-shadow">
+                中華職棒年度新人球員選拔會・現場簽約實況
+              </p>
+            </div>
+            <span className="font-mono text-[11px] text-slate-300 drop-shadow">
+              ROUND 1 - 9
+            </span>
+          </div>
+        </div>
+
         {/* Content Body */}
         <div className="p-6">
           {activeTab === 'card' ? (

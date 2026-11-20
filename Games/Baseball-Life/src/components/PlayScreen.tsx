@@ -23,6 +23,7 @@ import {
   playStadiumRoar,
   toggleAudioMuted,
 } from '../game/baseballAudio';
+import { sceneBackgroundStyle } from '../sceneBackground';
 
 const TONE_RING: Record<TurnReport['tone'], string> = {
   normal: 'rgba(148,163,184,0.35)',
@@ -280,73 +281,110 @@ export function PlayScreen({
   ]);
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 pb-16 pt-14">
-      {/* Draft Showcase Broadcast Modal */}
-      {showDraftShowcase && (
-        <DraftShowcase state={state} onDismiss={() => setShowDraftShowcase(false)} />
-      )}
+    <div className="min-h-screen w-full transition-colors duration-700" style={sceneBackgroundStyle(state.stage)}>
+      <div className="mx-auto w-full max-w-5xl px-4 pb-16 pt-14">
+        {/* Draft Showcase Broadcast Modal */}
+        {showDraftShowcase && (
+          <DraftShowcase state={state} onDismiss={() => setShowDraftShowcase(false)} />
+        )}
 
-      {/* Header Bar */}
-      <header className="mt-3 mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
-        <div>
-          <h1 className="text-xl font-black text-slate-100">
-            {state.name}
-            <span className="ml-2 text-xs font-normal text-slate-400">
-              {state.age} 歲・{LEAGUES[state.league].short}
-            </span>
-          </h1>
-          <p className="text-[11px] text-slate-500">
-            {state.originLabel}・種子碼 <span className="font-mono text-amber-300/80">{state.seedCode}</span>
-          </p>
-          {challenge && (
-            <p className="mt-1 text-[11px] font-semibold text-sky-300/90">
-              挑戰・{challenge.name}
-              <span className="ml-2 font-normal text-slate-400">目標：{challenge.goalLabel}</span>
+        {/* Header Bar */}
+        <header className="mt-3 mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
+          <div>
+            <h1 className="text-xl font-black text-slate-100">
+              {state.name}
+              <span className="ml-2 text-xs font-normal text-slate-400">
+                {state.age} 歲・{LEAGUES[state.league].short}
+              </span>
+            </h1>
+            <p className="text-[11px] text-slate-500">
+              {state.originLabel}・種子碼 <span className="font-mono text-amber-300/80">{state.seedCode}</span>
             </p>
-          )}
-        </div>
+            {challenge && (
+              <p className="mt-1 text-[11px] font-semibold text-sky-300/90">
+                挑戰・{challenge.name}
+                <span className="ml-2 font-normal text-slate-400">目標：{challenge.goalLabel}</span>
+              </p>
+            )}
+          </div>
 
-        {/* Quick Toolbar Controls */}
-        <div className="flex flex-wrap items-center gap-2">
-          {state.pendingDraftRank !== null && (
+          {/* Quick Toolbar Controls */}
+          <div className="flex flex-wrap items-center gap-2">
+            {state.pendingDraftRank !== null && (
+              <button
+                type="button"
+                onClick={() => setShowDraftShowcase(true)}
+                className="flex items-center gap-1.5 rounded-lg border border-amber-500/50 bg-amber-500/15 px-3 py-1 text-xs font-bold text-amber-300 transition hover:bg-amber-500/25"
+              >
+                <span>📋</span>
+                <span>選秀現場實況</span>
+              </button>
+            )}
+
             <button
               type="button"
-              onClick={() => setShowDraftShowcase(true)}
-              className="flex items-center gap-1.5 rounded-lg border border-amber-500/50 bg-amber-500/15 px-3 py-1 text-xs font-bold text-amber-300 transition hover:bg-amber-500/25"
+              onClick={() => {
+                const nextMuted = toggleAudioMuted();
+                setMuted(nextMuted);
+              }}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800/80 px-2.5 py-1 text-xs font-semibold text-slate-300 transition hover:bg-slate-700 hover:text-white"
+              aria-label={muted ? '開啟音效 (快捷鍵 M)' : '靜音 (快捷鍵 M)'}
             >
-              <span>📋</span>
-              <span>選秀現場實況</span>
+              <span>{muted ? '🔇' : '🔊'}</span>
+              <span className="hidden sm:inline">{muted ? '靜音' : '音效'}</span>
+              <kbd className="hidden rounded bg-slate-900 px-1 font-mono text-[9px] text-slate-400 sm:inline">
+                M
+              </kbd>
             </button>
-          )}
 
-          <button
-            type="button"
-            onClick={() => {
-              const nextMuted = toggleAudioMuted();
-              setMuted(nextMuted);
-            }}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800/80 px-2.5 py-1 text-xs font-semibold text-slate-300 transition hover:bg-slate-700 hover:text-white"
-            aria-label={muted ? '開啟音效 (快捷鍵 M)' : '靜音 (快捷鍵 M)'}
-          >
-            <span>{muted ? '🔇' : '🔊'}</span>
-            <span className="hidden sm:inline">{muted ? '靜音' : '音效'}</span>
-            <kbd className="hidden rounded bg-slate-900 px-1 font-mono text-[9px] text-slate-400 sm:inline">
-              M
-            </kbd>
-          </button>
+            <TouchButton
+              label="放棄這段人生"
+              ariaLabel="放棄目前進度並回到標題"
+              onClick={onQuit}
+              className="rounded-lg border border-slate-700 bg-slate-800/70 px-3 text-xs font-semibold text-slate-400"
+            />
+          </div>
+        </header>
 
-          <TouchButton
-            label="放棄這段人生"
-            ariaLabel="放棄目前進度並回到標題"
-            onClick={onQuit}
-            className="rounded-lg border border-slate-700 bg-slate-800/70 px-3 text-xs font-semibold text-slate-400"
-          />
+        {/* Chapter Stage Visual Banner */}
+        <section className="mb-4 overflow-hidden rounded-2xl border border-amber-500/25 bg-slate-900/80 shadow-lg">
+          <div className="relative h-28 w-full overflow-hidden sm:h-36">
+            <img
+              src={
+                state.stage === 'pro'
+                  ? `${import.meta.env.BASE_URL}chapter-pro-stadium.jpg`
+                  : `${import.meta.env.BASE_URL}chapter-highschool.jpg`
+              }
+              alt={state.stage === 'pro' ? '職業球團大巨蛋夜間決賽現場' : '甲子園青春黑土球場'}
+              className="h-full w-full object-cover object-center filter brightness-90 contrast-110"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent" />
+            <div className="absolute bottom-2.5 left-4 right-4 flex items-end justify-between">
+              <div>
+                <span className="rounded bg-amber-500/90 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-slate-950 shadow">
+                  {state.stage === 'pro'
+                    ? `STAGE 3 · ${LEAGUES[state.league].label}`
+                    : state.stage === 'amateur'
+                      ? 'STAGE 2 · 成棒業餘組'
+                      : 'STAGE 1 · 高中棒球甲子園'}
+                </span>
+                <p className="mt-1 text-sm font-black text-amber-100 drop-shadow sm:text-base">
+                  {state.team} · {state.stage === 'pro' ? `第 ${state.year} 年賽季` : `${state.age} 歲世代`}
+                </p>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] uppercase tracking-wider text-slate-400">通算收入</span>
+                <p className="font-mono text-xs font-bold text-emerald-300 drop-shadow sm:text-sm">
+                  {formatMoney(state.finance.earnings)}
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div className="mb-4">
+          <CareerTimeline state={state} />
         </div>
-      </header>
-
-      <div className="mb-4">
-        <CareerTimeline state={state} />
-      </div>
 
       <div className="grid gap-4 lg:grid-cols-[20rem_1fr] lg:items-start">
         <div className="bl-scouting-column"><StatusPanel state={state} highlightKeys={highlightKeys} /></div>
@@ -633,6 +671,7 @@ export function PlayScreen({
             </ol>
           </section>
         </div>
+      </div>
       </div>
     </div>
   );

@@ -133,7 +133,32 @@ export function TitleScreen({
               if (next !== null) { event.preventDefault(); setChapter(next); document.getElementById(`bl-chapter-${next}`)?.focus(); }
             }}><span className="bl-chapter-age">{item.age}<small>歲</small></span><span>{item.label}<small>{item.tag}</small></span><span className="bl-chapter-arrow" aria-hidden="true">↗</span></button>)}
           </div>
-          <div id="bl-chapter-panel" role="tabpanel" aria-labelledby={`bl-chapter-${chapter}`} className="bl-chapter-panel" tabIndex={0}><h2>{selectedChapter.title}</h2><p>{selectedChapter.detail}</p></div>
+          <div id="bl-chapter-panel" role="tabpanel" aria-labelledby={`bl-chapter-${chapter}`} className="bl-chapter-panel overflow-hidden" tabIndex={0}>
+            <div className="relative mb-3 h-28 w-full overflow-hidden rounded-xl border border-amber-500/20 sm:h-36">
+              <img
+                src={
+                  chapter === 0
+                    ? `${import.meta.env.BASE_URL}chapter-highschool.jpg`
+                    : chapter === 1
+                      ? `${import.meta.env.BASE_URL}chapter-draft.jpg`
+                      : `${import.meta.env.BASE_URL}chapter-pro-stadium.jpg`
+                }
+                alt={selectedChapter.label}
+                className="h-full w-full object-cover object-center filter brightness-90 contrast-105"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-transparent" />
+              <div className="absolute bottom-2 left-3 right-3 flex items-center justify-between">
+                <span className="rounded bg-amber-500/90 px-2 py-0.5 text-[10px] font-black uppercase text-slate-950 shadow">
+                  {selectedChapter.tag}
+                </span>
+                <span className="text-[11px] font-mono text-amber-200 drop-shadow">
+                  {selectedChapter.age} 歲開始
+                </span>
+              </div>
+            </div>
+            <h2>{selectedChapter.title}</h2>
+            <p>{selectedChapter.detail}</p>
+          </div>
         </section>
 
         <nav className="bl-career-extras" aria-label="更多玩法與教學">

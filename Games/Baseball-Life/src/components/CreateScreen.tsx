@@ -50,21 +50,37 @@ export function CreateScreen({
   }, [pendingLegacy, challenge, lockedPosition, position]);
 
   return (
-    <div className="bl-title-shell min-h-screen" style={sceneBackgroundStyle()}>
+    <div className="bl-title-shell min-h-screen" style={sceneBackgroundStyle('highschool')}>
       <div className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-5 px-4 py-14">
-      <header className="bl-title-hero mt-3">
-        <p className="text-xs tracking-[0.3em] text-slate-500">
-          種子碼 <span className="font-mono text-amber-300">{seedCode}</span>
-          {challenge && <span className="ml-2 tracking-normal text-sky-300">・生涯挑戰</span>}
-        </p>
-        <h1 className="mt-1 text-2xl font-black text-amber-300">
-          {challenge ? challenge.name : '建立球員'}
-        </h1>
+      <header className="bl-title-hero mt-3 overflow-hidden rounded-2xl border border-amber-500/30 bg-slate-900/80 shadow-xl">
+        <div className="relative h-32 w-full overflow-hidden sm:h-40">
+          <img
+            src={`${import.meta.env.BASE_URL}chapter-highschool.jpg`}
+            alt="高中野球甲子園青春球場"
+            className="h-full w-full object-cover object-center filter brightness-90 contrast-110"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent" />
+          <div className="absolute bottom-2.5 left-4 right-4 flex items-end justify-between">
+            <div>
+              <p className="text-xs font-bold tracking-[0.25em] text-amber-300 drop-shadow">
+                HIGH SCHOOL BASEBALL · 啟程之章
+              </p>
+              <h1 className="mt-0.5 text-xl font-black text-white drop-shadow sm:text-2xl">
+                {challenge ? challenge.name : '建立球員'}
+              </h1>
+            </div>
+            <p className="font-mono text-xs text-amber-300 drop-shadow">
+              種子碼 {seedCode}
+            </p>
+          </div>
+        </div>
         {challenge && (
-          <p className="mt-2 text-sm leading-relaxed text-sky-100/90">
-            目標：{challenge.goalLabel}
-            <span className="mt-1 block text-xs text-slate-400">{challenge.blurb}</span>
-          </p>
+          <div className="border-t border-sky-500/30 bg-sky-950/50 p-3">
+            <p className="text-xs font-semibold text-sky-200">
+              生涯挑戰目標：{challenge.goalLabel}
+            </p>
+            <p className="mt-0.5 text-[11px] text-slate-400">{challenge.blurb}</p>
+          </div>
         )}
       </header>
 

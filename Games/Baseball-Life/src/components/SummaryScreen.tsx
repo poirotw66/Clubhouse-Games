@@ -61,7 +61,7 @@ export function SummaryScreen({
   const totals = summary.totals;
 
   return (
-    <div className="bl-title-shell min-h-screen" style={sceneBackgroundStyle()}>
+    <div className="bl-title-shell min-h-screen" style={sceneBackgroundStyle('over')}>
       <div className="mx-auto w-full max-w-3xl px-4 pb-16 pt-14">
       <header className="bl-title-hero mt-3 text-center">
         <p className="text-xs tracking-[0.3em] text-slate-500">CAREER OVER</p>
@@ -75,6 +75,34 @@ export function SummaryScreen({
           名人堂積分 <span className="font-mono text-slate-300">{summary.hofScore}</span>
         </p>
       </header>
+
+      {/* Hall of Fame Memorial Hero Card */}
+      <div className="relative mt-6 overflow-hidden rounded-2xl border border-amber-500/40 bg-slate-900/80 shadow-2xl">
+        <div className="relative h-44 w-full overflow-hidden sm:h-56">
+          <img
+            src={`${import.meta.env.BASE_URL}chapter-hall-of-fame.jpg`}
+            alt="棒球殿堂名人堂光榮紀念館"
+            className="h-full w-full object-cover object-center filter brightness-95 contrast-105"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/35 to-transparent" />
+          <div className="absolute bottom-3 left-4 right-4 flex items-end justify-between">
+            <div>
+              <span className="rounded bg-amber-500/90 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-slate-950 shadow">
+                HALL OF FAME · 光榮引退
+              </span>
+              <p className="mt-1 text-base font-black text-amber-200 drop-shadow sm:text-lg">
+                {summary.verdict}
+              </p>
+            </div>
+            <div className="text-right">
+              <span className="text-[10px] uppercase tracking-wider text-slate-400">殿堂總積分</span>
+              <p className="font-mono text-lg font-black text-amber-300 drop-shadow sm:text-xl">
+                {summary.hofScore} pts
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {challenge && challengeCleared !== null && challengeCleared !== undefined && (
         <section
