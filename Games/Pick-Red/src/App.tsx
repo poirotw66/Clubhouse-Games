@@ -82,6 +82,7 @@ import {
 import {
   NAMED_OPPONENTS,
   PLAY_STYLE_LABEL,
+  avatarForSeat,
   isOpponentUnlocked,
   ladderDifficulty,
   opponentById,
@@ -940,9 +941,24 @@ export default function App(): React.ReactElement {
           {/* 中央主牌桌 */}
           <main className="w-full max-w-2xl flex flex-col gap-3">
             {ladderOpp && (
-              <p className="text-center text-xs text-emerald-200/70">
-                挑戰 {ladderOpp.name} · {PLAY_STYLE_LABEL[ladderOpp.style]}
-              </p>
+              <div className="flex items-center justify-between gap-3 px-3 py-2 rounded-xl bg-emerald-950/40 border border-emerald-500/30">
+                <div className="flex items-center gap-2.5">
+                  {ladderOpp.avatar && (
+                    <img
+                      src={`${import.meta.env.BASE_URL}${ladderOpp.avatar}`}
+                      alt={ladderOpp.name}
+                      className="w-8 h-8 rounded-full object-cover border border-amber-400/80 shadow"
+                    />
+                  )}
+                  <div>
+                    <span className="text-xs font-bold text-amber-200">挑戰 {ladderOpp.name}</span>
+                    <span className="text-[11px] text-emerald-200/70 ml-2">{ladderOpp.tagline}</span>
+                  </div>
+                </div>
+                <span className="text-[11px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-200 border border-emerald-500/30 font-medium">
+                  {PLAY_STYLE_LABEL[ladderOpp.style]}
+                </span>
+              </div>
             )}
             <MatchScoreboard match={match} progress={matchProgressLabel(match)} />
 
@@ -1008,6 +1024,7 @@ export default function App(): React.ReactElement {
                       count={state.hands[seat].length}
                       blackAces={state.rules.blackAces}
                       active={state.turn === seat && state.phase !== 'over'}
+                      avatar={avatarForSeat(seat, ladderOpp)}
                     />
                   ),
                 )}
@@ -1121,6 +1138,8 @@ export default function App(): React.ReactElement {
                   count={state.hands[HUMAN].length}
                   blackAces={state.rules.blackAces}
                   active={humanTurn && state.phase !== 'over'}
+                  avatar={avatarForSeat(HUMAN, ladderOpp)}
+                  isHuman
                 />
               </>
             )}
@@ -1216,6 +1235,8 @@ function Pile({
   count,
   blackAces,
   active,
+  avatar,
+  isHuman = false,
 }: {
   name: string;
   personality: string;
@@ -1223,28 +1244,66 @@ function Pile({
   count: number;
   blackAces: boolean;
   active: boolean;
+  avatar?: string;
+  isHuman?: boolean;
 }): React.ReactElement {
   const scoring = cards.filter((card) => isRed(card) || (blackAces && card.rank === 1));
+  const points = sumPoints(cards, blackAces);
   return (
     <div
-      className={`flex items-center gap-2 text-xs rounded-xl px-3 py-2 ${
-        active ? 'bg-emerald-500/10 ring-1 ring-emerald-400/40' : 'bg-slate-900/40'
+      className={`flex items-center gap-2.5 text-xs rounded-xl px-3 py-2 transition-all duration-200 ${
+        active
+          ? 'bg-emerald-500/15 ring-2 ring-emerald-400/80 shadow-[0_0_15px_rgba(52,211,153,0.25)]'
+          : 'bg-slate-900/60 border border-emerald-950/40'
       }`}
     >
-      <div className="w-16 shrink-0">
-        <span className="font-bold block">{name}</span>
-        {personality && (
-          <span className="text-[10px] text-emerald-200/45 truncate block">{personality}</span>
+      {avatar && (
+        <div className="relative shrink-0">
+          <img
+            src={`${import.meta.env.BASE_URL}${avatar}`}
+            alt={name}
+            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full object-cover border-2 transition-transform duration-200 ${
+              active
+                ? 'border-emerald-400 ring-2 ring-emerald-400/50 scale-105'
+                : 'border-slate-700/80 grayscale-[25%]'
+            }`}
+          />
+          {active && (
+            <span
+              className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-emerald-400 ring-2 ring-slate-900 animate-pulse"
+              title="當前回合"
+            />
+          )}
+        </div>
+      )}
+      <div className="w-16 sm:w-20 shrink-0 min-w-0">
+        <div className="flex items-center gap-1">
+          <span className="font-bold text-slate-100 truncate block">{name}</span>
+          {isHuman && (
+            <span className="text-[9px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 font-mono">
+              YOU
+            </span>
+          )}
+        </div>
+        {personality ? (
+          <span className="text-[10px] text-emerald-300/60 truncate block">{personality}</span>
+        ) : (
+          <span className="text-[10px] text-slate-400/60 truncate block">手牌 {count} 張</span>
         )}
       </div>
-      <span className="text-emerald-200/60 shrink-0">手牌 {count}</span>
-      <div className="flex flex-wrap gap-0.5 justify-end flex-1">
-        {scoring.length === 0 && <span className="text-emerald-200/30">尚未撿到分數</span>}
-        {scoring.map((card) => (
-          <CardView key={card.id} card={card} size="sm" blackAces={blackAces} />
-        ))}
+      <div className="flex flex-wrap gap-0.5 justify-end flex-1 min-h-[36px] items-center">
+        {scoring.length === 0 ? (
+          <span className="text-emerald-200/30 text-[11px]">尚未撿到分數</span>
+        ) : (
+          scoring.map((card) => (
+            <CardView key={card.id} card={card} size="sm" blackAces={blackAces} />
+          ))
+        )}
       </div>
-      <span className="font-black tabular-nums shrink-0">{sumPoints(cards, blackAces)}</span>
+      <div className="shrink-0 flex flex-col items-end pl-1 border-l border-emerald-900/30">
+        <span className="text-[10px] text-emerald-200/50 leading-none">得分</span>
+        <span className="font-black text-sm sm:text-base tabular-nums text-amber-300">{points}</span>
+      </div>
     </div>
   );
 }
@@ -1418,30 +1477,52 @@ function Setup({
                       type="button"
                       disabled={!unlocked}
                       onClick={() => unlocked && onStartLadder(index)}
-                      className={`w-full text-left min-h-[56px] rounded-xl px-4 py-3 border touch-manipulation ${
+                      className={`w-full text-left min-h-[64px] rounded-xl p-3 border touch-manipulation flex items-center gap-3 transition-colors ${
                         unlocked
                           ? 'border-emerald-400/50 bg-emerald-500/10 hover:bg-emerald-500/20'
                           : 'border-slate-800 bg-slate-900/40 opacity-60'
                       }`}
                     >
-                      <div className="flex items-baseline justify-between gap-2">
-                        <span className="font-bold">
-                          {unlocked ? op.name : '？？？'}
-                          {cleared && (
-                            <span className="ml-2 text-[10px] font-normal text-amber-300">
-                              已擊敗
-                            </span>
-                          )}
-                        </span>
-                        <span className="text-[11px] text-emerald-200/60">
-                          {unlocked ? PLAY_STYLE_LABEL[op.style] : '未解鎖'}
-                        </span>
+                      <div className="relative shrink-0">
+                        {unlocked && op.avatar ? (
+                          <img
+                            src={`${import.meta.env.BASE_URL}${op.avatar}`}
+                            alt={op.name}
+                            className={`w-12 h-12 rounded-xl object-cover border-2 shadow-md ${
+                              cleared ? 'border-amber-400/80' : 'border-emerald-400/80'
+                            }`}
+                          />
+                        ) : (
+                          <div className="w-12 h-12 rounded-xl bg-slate-800 border-2 border-slate-700 flex items-center justify-center text-slate-500 font-bold text-lg">
+                            ？
+                          </div>
+                        )}
+                        {cleared && (
+                          <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-amber-400 text-slate-950 font-black text-[10px] flex items-center justify-center shadow">
+                            ✓
+                          </span>
+                        )}
                       </div>
-                      {unlocked && (
-                        <p className="mt-1 text-xs text-emerald-100/55 leading-relaxed">
-                          {op.blurb}
-                        </p>
-                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="font-bold text-slate-100">
+                            {unlocked ? op.name : '？？？'}
+                            {cleared && (
+                              <span className="ml-2 text-[10px] font-normal text-amber-300">
+                                已擊敗
+                              </span>
+                            )}
+                          </span>
+                          <span className="text-[11px] text-emerald-200/70 font-medium">
+                            {unlocked ? `${op.tagline} · ${PLAY_STYLE_LABEL[op.style]}` : '未解鎖'}
+                          </span>
+                        </div>
+                        {unlocked && (
+                          <p className="mt-1 text-xs text-emerald-100/60 leading-relaxed line-clamp-2">
+                            {op.blurb}
+                          </p>
+                        )}
+                      </div>
                     </button>
                   </li>
                 );

@@ -22,6 +22,7 @@ export const NAMED_OPPONENTS: readonly NamedOpponent[] = [
     style: 'feeder',
     personality: 'feeder',
     difficulty: 'easy',
+    avatar: 'avatars/avatar-ming.jpg',
   },
   {
     id: 'mei',
@@ -31,6 +32,7 @@ export const NAMED_OPPONENTS: readonly NamedOpponent[] = [
     style: 'feeder',
     personality: 'feeder',
     difficulty: 'normal',
+    avatar: 'avatars/avatar-mei.jpg',
   },
   {
     id: 'cai',
@@ -40,6 +42,7 @@ export const NAMED_OPPONENTS: readonly NamedOpponent[] = [
     style: 'miser',
     personality: 'miser',
     difficulty: 'normal',
+    avatar: 'avatars/avatar-cai.jpg',
   },
   {
     id: 'zhen',
@@ -49,6 +52,7 @@ export const NAMED_OPPONENTS: readonly NamedOpponent[] = [
     style: 'aceChaser',
     personality: 'aceChaser',
     difficulty: 'hard',
+    avatar: 'avatars/avatar-zhen.jpg',
   },
   {
     id: 'king',
@@ -58,8 +62,28 @@ export const NAMED_OPPONENTS: readonly NamedOpponent[] = [
     style: 'chaos',
     personality: 'aceChaser',
     difficulty: 'hard',
+    avatar: 'avatars/avatar-king.jpg',
   },
 ] as const;
+
+export function avatarForSeat(seat: number, opponent?: NamedOpponent | null): string {
+  if (seat === 0) return 'avatars/avatar-player.jpg';
+  if (opponent && seat === 1) return opponent.avatar ?? 'avatars/avatar-ming.jpg';
+  const defaults = [
+    'avatars/avatar-player.jpg',
+    'avatars/avatar-ming.jpg',
+    'avatars/avatar-mei.jpg',
+    'avatars/avatar-zhen.jpg',
+  ];
+  return defaults[seat % defaults.length];
+}
+
+export function opponentNameForSeat(seat: number, opponent?: NamedOpponent | null): string {
+  if (seat === 0) return '你';
+  if (opponent && seat === 1) return opponent.name;
+  const defaults = ['你', '阿明', '小美', '阿珍'];
+  return defaults[seat % defaults.length];
+}
 
 export function opponentCount(): number {
   return NAMED_OPPONENTS.length;

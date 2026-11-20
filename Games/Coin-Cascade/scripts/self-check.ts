@@ -244,6 +244,7 @@ function runQuickChecks(): void {
     id: i + 1, kind: 'normal' as const, x, y: SHELF_LEN - 0.001, teeterSince: -1,
   }));
   const edge = step({ ...initial, tick: initial.config.physics.pusherPeriodTicks / 2,
+    pusherTick: initial.config.physics.pusherPeriodTicks / 2,
     coins: edgeCoins, strokeWasForward: true, strokeFallen: 0, score: 0 }, IDLE, FIXED_DT);
   assert.equal(edge.events.fallen.length, 3);
   assert.equal(edge.events.cascadeFinalized, CASCADE_MIN);
