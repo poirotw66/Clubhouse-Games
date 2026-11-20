@@ -54,6 +54,12 @@ import {
   resetSeries,
   seriesComplete,
 } from './utils/versusMeta.ts';
+import {
+  PENTATONIC_SCALE,
+  getPentatonicPitch,
+  isFanfareClear,
+  isRapidRetryKey,
+} from './utils/audioFeedback.ts';
 import { createInitialField, finishClearing, lockPiece } from './utils/gameStep.ts';
 import {
   computeStackTelemetry,
@@ -1548,6 +1554,103 @@ function fillRow(board, row, type = 'I') {
   assert.ok(ultraShare.includes('每日 Ultra'));
   assert.ok(ultraShare.includes('48500 分'));
   assert.ok(ultraShare.includes('連續 4 天'));
+}
+
+// =========================================================================
+// Track B: Pentatonic Pitch Escalation, Fanfare Clear, Rapid Retry & Shake
+// =========================================================================
+
+// Musical Pentatonic Pitch Escalation (Sakurai coordinate-audio-visual-priority)
+{
+  assert.equal(PENTATONIC_SCALE.length, 8, 'Pentatonic scale must contain 8 pitch steps');
+  assert.equal(PENTATONIC_SCALE[0], 261.63, 'Index 0 must be C4 (261.63 Hz)');
+  assert.equal(PENTATONIC_SCALE[1], 293.66, 'Index 1 must be D4 (293.66 Hz)');
+  assert.equal(PENTATONIC_SCALE[2], 329.63, 'Index 2 must be E4 (329.63 Hz)');
+  assert.equal(PENTATONIC_SCALE[3], 392.00, 'Index 3 must be G4 (392.00 Hz)');
+  assert.equal(PENTATONIC_SCALE[4], 440.00, 'Index 4 must be A4 (440.00 Hz)');
+  assert.equal(PENTATONIC_SCALE[5], 523.25, 'Index 5 must be C5 (523.25 Hz)');
+  assert.equal(PENTATONIC_SCALE[6], 587.33, 'Index 6 must be D5 (587.33 Hz)');
+  assert.equal(PENTATONIC_SCALE[7], 659.25, 'Index 7 must be E5 (659.25 Hz)');
+
+  // Mapping combo 1-8 to pitch:
+  assert.equal(getPentatonicPitch(0), 261.63, 'Combo 0 or below clamps to C4');
+  assert.equal(getPentatonicPitch(1), 261.63, 'Combo 1 maps to C4');
+  assert.equal(getPentatonicPitch(2), 293.66, 'Combo 2 maps to D4');
+  assert.equal(getPentatonicPitch(3), 329.63, 'Combo 3 maps to E4');
+  assert.equal(getPentatonicPitch(4), 392.00, 'Combo 4 maps to G4');
+  assert.equal(getPentatonicPitch(5), 440.00, 'Combo 5 maps to A4');
+  assert.equal(getPentatonicPitch(6), 523.25, 'Combo 6 maps to C5');
+  assert.equal(getPentatonicPitch(7), 587.33, 'Combo 7 maps to D5');
+  assert.equal(getPentatonicPitch(8), 659.25, 'Combo 8 maps to E5');
+  assert.equal(getPentatonicPitch(9), 659.25, 'Combo > 8 clamps to E5');
+  assert.equal(getPentatonicPitch(15), 659.25, 'High combos clamp safely to E5');
+}
+
+// 4-line Tetris & T-Spin Fanfare Clear Recognition
+{
+  assert.equal(isFanfareClear(null), false);
+  assert.equal(isFanfareClear({}), false);
+  assert.equal(isFanfareClear({ linesCleared: 1, label: 'SINGLE' }), false);
+  assert.equal(isFanfareClear({ linesCleared: 2, label: 'DOUBLE' }), false);
+  assert.equal(isFanfareClear({ linesCleared: 3, label: 'TRIPLE' }), false);
+
+  assert.equal(isFanfareClear({ linesCleared: 4, label: 'TETRIS' }), true);
+  assert.equal(isFanfareClear({ linesCleared: 4 }), true);
+  assert.equal(isFanfareClear({ linesCleared: 1, label: 'T-SPIN SINGLE' }), true);
+  assert.equal(isFanfareClear({ linesCleared: 2, label: 'T-SPIN DOUBLE' }), true);
+  assert.equal(isFanfareClear({ linesCleared: 3, label: 'T-SPIN TRIPLE' }), true);
+  assert.equal(isFanfareClear({ linesCleared: 1, label: 'T-SPIN MINI SINGLE' }), true);
+}
+
+// Rapid Retry Keys (Sakurai gameplay-ux-009)
+{
+  assert.equal(isRapidRetryKey({ key: ' ' }), true, 'Space key must trigger rapid retry');
+  assert.equal(isRapidRetryKey({ key: '', code: 'Space' }), true, 'Space code must trigger rapid retry');
+  assert.equal(isRapidRetryKey({ key: 'Enter' }), true, 'Enter key must trigger rapid retry');
+  assert.equal(isRapidRetryKey({ key: '', code: 'Enter' }), true, 'Enter code must trigger rapid retry');
+  assert.equal(isRapidRetryKey({ key: 'r' }), true, 'Lowercase r must trigger rapid retry');
+  assert.equal(isRapidRetryKey({ key: 'R' }), true, 'Uppercase R must trigger rapid retry');
+  assert.equal(isRapidRetryKey({ key: '', code: 'KeyR' }), true, 'KeyR code must trigger rapid retry');
+
+  // Gameplay keys should NOT be recognized as rapid retry:
+  assert.equal(isRapidRetryKey({ key: 'ArrowLeft' }), false);
+  assert.equal(isRapidRetryKey({ key: 'ArrowRight' }), false);
+  assert.equal(isRapidRetryKey({ key: 'ArrowUp' }), false);
+  assert.equal(isRapidRetryKey({ key: 'ArrowDown' }), false);
+  assert.equal(isRapidRetryKey({ key: 'z' }), false);
+  assert.equal(isRapidRetryKey({ key: 'x' }), false);
+  assert.equal(isRapidRetryKey({ key: 'c' }), false);
+}
+
+// ScoreBreakdown combo alias verification
+{
+  const result = scoreClear({
+    linesCleared: 2,
+    level: 1,
+    tSpin: 'none',
+    backToBackReady: false,
+    combo: 3,
+    perfectClear: false,
+    softDropRows: 0,
+    hardDropRows: 0,
+  });
+  assert.equal(result.nextCombo, 4);
+  assert.equal(result.combo, 4, 'ScoreBreakdown.combo must equal nextCombo');
+}
+
+// Hard Drop Shake Intensity Escalation Invariants (Sakurai fx-004)
+{
+  const BASE_HARD_DROP_SHAKE = 1.25;
+  const ESCALATED_FANFARE_SHAKE = 2.2;
+  const computeShake = (breakdown) =>
+    isFanfareClear(breakdown) ? ESCALATED_FANFARE_SHAKE : BASE_HARD_DROP_SHAKE;
+
+  assert.equal(computeShake(null), 1.25);
+  assert.equal(computeShake({ linesCleared: 1, label: 'SINGLE' }), 1.25);
+  assert.equal(computeShake({ linesCleared: 2, label: 'DOUBLE' }), 1.25);
+  assert.equal(computeShake({ linesCleared: 3, label: 'TRIPLE' }), 1.25);
+  assert.equal(computeShake({ linesCleared: 4, label: 'TETRIS' }), 2.2);
+  assert.equal(computeShake({ linesCleared: 2, label: 'T-SPIN DOUBLE' }), 2.2);
 }
 
 console.log('check-tetris: ok');

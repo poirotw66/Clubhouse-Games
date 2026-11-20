@@ -174,4 +174,37 @@ function assert(cond, msg) {
   assert(preferredGuardHeight(emptyHabit(), 0) === 'high', 'empty defaults high at bias 0 blend');
 }
 
+// Counter-Hit surge check (Sakurai gameplay-core-001).
+{
+  const normalAttack = startAttack('hook', 'high');
+  normalAttack.phase = 'active';
+  const normalHit = resolveHit({
+    attack: normalAttack,
+    attackerPower: 1,
+    defenderGuarding: false,
+    defenderGuardHeight: null,
+    defenderDodging: false,
+    defenderParrying: false,
+    defenderParryHeight: null,
+    defenderAttacking: false,
+  });
+  assert(normalHit.type === 'hit' && normalHit.isCounter === false, 'normal hit is not a counter');
+
+  const counterAttack = startAttack('hook', 'high');
+  counterAttack.phase = 'active';
+  const counterHit = resolveHit({
+    attack: counterAttack,
+    attackerPower: 1,
+    defenderGuarding: false,
+    defenderGuardHeight: null,
+    defenderDodging: false,
+    defenderParrying: false,
+    defenderParryHeight: null,
+    defenderAttacking: true,
+  });
+  assert(counterHit.type === 'hit' && counterHit.isCounter === true, 'catching attacking opponent is counter');
+  assert(counterHit.damage > normalHit.damage * 1.4, 'counter increases damage by 1.5x');
+  assert(counterHit.stunGain > normalHit.stunGain * 1.2, 'counter increases stun gain by 1.25x');
+}
+
 console.log('check-combat: ok');

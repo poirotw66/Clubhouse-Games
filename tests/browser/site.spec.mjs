@@ -361,12 +361,21 @@ test('blackjack: bet, resolve a hand, and restart from the result overlay', asyn
     .poll(
       async () => {
         if (await dialog.isVisible().catch(() => false)) return 'done';
-        for (const name of ['不保險', '均分 1:1', '繼續比牌', '停牌']) {
-          const button = page.getByRole('button', { name, exact: true });
-          if (await button.isVisible().catch(() => false)) {
-            await activate(button, isMobile);
+        const declineInsurance = page.getByRole('button', { name: '不保險', exact: true });
+        if (await declineInsurance.isVisible().catch(() => false)) {
+          await activate(declineInsurance, isMobile);
+        }
+        for (const name of ['均分 1:1', '繼續比牌']) {
+          const btn = page.getByRole('button', { name, exact: true });
+          if (await btn.isVisible().catch(() => false)) {
+            await activate(btn, isMobile);
             return name;
           }
+        }
+        const standBtn = page.getByRole('button', { name: '停牌', exact: true });
+        if (await standBtn.isVisible().catch(() => false)) {
+          await activate(standBtn, isMobile);
+          return 'stand';
         }
         return 'wait';
       },

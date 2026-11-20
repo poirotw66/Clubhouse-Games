@@ -335,4 +335,71 @@ export function drawToyBoxer(ctx: CanvasRenderingContext2D, b: DrawBoxerState): 
   ctx.restore();
 }
 
+/**
+ * Render an individual high-velocity spark line with glowing core and directional tail.
+ */
+export function drawSparkLine(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  vx: number,
+  vy: number,
+  color: string,
+  alpha = 1,
+  lineLength = 16,
+  lineWidth = 2.5,
+): void {
+  ctx.save();
+  ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+  ctx.strokeStyle = color;
+  ctx.lineWidth = lineWidth;
+  ctx.lineCap = 'round';
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 8;
+  const speed = Math.hypot(vx, vy);
+  const dirX = speed > 0.001 ? vx / speed : 1;
+  const dirY = speed > 0.001 ? vy / speed : 0;
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x - dirX * lineLength, y - dirY * lineLength);
+  ctx.stroke();
+  ctx.restore();
+}
+
+export interface SparkParticleLike {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  color: string;
+  kind?: string;
+  lineLength?: number;
+  lineWidth?: number;
+}
+
+/**
+ * Render radiant golden/red counter impact spark lines radiating outward (Sakurai fx-005 / gameplay-core-001).
+ */
+export function drawCounterSparkLines(
+  ctx: CanvasRenderingContext2D,
+  particles: SparkParticleLike[],
+): void {
+  for (const p of particles) {
+    if (p.kind === 'spark') {
+      drawSparkLine(
+        ctx,
+        p.x,
+        p.y,
+        p.vx,
+        p.vy,
+        p.color,
+        p.life,
+        p.lineLength ?? 16,
+        p.lineWidth ?? 2.5,
+      );
+    }
+  }
+}
+
 export type { PunchPhase };

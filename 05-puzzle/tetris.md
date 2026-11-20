@@ -146,6 +146,9 @@
     - 競技消行效率：即時計算四行消率（Tetris Rate %，競技俄羅斯方塊最高指標）、每分鐘消行（LPM）與手速落塊（PPS）。
     - 大師戰術錦囊：收錄「側井留空術（9-0 Stacking）」、「T-Spin 旋轉架構（T-Slot）」、「全清 Perfect Clear 契機」與「相殺反制術（Garbage Counter）」實戰要訣。
   - **場地與操作反饋升級**：
+    - 硬降重震反饋（Hard Drop Ground-Slam Shake，Sakurai fx-004）：硬降落底瞬間觸發場地容器物理震動（1.25 強度）；若硬降同時達成四行消行（Tetris）或 T-Spin 消除，震動反饋升級至 2.2 強度，並伴隨金色消行閃光（Golden Clearance Flash）。
+    - Combo 1–8 五聲音階音高遞增（Sakurai coordinate-audio-visual-priority）：消除行反饋依據連擊數沿五聲音階（C4、D4、E4、G4、A4、C5、D5、E5）階梯式提升排鐘音高；達成 4-line Tetris 或 T-Spin 時觸發大三和弦凱旋慶祝排鐘（Triumphant Major Triad Chime Fanfare）與慶祝星芒光效（Celebratory Sparkles）。
+    - 快速重試機制（Rapid Retry，Sakurai gameplay-ux-009）：對局結束或系列賽結束結算時，監聽 Space / Enter / KeyR 按鍵，玩家無需滑鼠點擊即可即時秒速重新開局。
     - 危險警戒線（Danger Line）：於場地第 16 行（頂部 4 格危險區間）配置動態雷射警戒線與警報光暈。
     - 電競級鍵盤操作指南 HUD：桌面端即時感應按鍵並觸發霓虹微光反饋。
     - 行動端頂部戰術速報條（Tactical Ticker）：在窄螢幕下以高密度數據條整合高度警戒、連擊態勢、Tetris 率與 B2B 狀態，並附帶戰術數據抽屜。
@@ -159,9 +162,9 @@
 | **模式／變體** | 涵蓋六大遊玩模式：**無盡**（Marathon，隨行數升級與重力加速）、**衝刺 40 行**（Sprint，40 行競速計時）、**限時 2 分**（Ultra，兩分鐘衝高分）、**對戰 CPU**（Versus，三檔難度 × 四種戰術風格 × BO3 三戰兩勝系列賽）、**每日挑戰**（Daily Sprint 與 Daily Ultra，Asia/Taipei UTC+8 日曆種子確定性題庫）、**精通訓練**（Cheese 垃圾行挖掘奪星與 T-Spin 實戰殘局題庫）。 |
 | **Replay hook** | 完整持久化至 `localStorage`：單人三大模式最佳成績 (`clubhouse:tetris-best`)、對戰勝負／連勝／最佳連勝 (`clubhouse-tetris-versus`)、BO3 系列賽進度與 CPU 戰術偏好 (`clubhouse:tetris-versus-meta-v1`)、每日挑戰成績與連續通關天數 (`clubhouse:tetris-daily-v1`)、訓練模式星級與通關記錄 (`clubhouse:tetris-practice-v1`)。 |
 | **對手／輔助** | 對戰 CPU 搭載三檔難度（簡單／普通／困難）與四種戰術風格（均衡、保守防守、積極挖洞、T-Spin 特化），支援垃圾行攻擊表、相殺抵銷（Cancellation）與佇列推入；雙翼戰術座艙提供 10 列高度等化雷達、空洞數與側井深分析、7-Bag 循環分佈透視、B2B 充能指示、Next 預覽（3～5 步）、連擊狂熱連鎖計（Combo Fever）、消行效率（Tetris Rate %、LPM、PPS）、第 16 行雷射危險警戒線與大師戰術錦囊。 |
-| **回饋（Feedback）** | 採用 `@clubhouse/shared` 標準 `ResultOverlay`（勝負／過關判定、分數、消行數、用時、等級、今日最佳、連續天數、星級、BO3 比分與再玩／分享按鈕）；搭配 `@clubhouse/shared/synthAudio` 原生 WebAudio 合成音效（方塊移動、旋轉、軟降、硬降落底、消行、Tetris 震撼音、T-Spin 音效、垃圾行推送、連鎖 Combo 音階、全清 Perfect Clear 音效）；動態視覺包含 Guideline 計分 Callout 浮動動畫（`T-SPIN DOUBLE`、`B2B`、`N COMBO`、`+分數`）、消行閃光與鍵盤 HUD 即時按鍵霓虹微光。 |
-| **觸控與操作（Touch）** | 完整行動端虛擬按鈕支援（左移、右移、軟降連續長按、左轉、右轉、瞬間落下、暫存 Hold）；響應式行動端介面：< 768px 自動將雙翼座艙收折為頂部戰術速報條（Tactical Ticker，展示高度、連擊、Tetris 率、B2B）與抽屜式戰術錦囊，確保雙場地對戰視野清晰；桌面端配備電競級鍵盤操作指南 HUD。 |
-| **驗證腳本（Check）** | `npm run check -w tetris` → `src/check-tetris.mjs`（無瀏覽器依賴純邏輯驗證，擴充至 >900 行高密度測試）：涵蓋 SRS 旋轉與踢牆表（JLSTZ 與 I 塊各 8 狀態 5 偏移測試）、T-Spin 3 角法則（Full／Mini／第 4 踢升級判定）、Guideline 計分與 B2B 1.5x 加成不變量、Combo 狂熱階級與垃圾公式、相殺與佇列推入、CPU 三檔難度與戰術風格決策、BO3 系列賽進程、Sprint 40 行計時與 Ultra 2 分倒數、PPS/LPM 統計、`clubhouse:tetris-best` 記錄持久化、Cheese 挖掘與每日種子確定性。 |
+| **回饋（Feedback）** | 採用 `@clubhouse/shared` 標準 `ResultOverlay`（勝負／過關判定、分數、消行數、用時、等級、今日最佳、連續天數、星級、BO3 比分與再玩／分享按鈕）；物理震動方面，硬降觸發 Ground-Slam 物理震動（1.25 強度），四行消行（Tetris）或 T-Spin 消除升級至 2.2 強度並伴隨金色消行閃光（Golden Clearance Flash）；聽覺方面搭載櫻井政博視聽協同優先級（Sakurai coordinate-audio-visual-priority）：Combo 1–8 沿五聲音階（C4、D4、E4、G4、A4、C5、D5、E5）階梯式音高遞增，四行 Tetris 與 T-Spin 觸發大三和弦凱旋慶祝排鐘與慶祝星芒光效（Celebratory Sparkles）；動態視覺包含 Guideline 計分 Callout 浮動動畫（`T-SPIN DOUBLE`、`B2B`、`N COMBO`、`+分數`）與鍵盤 HUD 即時按鍵微光。 |
+| **觸控與操作（Touch）** | 完整行動端虛擬按鈕支援（左移、右移、軟降連續長按、左轉、右轉、瞬間落下、暫存 Hold）；響應式行動端介面：< 768px 自動將雙翼座艙收折為頂部戰術速報條（Tactical Ticker，展示高度、連擊、Tetris 率、B2B）與抽屜式戰術錦囊，確保雙場地對戰視野清晰；桌面端配備電競級鍵盤操作指南 HUD，並實作快速重試機制（Sakurai gameplay-ux-009 Rapid Retry），遊戲結束或系列賽結算時支援 Space / Enter / KeyR 一鍵即時重新開局。 |
+| **驗證腳本（Check）** | `npm run check -w tetris` → `src/check-tetris.mjs`（無瀏覽器依賴純邏輯驗證，擴充至 >1600 行高密度測試）：涵蓋 SRS 旋轉與踢牆表（JLSTZ 與 I 塊各 8 狀態 5 偏移測試）、T-Spin 3 角法則（Full／Mini／第 4 踢升級判定）、Guideline 計分與 B2B 1.5x 加成不變量、Combo 狂熱階級與垃圾公式、五聲音階（C4～E5）頻率映射、Tetris/T-Spin 凱旋消除判定、快速重試按鍵識別、硬降震動強度階梯不變量（1.25 → 2.2）、相殺與佇列推入、CPU 三檔難度與戰術風格決策、BO3 系列賽進程、Sprint 40 行計時與 Ultra 2 分倒數、PPS/LPM 統計、`clubhouse:tetris-best` 記錄持久化、Cheese 挖掘與每日種子確定性。 |
 
 ## 參考與備註
 

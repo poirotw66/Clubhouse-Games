@@ -102,6 +102,19 @@
 - **響應式手機戰情膠囊（Mobile Tactical Capsule Bar）**：
   - 行動裝置上以頂部精美毛玻璃膠囊條呈現，單鍵展開半透明遙測抽屜，隨時掌握爆牌率、真數與 AI 戰術顧問建議。
 
+### 演出、音效與遊戲手感（Sakurai 遊戲哲學對齊）
+
+- **真實重質陶瓷黏土籌碼合成音效（Real Clay Chip Audio Synthesis - 櫻井政博 communicate-through-feedback）**：
+  在 `src/utils/audio.ts` 中完全汰換通用音效，採用 Web Audio API 程式化合成真實賭場陶瓷黏土籌碼（Casino Weighted Clay Chip）擊打聲。包含：
+  - 1800Hz～2400Hz 脆度擊打敲擊音（Crisp attack click）
+  - 600Hz 陶瓷厚實質感的短暫阻尼共鳴（Dampened resonance）
+  - 細緻帶通濾波表面磨擦雜訊瞬態（Subtle noise transient）
+  - 依下注面額（$25、$100、$500+）實時多層堆疊敲擊（Stacked clinks），撤回或清除下注時具備籌碼抹檯聚攏聲響。
+- **莊家暗牌懸念節拍（Dealer Hole Card Suspense Beat - 櫻井政博 presentation-speed / skill-a02）**：
+  在 `App.tsx` 中，當莊家明牌為 Ace 或 10 進行暗牌確認（Peek），或在莊家回合（`dealerTurn`）翻開暗牌前，加入 250ms 專屬懸念停頓（Suspense pause）。期間伴隨低頻心跳脈動（Soft heartbeat pulse，lub-dub 76Hz/66Hz）與綠呢絨桌面聚光暗角效果（Table vignette focus，徑向漸層與暗角聚焦於莊家手牌），在翻牌瞬間創造引人入勝的張力節奏。
+- **Blackjack 與加倍勝局慶祝衝擊（Blackjack & Double Down Celebratory Impact - 櫻井政博 gameplay-core-001 & fx-004）**：
+  依據風險與報酬對應原則，當玩家達成天生 Blackjack（Natural Blackjack）或成功贏得高風險「加倍下注（Double Down）」手牌時，觸發慶祝性金幣籌碼噴泉粒子效果（Celebratory chip fountain particles，多波次噴發覆蓋賭桌）與呢絨桌面震顫／觸覺脈動（Felt haptic pulse & table shake）。
+
 ## 勝負條件
 
 - 點數大於莊家且未超過 21 → 贏（1:1；Blackjack 依設定 3:2 或 6:5）。
@@ -126,9 +139,9 @@
 | **模式／變體** | 生涯進程桌級天梯（5 級解鎖：休閒 $0、銀 $2.5k、金 $8k、白金 $20k、高注 $50k）、每日挑戰（Taipei 換日、確定性牌靴種子、日曆戰績）、錫標錦標賽（5 人桌 15 局決賽、4 位 AI 競爭對手、即時名次榜與半彩池獎金）；可選賭場規則（H17/S17、1/2/4/6/8 副、穿透率 50%~90%、3:2/6:5 BJ 賠率、DAS、再分 A、提前/延遲/無投降） |
 | **Replay hook & 經濟循環** | 餘額持久化；標準 5 次桌級救濟 + **無限應急重載（$200，休閒桌）**，完全杜絕破產永久鎖定，100% 保留生涯局數、勝負、BJ 數、最佳連勝、淨利、策略命中與峰值籌碼；每日牌靴連續挑戰；連勝豪客光環尊榮標籤（1.0x~3.0x） |
 | **對手 AI & 決策輔助** | 完整真實基本策略顧問提示（要牌／停牌／加倍／分牌／投降／保險／均分）；局後即時策略回饋診斷（正確 vs 應為 X）；Hi-Lo 算牌練習模式（即時流水數與真數）；即時爆牌率量表；莊家爆牌預估天秤；玩家期望值優勢儀（-0.5%~+3.0%+）；牌靴大中小牌密度分佈 |
-| **Feedback** | 精美綠呢絨賭桌視覺；籌碼拋擲與堆疊音效（合成音效）、發牌／翻牌／收牌動畫；勝局籌碼飛入與和局退注；實體鍵盤戰術 HUD（按鍵提示條與 K 鍵全覽抽屜）；行動裝置專屬頂部毛玻璃戰情膠囊 |
+| **Feedback** | 精美綠呢絨賭桌視覺；真實重質陶瓷黏土籌碼物理合成音效（依面額多層堆疊敲擊、抹檯收注聲）、發牌／翻牌／收牌動畫；莊家暗牌 250ms 懸念停頓（心跳脈動與桌面聚光暗角）；天生 Blackjack 與加倍勝局之金幣籌碼噴泉粒子效果與呢絨震顫脈動；勝局籌碼飛入與和局退注；實體鍵盤戰術 HUD（按鍵提示條與 K 鍵全覽抽屜）；行動裝置專屬頂部毛玻璃戰情膠囊 |
 | **Touch & Keyboard** | 實體鍵盤全功能覆蓋：`H`（Hit）、`S`（Stand）、`D`（Double）、`P`（Split）、`R`（Surrender）、`Space/Enter`（發牌/結算）、`1~5`（籌碼下注）、`M`（Min Bet）、`C`（Clear）、`Z`（Undo 下注）、`T/?`（提示）、`I/N`（保險）、`Y/N`（均分）、`K`（快速鍵面板）；觸控雙翼戰情艙一鍵呼叫 |
-| **Check & Lint** | `npm run lint -w blackjack`（`tsc --noEmit` 零錯誤）與 `npm run check -w blackjack`（`check-blackjack.mjs` >790 行深度驗證：救濟零戰績損失、校準門檻解鎖、H17/S17 不變量、保險 EV、多手分牌結算、Hi-Lo 零和不變量、遙測機率數學） |
+| **Check & Lint** | `npm run lint -w blackjack`（`tsc --noEmit` 零錯誤）與 `npm run check -w blackjack`（`check-blackjack.mjs` >860 行深度驗證：救濟零戰績損失、校準門檻解鎖、H17/S17 不變量、保險 EV、多手分牌結算、Hi-Lo 零和不變量、遙測機率數學、黏土籌碼多層堆疊階層、暗牌 250ms 懸念常數、慶祝衝擊觸發條件、SSR 安全性） |
 
 ## 實作
 

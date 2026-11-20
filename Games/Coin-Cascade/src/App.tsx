@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { shake } from '@clubhouse/shared/juice';
 import { GameCanvas } from './components/GameCanvas';
 import {
   CASCADE_MIN,
@@ -161,6 +162,26 @@ export default function App(): React.ReactElement {
   const [fever, setFever] = useState<FeverState>(INITIAL_FEVER_STATE);
   const [banner, setBanner] = useState<{ text: string; key: number } | null>(null);
   const [earnToast, setEarnToast] = useState<string | null>(null);
+  const [fiendPush, setFiendPush] = useState(false);
+  const fiendPushRef = useRef(false);
+
+  const toggleFiendsPush = useCallback(() => {
+    const currentBalance = stateRef.current?.creditsRemaining ?? 0;
+    if (currentBalance < 20) return;
+    const next = !fiendPushRef.current;
+    fiendPushRef.current = next;
+    setFiendPush(next);
+    if (next) {
+      audio.playHeavyCascadeRumble(1.2);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (fiendPush && hud && hud.creditsRemaining < 20) {
+      fiendPushRef.current = false;
+      setFiendPush(false);
+    }
+  }, [fiendPush, hud]);
 
   const reducedMotion = useReducedMotion();
   useEffect(() => {
@@ -180,6 +201,8 @@ export default function App(): React.ReactElement {
   const accRef = useRef(0);
   const lastRef = useRef(0);
   const teeterSlowRef = useRef(0);
+  const surfaceRef = useRef<HTMLDivElement | null>(null);
+  const canvasRef = surfaceRef;
 
   const today = todayDateKey();
   const todayChallenge = useMemo(() => dailyChallengeFor(today), [today]);
@@ -235,6 +258,8 @@ export default function App(): React.ReactElement {
     lastDangerTeeterRef.current = 0;
     setSpecial('normal');
     specialRef.current = 'normal';
+    fiendPushRef.current = false;
+    setFiendPush(false);
     chuteXRef.current = SHELF_W / 2;
     accRef.current = 0;
     lastRef.current = performance.now();
@@ -302,7 +327,8 @@ export default function App(): React.ReactElement {
     if (screen !== 'playing') return;
     const toggleSpecial = (s: Special): void => {
       if (s === 'magnet' && !isSpecialUnlocked('magnet', meta)) return;
-      if (COST[s] > (stateRef.current?.creditsRemaining ?? 0)) return;
+      const costMultiplier = fiendPushRef.current ? 2 : 1;
+      if (COST[s] * costMultiplier > (stateRef.current?.creditsRemaining ?? 0)) return;
       const next = specialRef.current === s ? 'normal' : s;
       specialRef.current = next;
       setSpecial(next);
@@ -377,22 +403,25 @@ export default function App(): React.ReactElement {
       while (accRef.current >= FIXED_DT && budget-- > 0) {
         accRef.current -= FIXED_DT;
         const wantedDrop = dropRequestRef.current;
+        const isFiendActive = fiendPushRef.current && (stateRef.current?.creditsRemaining ?? 0) >= 20;
         const input: PlayerInput = {
           dropX: chuteXRef.current,
           drop: wantedDrop,
           special: specialRef.current,
+          fiendPush: isFiendActive,
         };
         dropRequestRef.current = false;
         next = step(next, input, FIXED_DT);
 
         const ev = next.events;
+        const chargeMult = isFiendActive ? 2 : 1;
         if (wantedDrop && !ev.rejectedDrop && !ev.shook) {
           audio.playDrop();
-          const q = dropTimingQuality(next.tick, next.config.physics);
+          const q = dropTimingQuality(next.pusherTick ?? next.tick, next.config.physics);
           if (q === 'perfect') {
-            feverRef.current = addFeverCharge(feverRef.current, 15);
+            feverRef.current = addFeverCharge(feverRef.current, 15 * chargeMult);
           } else if (q === 'good') {
-            feverRef.current = addFeverCharge(feverRef.current, 5);
+            feverRef.current = addFeverCharge(feverRef.current, 5 * chargeMult);
           }
         }
         if (ev.fallen.length > 0) {
@@ -402,9 +431,14 @@ export default function App(): React.ReactElement {
         if (ev.cascadeFinalized >= CASCADE_MIN) {
           audio.playCascade(ev.cascadeFinalized);
           if (ev.cascadeFinalized >= 4) audio.playAvalancheRoar(ev.cascadeFinalized / 4);
+          if (ev.cascadeFinalized >= 6) {
+            const shakeIntensity = Math.min(2.4, 1.6 + (ev.cascadeFinalized - 6) * 0.4);
+            shake(canvasRef.current, shakeIntensity);
+            audio.playHeavyCascadeRumble(shakeIntensity);
+          }
           feverRef.current = addFeverCharge(
             feverRef.current,
-            16 + (ev.cascadeFinalized - 3) * 6,
+            (16 + (ev.cascadeFinalized - 3) * 6) * chargeMult,
           );
           if (feverRef.current.active) {
             feverRef.current = {
@@ -431,14 +465,14 @@ export default function App(): React.ReactElement {
         }
         if (ev.timingBonuses > 0) {
           audio.playBonus();
-          feverRef.current = addFeverCharge(feverRef.current, 10);
+          feverRef.current = addFeverCharge(feverRef.current, 10 * chargeMult);
           setBanner({ text: `完美時機 +${ev.timingBonuses}`, key: next.tick + 0.25 });
         }
         if (ev.shook) audio.playShake();
         if (ev.rejectedDrop) audio.playReject();
 
         if (anyTeetering) {
-          feverRef.current = addFeverCharge(feverRef.current, 0.15);
+          feverRef.current = addFeverCharge(feverRef.current, 0.15 * chargeMult);
         }
 
         // Auto-trigger Fever when full
@@ -479,11 +513,12 @@ export default function App(): React.ReactElement {
   }, [screen, paused, reducedMotion]);
 
   useEffect(() => {
-    if (special !== 'normal' && hud && COST[special] > hud.creditsRemaining) {
+    const costMult = fiendPush ? 2 : 1;
+    if (special !== 'normal' && hud && COST[special] * costMult > hud.creditsRemaining) {
       specialRef.current = 'normal';
       setSpecial('normal');
     }
-  }, [hud, special]);
+  }, [hud, special, fiendPush]);
 
   // Record free-play bests, mode progress, meta tokens, daily — once a run ends.
   useEffect(() => {
@@ -560,7 +595,6 @@ export default function App(): React.ReactElement {
     });
   }, [hud, best, bestCascade, modeProgress.clearedCount]);
 
-  const surfaceRef = useRef<HTMLDivElement | null>(null);
   const toShelfX = useCallback((clientX: number): number => {
     const el = surfaceRef.current;
     if (!el) return SHELF_W / 2;
@@ -939,9 +973,10 @@ export default function App(): React.ReactElement {
   const modeBestPrev = activeMode ? modeProgress.bestScore[activeMode.id] ?? 0 : 0;
   const modeBestBeat = s && activeMode && s.score > modeBestPrev;
   const physics = s?.config.physics;
-  const pusherWave = s && physics ? triangleWave(s.tick, physics.pusherPeriodTicks) : 0;
-  const pusherFwd = s && physics ? pusherDirection(s.tick, physics) === 1 : true;
-  const timing = s && physics ? dropTimingQuality(s.tick, physics) : 'late';
+  const currentPusherTick = s ? (s.pusherTick ?? s.tick) : 0;
+  const pusherWave = s && physics ? triangleWave(currentPusherTick, physics.pusherPeriodTicks) : 0;
+  const pusherFwd = s && physics ? pusherDirection(currentPusherTick, physics) === 1 : true;
+  const timing = s && physics ? dropTimingQuality(currentPusherTick, physics) : 'late';
   const cooldownPct = s ? 1 - s.cooldown / DROP_COOLDOWN_TICKS : 1;
   const strokeActive = s?.strokeWasForward && (s.strokeFallen > 0 || pusherFwd);
   const deadline = s?.config.deadlineTick ?? null;
@@ -1013,6 +1048,36 @@ export default function App(): React.ReactElement {
                 : `${Math.round(fever.charge)}%`}
             </span>
           </div>
+          {/* Fiend's Push High-Stakes Double Bet Mode */}
+          <button
+            type="button"
+            disabled={(s?.creditsRemaining ?? 0) < 20}
+            onClick={toggleFiendsPush}
+            className={`cc-hud-chip cc-fiend-chip flex items-center gap-1.5 transition-all select-none cursor-pointer ${
+              fiendPush
+                ? 'is-active bg-red-950/80 border-rose-500/80 text-rose-200 shadow-[0_0_12px_rgba(244,63,94,0.4)] animate-pulse'
+                : 'bg-slate-900/60 border-slate-700/50 text-slate-300 hover:border-amber-500/40'
+            } disabled:opacity-40 disabled:cursor-not-allowed`}
+            title={
+              (s?.creditsRemaining ?? 0) < 20
+                ? '潮幣餘額不足 20，無法啟動雙倍激進推板（惡魔之釜守衛）'
+                : fiendPush
+                  ? '雙倍激進推板已啟動：每次投幣消耗 2X、推板速度 1.35X、落幣得分與狂熱充能 2X、側溝掉落風險增加'
+                  : '點擊切換雙倍激進推板（惡魔之釜高額下注雙倍收益與激進推板）'
+            }
+          >
+            <span className="text-[10px] font-black text-rose-300 flex items-center gap-1">
+              <span>🔥</span>
+              <span>雙倍激進推板 (Fiend's Push)</span>
+            </span>
+            <span
+              className={`font-mono text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                fiendPush ? 'bg-rose-500/30 text-rose-300 border border-rose-500/40' : 'bg-slate-800 text-slate-400'
+              }`}
+            >
+              {fiendPush ? 'ON' : 'OFF'}
+            </span>
+          </button>
           {timeLeftSec !== null && (
             <span className={`cc-hud-chip ${timeLeftSec <= 10 ? 'text-rose-300' : ''}`}>
               剩餘 <b>{formatClock(timeLeftSec)}</b>
@@ -1064,7 +1129,7 @@ export default function App(): React.ReactElement {
           <span
             className={`cc-timing-label shrink-0 ${timing === 'perfect' ? 'is-perfect' : timing === 'good' ? 'is-good' : ''}`}
           >
-            {timingHint(s.tick, physics)}
+            {timingHint(currentPusherTick, physics)}
           </span>
           <span
             className={`cc-cooldown-dot shrink-0 ${cooldownPct >= 1 ? 'is-ready' : ''}`}
@@ -1418,28 +1483,31 @@ export default function App(): React.ReactElement {
             <div className="p-2.5 rounded-xl bg-slate-900/80 border border-amber-500/15">
               <div className="text-[11px] font-medium text-amber-200/80 mb-1.5">快捷戰術投擲</div>
               <div className="grid grid-cols-2 gap-1.5">
-                {specialButtons.map((k, i) => (
-                  <button
-                    key={k}
-                    type="button"
-                    disabled={COST[k] > (s?.creditsRemaining ?? 0)}
-                    onClick={() => {
-                      const next = specialRef.current === k ? 'normal' : k;
-                      specialRef.current = next;
-                      setSpecial(next);
-                    }}
-                    className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-between border ${
-                      special === k
-                        ? 'bg-amber-500 text-slate-950 border-amber-300 shadow-[0_0_8px_rgba(251,191,36,0.5)]'
-                        : 'bg-slate-950/80 text-amber-100/90 border-slate-800 hover:border-amber-500/40 disabled:opacity-40 disabled:cursor-not-allowed'
-                    }`}
-                  >
-                    <span>{SPECIAL_LABEL[k]}</span>
-                    <span className="text-[9px] px-1 py-0.5 rounded bg-black/40 font-mono">
-                      {COST[k]}
-                    </span>
-                  </button>
-                ))}
+                {specialButtons.map((k, i) => {
+                  const specialCost = COST[k] * (fiendPush ? 2 : 1);
+                  return (
+                    <button
+                      key={k}
+                      type="button"
+                      disabled={specialCost > (s?.creditsRemaining ?? 0)}
+                      onClick={() => {
+                        const next = specialRef.current === k ? 'normal' : k;
+                        specialRef.current = next;
+                        setSpecial(next);
+                      }}
+                      className={`py-1.5 px-2 rounded-lg text-xs font-bold transition-all flex items-center justify-between border ${
+                        special === k
+                          ? 'bg-amber-500 text-slate-950 border-amber-300 shadow-[0_0_8px_rgba(251,191,36,0.5)]'
+                          : 'bg-slate-950/80 text-amber-100/90 border-slate-800 hover:border-amber-500/40 disabled:opacity-40 disabled:cursor-not-allowed'
+                      }`}
+                    >
+                      <span>{SPECIAL_LABEL[k]}</span>
+                      <span className="text-[9px] px-1 py-0.5 rounded bg-black/40 font-mono">
+                        {specialCost}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -1452,24 +1520,27 @@ export default function App(): React.ReactElement {
       </div>
 
       <div className="cc-special-bar shrink-0 flex justify-center gap-2 px-3 py-2.5 flex-wrap">
-        {specialButtons.map((k, i) => (
-          <button
-            key={k}
-            type="button"
-            disabled={COST[k] > (s?.creditsRemaining ?? 0)}
-            onClick={() => {
-              const next = specialRef.current === k ? 'normal' : k;
-              specialRef.current = next;
-              setSpecial(next);
-            }}
-            className={`cc-special min-h-[44px] min-w-[84px] px-3 rounded-xl font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed ${
-              special === k ? 'is-on' : ''
-            }`}
-          >
-            {i + 1}．{SPECIAL_LABEL[k]}
-            <span className="block text-[10px] font-semibold opacity-80">{COST[k]} 幣</span>
-          </button>
-        ))}
+        {specialButtons.map((k, i) => {
+          const specialCost = COST[k] * (fiendPush ? 2 : 1);
+          return (
+            <button
+              key={k}
+              type="button"
+              disabled={specialCost > (s?.creditsRemaining ?? 0)}
+              onClick={() => {
+                const next = specialRef.current === k ? 'normal' : k;
+                specialRef.current = next;
+                setSpecial(next);
+              }}
+              className={`cc-special min-h-[44px] min-w-[84px] px-3 rounded-xl font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed ${
+                special === k ? 'is-on' : ''
+              }`}
+            >
+              {i + 1}．{SPECIAL_LABEL[k]}
+              <span className="block text-[10px] font-semibold opacity-80">{specialCost} 幣</span>
+            </button>
+          );
+        })}
       </div>
 
       {ended && s && (

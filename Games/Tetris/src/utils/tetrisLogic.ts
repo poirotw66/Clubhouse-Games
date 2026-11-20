@@ -596,6 +596,8 @@ export interface ScoreBreakdown {
   attack: number;
   nextBackToBackReady: boolean;
   nextCombo: number;
+  /** Current combo count after this clear (alias of nextCombo). */
+  combo: number;
 }
 
 const LINE_BASE = [0, 100, 300, 500, 800] as const;
@@ -688,6 +690,7 @@ export function scoreClear(ctx: ScoreContext): ScoreBreakdown {
     attack,
     nextBackToBackReady,
     nextCombo,
+    combo: nextCombo,
   };
 }
 

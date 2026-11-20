@@ -718,7 +718,7 @@ export function GameCanvas({
       drawTriggerZone(ctx, s.triggerZoneX, s.tick, reducedMotion);
       drawEdgeBonusZones(ctx);
       drawPegs(ctx, s.config.physics.pegs);
-      drawPusher(ctx, s.tick, metalImg, s.config.physics);
+      drawPusher(ctx, s.pusherTick ?? s.tick, metalImg, s.config.physics);
 
       // Holographic Fever Overdrive HUD
       if (feverOn) {
@@ -941,7 +941,7 @@ export function GameCanvas({
         chuteXRef.current,
         s.cooldown > 0,
         s.config.physics,
-        s.tick,
+        s.pusherTick ?? s.tick,
         specialRef.current,
         feverOn,
       );

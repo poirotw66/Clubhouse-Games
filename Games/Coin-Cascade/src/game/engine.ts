@@ -44,6 +44,7 @@ import {
   SETTLE_GRACE_TICKS,
   SHAKE_JITTER,
   SHELF_LEN,
+  SHELF_W,
   SOLVER_ITERATIONS,
   SPAWN_Y,
   STARTING_CREDITS,
@@ -61,6 +62,7 @@ import {
   INITIAL_SHELF_Y1,
 } from './constants';
 import { hashString, streamRng } from './rng';
+import { isGutterLoss } from './chute';
 import { defaultTableId, tablePhysics, type TableId, type TablePhysics } from './tables';
 import type {
   Coin,
@@ -227,6 +229,7 @@ function emptyRunState(
     seed,
     seedCode,
     tick: 0,
+    pusherTick: 0,
     phase: 'playing',
     config,
     modeId: config.modeId,
@@ -428,6 +431,13 @@ export function step(state: RunState, input: PlayerInput, _dt: number): RunState
   let pendingTrigger: Working | null = null;
   let magnetJustDroppedId = -1;
 
+  const isFiend = Boolean(input.fiendPush && creditsRemaining >= 20);
+  const costMult = isFiend ? 2 : 1;
+  const valueMult = isFiend ? 2 : 1;
+  const pusherSpeedMult = isFiend ? 1.35 : 1.0;
+  const currentPusherTick = state.pusherTick ?? state.tick;
+  const nextPusherTick = currentPusherTick + pusherSpeedMult;
+
   if (state.phase === 'playing' && input.drop) {
     const closedForDrops =
       (state.config.deadlineTick !== null && state.tick >= state.config.deadlineTick) ||
@@ -437,8 +447,9 @@ export function step(state: RunState, input: PlayerInput, _dt: number): RunState
     if (closedForDrops) {
       rejectedDrop = true;
     } else {
-      const special = COST[input.special] > creditsRemaining ? 'normal' : input.special;
-      const cost = COST[special];
+      const baseSpecial = input.special;
+      const special = COST[baseSpecial] * costMult > creditsRemaining ? 'normal' : baseSpecial;
+      const cost = COST[special] * costMult;
       if (cooldown > 0 || cost > creditsRemaining || work.length >= MAX_COINS_ON_SHELF) {
         rejectedDrop = true;
       } else if (special === 'vibrate') {
@@ -472,7 +483,7 @@ export function step(state: RunState, input: PlayerInput, _dt: number): RunState
           r,
           mass: coinMass(kind, physics),
           teeterSince: -1,
-          wellTimed: isWellTimedDrop(state.tick, physics),
+          wellTimed: isWellTimedDrop(nextPusherTick, physics),
           prefilled: false,
         });
         nextCoinId += 1;
@@ -490,16 +501,23 @@ export function step(state: RunState, input: PlayerInput, _dt: number): RunState
     applyMagnetPull(work, magnetJustDroppedId);
   }
 
-  const frontY = pusherFrontY(tick, physics);
+  const frontY = pusherFrontY(nextPusherTick, physics);
   const thick = physics.pusherThick;
 
   for (const w of work) w.y += physics.slopePerTick;
 
   const sorted = work.slice().sort((a, b) => a.id - b.id);
+  const lateralSlide = isFiend ? physics.lateralSlide * 1.45 : physics.lateralSlide;
   for (let iter = 0; iter < SOLVER_ITERATIONS; iter++) {
-    resolvePairs(sorted, physics.lateralSlide);
+    resolvePairs(sorted, lateralSlide);
     resolvePegs(sorted, physics);
-    for (const w of sorted) clampWalls(w);
+    for (const w of sorted) {
+      if (isFiend) {
+        if (w.x < SHELF_W * 0.38) w.x -= 0.18;
+        else if (w.x > SHELF_W * 0.62) w.x += 0.18;
+      }
+      clampWalls(w);
+    }
     for (const w of sorted) resolvePusher(w, frontY, thick);
   }
 
@@ -558,18 +576,23 @@ export function step(state: RunState, input: PlayerInput, _dt: number): RunState
       };
       nextCoinId += 1;
     } else {
-      coinsRecovered += 1;
-      if (!f.prefilled) {
-        score += FALL_VALUE;
-        if (f.timingBonus) {
-          score += TIMING_BONUS;
-          timingBonuses += 1;
+      const inGutter = isGutterLoss(f.x);
+      if (isFiend && inGutter) {
+        // Gutter loss: dropped coin spilled into side gutters is lost to the house.
+      } else {
+        coinsRecovered += 1;
+        if (!f.prefilled) {
+          score += FALL_VALUE * valueMult;
+          if (f.timingBonus) {
+            score += TIMING_BONUS * valueMult;
+            timingBonuses += 1;
+          }
         }
       }
     }
   }
 
-  const tickWasForward = pusherDirection(state.tick, physics) === 1;
+  const tickWasForward = pusherDirection(nextPusherTick, physics) === 1;
   let cascadeCount = state.cascadeCount;
   let longestCascade = state.longestCascade;
   let cascadeFinalized = 0;
@@ -582,7 +605,7 @@ export function step(state: RunState, input: PlayerInput, _dt: number): RunState
     if (state.strokeWasForward) {
       const total = state.strokeFallen + fallen.length;
       if (total >= CASCADE_MIN) {
-        score += (total - (CASCADE_MIN - 1)) * CASCADE_BONUS_PER_EXTRA;
+        score += (total - (CASCADE_MIN - 1)) * CASCADE_BONUS_PER_EXTRA * valueMult;
         cascadeCount += 1;
         longestCascade = Math.max(longestCascade, total);
         cascadeFinalized = total;
@@ -648,6 +671,7 @@ export function step(state: RunState, input: PlayerInput, _dt: number): RunState
     seed: state.seed,
     seedCode: state.seedCode,
     tick,
+    pusherTick: nextPusherTick,
     phase,
     config: state.config,
     modeId: state.modeId,

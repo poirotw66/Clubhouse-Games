@@ -35,11 +35,43 @@ body {
   z-index: 1;
 }
 
+/*
+ * Golden line clearance flash for 4-line Tetris and T-Spin (Sakurai fx-004).
+ * Escalates visual intensity with warm golden aura and radiant blowout.
+ */
+@keyframes tetris-golden-clear {
+  0% {
+    transform: scaleY(1);
+    filter: brightness(1.2);
+    box-shadow: 0 0 10px rgba(251, 191, 36, 0.7);
+  }
+  35% {
+    transform: scaleY(1.16);
+    filter: brightness(3.8) saturate(2);
+    box-shadow: 0 0 24px rgba(245, 158, 11, 1), 0 0 45px rgba(251, 191, 36, 0.85);
+  }
+  100% {
+    transform: scaleY(0.1);
+    filter: brightness(4.5) saturate(2.2);
+    opacity: 0.1;
+  }
+}
+
+.tetris-clearing-golden {
+  animation: tetris-golden-clear 220ms ease-out forwards;
+  z-index: 2;
+}
+
 @media (prefers-reduced-motion: reduce) {
   /* The rows still get a beat of highlight, they just do not move. */
   .tetris-clearing {
     animation: none;
     filter: brightness(2.5);
+  }
+  .tetris-clearing-golden {
+    animation: none;
+    filter: brightness(3) saturate(1.8);
+    box-shadow: 0 0 16px rgba(251, 191, 36, 0.85);
   }
 }
 

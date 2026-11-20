@@ -26,6 +26,8 @@ export interface PlayerHand {
   fromSplitAces?: boolean;
   /** Hand was created by a split (blocks natural blackjack payout). */
   fromSplit?: boolean;
+  /** Hand was doubled down. */
+  isDoubled?: boolean;
 }
 
 export type GameState =

@@ -79,6 +79,13 @@ import {
   calculateShoeDensity,
   getStreakPrestige,
 } from './utils/telemetry.ts';
+import {
+  getChipStackCount,
+  SUSPENSE_PAUSE_MS,
+  playChip,
+  playBetClear,
+  playSuspenseBeat,
+} from './utils/audio.ts';
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);
@@ -795,5 +802,71 @@ const streak3 = getStreakPrestige(3);
 assert(streak3.level === 3 && streak3.title.includes('三連勝'), 'streak 3 prestige');
 const streak6 = getStreakPrestige(6);
 assert(streak6.level === 6 && streak6.title.includes('傳奇'), 'streak 6 prestige');
+
+// Task C: Real clay chip audio synthesis & stack layering
+assert(getChipStackCount(undefined) === 1, 'undefined bet defaults to single clay clink');
+assert(getChipStackCount(10) === 1, '$10 bet uses single clay clink');
+assert(getChipStackCount(25) === 2, '$25 bet layers 2 stacked clinks');
+assert(getChipStackCount(50) === 2, '$50 bet layers 2 stacked clinks');
+assert(getChipStackCount(100) === 3, '$100 bet layers 3 stacked clinks');
+assert(getChipStackCount(250) === 3, '$250 bet layers 3 stacked clinks');
+assert(getChipStackCount(500) === 4, '$500 bet layers 4 stacked clinks');
+assert(getChipStackCount(1000) === 4, '$1000 bet layers 4 stacked clinks');
+
+// Task C: Dealer hole card suspense beat timing constant
+assert(SUSPENSE_PAUSE_MS === 250, 'dealer hole card suspense pause must be exactly 250ms');
+
+// Task C: Celebratory Impact conditions (Natural BJ win and Double Down win)
+const testHandNaturalBJ = {
+  id: 'h1',
+  cards: [card('A'), card('K')],
+  bet: 100,
+  status: 'blackjack',
+  fromSplit: false,
+};
+const testHandSplitBJ = {
+  id: 'h2',
+  cards: [card('A'), card('K')],
+  bet: 100,
+  status: 'blackjack',
+  fromSplit: true,
+};
+const testHandDoubledWon = {
+  id: 'h3',
+  cards: [card('10'), card('9'), card('2')],
+  bet: 200,
+  status: 'won',
+  isDoubled: true,
+};
+const testHandDoubledLost = {
+  id: 'h4',
+  cards: [card('10'), card('6'), card('9')],
+  bet: 200,
+  status: 'lost',
+  isDoubled: true,
+};
+const testHandNormalWon = {
+  id: 'h5',
+  cards: [card('10'), card('9')],
+  bet: 100,
+  status: 'won',
+};
+
+const isCelebratory = (hands) => {
+  const isNaturalBJ = hands.some(h => h.status === 'blackjack' && !h.fromSplit);
+  const isDoubleWin = hands.some(h => (h.status === 'won' || h.status === 'blackjack') && h.isDoubled);
+  return isNaturalBJ || isDoubleWin;
+};
+
+assert(isCelebratory([testHandNaturalBJ]) === true, 'natural blackjack win triggers celebratory impact');
+assert(isCelebratory([testHandSplitBJ]) === false, 'split 21/blackjack does not trigger natural BJ celebration');
+assert(isCelebratory([testHandDoubledWon]) === true, 'winning double down hand triggers celebratory impact');
+assert(isCelebratory([testHandDoubledLost]) === false, 'lost double down hand does not trigger celebration');
+assert(isCelebratory([testHandNormalWon]) === false, 'normal win uses standard confetti rather than celebratory fountain');
+
+// Safe execution in SSR/Node environment (no window/AudioContext crash)
+playChip(100);
+playBetClear();
+playSuspenseBeat();
 
 console.log('check-blackjack: ok');

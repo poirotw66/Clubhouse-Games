@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
-import { haptic, particles } from '@clubhouse/shared/juice';
+import { haptic, particles, shake } from '@clubhouse/shared/juice';
 import { playLose, playWin } from '@clubhouse/shared/synthAudio';
 import { Card as CardType, GameState, PlayerHand } from './types';
 import {
@@ -52,7 +52,13 @@ import {
   type DecisionVerdict,
 } from './utils/feedback';
 import { runningCountDelta, trueCount } from './utils/hiLo';
-import { playChip, playDealCard, playBetClear } from './utils/audio';
+import {
+  playChip,
+  playDealCard,
+  playBetClear,
+  playSuspenseBeat,
+  SUSPENSE_PAUSE_MS,
+} from './utils/audio';
 import {
   DAILY_CHIP_VALUES,
   DAILY_HANDS,
@@ -176,6 +182,8 @@ export default function App() {
   const [insuranceBet, setInsuranceBet] = useState(0);
   const [peekPending, setPeekPending] = useState(false);
   const [peekResolved, setPeekResolved] = useState(false);
+  const [holeCardSuspense, setHoleCardSuspense] = useState(false);
+  const [feltPulse, setFeltPulse] = useState(false);
   const [betHistory, setBetHistory] = useState<BetSnapshot[]>([]);
   const [hintLabel, setHintLabel] = useState<string | null>(null);
   const [showRules, setShowRules] = useState(false);
@@ -273,7 +281,7 @@ export default function App() {
     if (next + reserved > balance || next > table.maxBet) return;
     pushBetHistory();
     setCurrentBet(next);
-    playChip();
+    playChip(amount);
     haptic('tap');
   };
 
@@ -285,7 +293,7 @@ export default function App() {
     if (currentBet + next > balance) return;
     pushBetHistory();
     setSideBet(next);
-    playChip();
+    playChip(amount);
     haptic('tap');
   };
 
@@ -306,7 +314,7 @@ export default function App() {
     if (sideBet > maxPerfectPairsBet(table.minBet, balance - table.minBet)) {
       setSideBet(maxPerfectPairsBet(table.minBet, balance - table.minBet));
     }
-    playChip();
+    playChip(table.minBet);
     haptic('tap');
   };
 
@@ -326,6 +334,35 @@ export default function App() {
 
   const noteSeenCards = useCallback((cards: CardType[]) => {
     setRunningHiLo(prev => prev + runningCountDelta(cards));
+  }, []);
+
+  const triggerHoleCardSuspense = useCallback(async (): Promise<void> => {
+    setHoleCardSuspense(true);
+    playSuspenseBeat();
+    haptic('tap');
+    await new Promise(r => setTimeout(r, SUSPENSE_PAUSE_MS));
+    setHoleCardSuspense(false);
+  }, []);
+
+  const triggerChipFountain = useCallback(() => {
+    const el = feltRef.current;
+    const chipColors = [
+      '#fbbf24',
+      '#f59e0b',
+      '#d97706',
+      '#ef4444',
+      '#10b981',
+      '#3b82f6',
+      '#f8fafc',
+      '#1e293b',
+    ];
+    particles('confetti', { el, colors: chipColors, count: 48, strength: 1.5 });
+    setTimeout(() => {
+      particles('burst', { el, colors: chipColors, count: 36, strength: 1.3 });
+    }, 75);
+    setTimeout(() => {
+      particles('sparkle', { el, colors: chipColors, count: 28, strength: 1.2 });
+    }, 150);
   }, []);
 
   const recordDecision = (
@@ -494,19 +531,22 @@ export default function App() {
     hands: PlayerHand[],
     insured: number,
   ): boolean => {
-    const revealed = revealDealer(cards);
-    setDealerCards(revealed);
+    const isDealerBJ = isBlackjack(revealDealer(cards));
     setPeekPending(false);
     setPeekResolved(true);
-    if (cards[1]?.isHidden && revealed[1]) {
-      noteSeenCards([{ ...revealed[1], isHidden: false }]);
-    }
 
-    if (!isBlackjack(revealed)) {
+    if (!isDealerBJ) {
       const payout = resolveInsurancePayout(insured, false);
       if (payout > 0) setBalanceTracked(prev => prev + payout);
       setInsuranceBet(0);
       return true;
+    }
+
+    const revealed = revealDealer(cards);
+    setDealerCards(revealed);
+    if (cards[1]?.isHidden && revealed[1]) {
+      noteSeenCards([{ ...revealed[1], isHidden: false }]);
+      playDealCard();
     }
 
     const payout = resolveInsurancePayout(insured, true);
@@ -544,7 +584,7 @@ export default function App() {
     }
   };
 
-  const deal = () => {
+  const deal = async () => {
     const ppStake = sideBetsAllowed ? sideBet : 0;
     if (
       currentBet < table.minBet ||
@@ -618,10 +658,14 @@ export default function App() {
         return;
       }
 
+      if (upIsTen) {
+        await triggerHoleCardSuspense();
+      }
       const revealed = revealDealer(initialDealerCards);
       const isDealerBJ = isBlackjack(revealed);
       setDealerCards(revealed);
       if (dCard2.isHidden) noteSeenCards([{ ...revealed[1], isHidden: false }]);
+      playDealCard();
 
       if (isDealerBJ) {
         const nextHands: PlayerHand[] = [
@@ -691,15 +735,17 @@ export default function App() {
     finalizeHandStats(nextHands, balanceRef.current);
   };
 
-  const declineEvenMoney = () => {
+  const declineEvenMoney = async () => {
     if (gameState !== 'evenMoney') return;
     const hand = playerHands[0];
     if (!hand) return;
     clearHint();
     recordDecision(asStrategyAction('declineEvenMoney'), 'evenMoney', hand);
+    await triggerHoleCardSuspense();
     const revealed = revealDealer(dealerCards);
     setDealerCards(revealed);
     if (dealerCards[1]?.isHidden) noteSeenCards([{ ...revealed[1], isHidden: false }]);
+    playDealCard();
     if (isBlackjack(revealed)) {
       const nextHands: PlayerHand[] = [{ ...hand, status: 'push' }];
       setPlayerHands(nextHands);
@@ -718,7 +764,7 @@ export default function App() {
     }
   };
 
-  const takeInsurance = () => {
+  const takeInsurance = async () => {
     if (gameState !== 'insurance') return;
     const hand = playerHands[0];
     if (!hand) return;
@@ -733,11 +779,13 @@ export default function App() {
     setInsuranceBet(cost);
     setMessage('');
 
+    await triggerHoleCardSuspense();
+
     if (!resolveDealerPeek(dealerCards, playerHands, cost)) return;
     setGameState('playing');
   };
 
-  const declineInsurance = () => {
+  const declineInsurance = async () => {
     if (gameState !== 'insurance') return;
     const hand = playerHands[0];
     clearHint();
@@ -747,6 +795,9 @@ export default function App() {
       });
     }
     setMessage('');
+
+    await triggerHoleCardSuspense();
+
     if (!resolveDealerPeek(dealerCards, playerHands, 0)) return;
     setGameState('playing');
   };
@@ -791,8 +842,9 @@ export default function App() {
     finalizeHandStats(newHands, balanceRef.current);
   };
 
-  const ensurePeeked = (): boolean => {
+  const ensurePeeked = async (): Promise<boolean> => {
     if (!peekPending) return true;
+    await triggerHoleCardSuspense();
     return resolveDealerPeek(dealerCards, playerHands, insuranceBet);
   };
 
@@ -826,9 +878,9 @@ export default function App() {
     }
   };
 
-  const hit = () => {
+  const hit = async () => {
     if (gameState !== 'playing') return;
-    if (!ensurePeeked()) return;
+    if (!(await ensurePeeked())) return;
     const activeHand = playerHands[activeHandIndex];
     if (!activeHand || activeHand.status !== 'playing') return;
     if (activeHand.fromSplitAces) return;
@@ -858,9 +910,9 @@ export default function App() {
     playDealCard();
   };
 
-  const stand = () => {
+  const stand = async () => {
     if (gameState !== 'playing') return;
-    if (!ensurePeeked()) return;
+    if (!(await ensurePeeked())) return;
     const activeHand = playerHands[activeHandIndex];
     if (!activeHand || activeHand.status !== 'playing') return;
 
@@ -875,9 +927,9 @@ export default function App() {
     advanceHand(newHands);
   };
 
-  const doubleDown = () => {
+  const doubleDown = async () => {
     if (!canDoubleActive()) return;
-    if (!ensurePeeked()) return;
+    if (!(await ensurePeeked())) return;
     const activeHand = playerHands[activeHandIndex];
 
     clearHint();
@@ -887,7 +939,7 @@ export default function App() {
       canSurrender: canSurrenderNow(),
     });
     setBalanceTracked(prev => prev - activeHand.bet);
-    playChip();
+    playChip(activeHand.bet);
     haptic('impact');
 
     const { card, shoe: nextShoe } = drawCard(shoe);
@@ -896,6 +948,7 @@ export default function App() {
 
     const newHands = cloneHands(playerHands);
     newHands[activeHandIndex].bet *= 2;
+    newHands[activeHandIndex].isDoubled = true;
     newHands[activeHandIndex].cards.push(card);
 
     const score = calculateScore(newHands[activeHandIndex].cards);
@@ -905,9 +958,9 @@ export default function App() {
     playDealCard();
   };
 
-  const split = () => {
+  const split = async () => {
     if (!canSplitActive()) return;
-    if (!ensurePeeked()) return;
+    if (!(await ensurePeeked())) return;
     const hand = playerHands[activeHandIndex];
 
     clearHint();
@@ -918,7 +971,7 @@ export default function App() {
     });
 
     setBalanceTracked(prev => prev - hand.bet);
-    playChip();
+    playChip(hand.bet);
     haptic('impact');
 
     const drawn = drawCards(shoe, 2);
@@ -974,10 +1027,14 @@ export default function App() {
     const playDealer = async () => {
       let currentDealerCards = [...dealerCards];
       const holeWasHidden = currentDealerCards[1]?.isHidden;
+      if (holeWasHidden) {
+        await triggerHoleCardSuspense();
+      }
       currentDealerCards = revealDealer(currentDealerCards);
       setDealerCards([...currentDealerCards]);
       if (holeWasHidden && currentDealerCards[1]) {
         noteSeenCards([{ ...currentDealerCards[1], isHidden: false }]);
+        playDealCard();
       }
 
       const needsDealerPlay = playerHands.some(
@@ -1075,14 +1132,32 @@ export default function App() {
 
   useEffect(() => {
     if (gameState === 'gameOver' && prevGameStateRef.current !== 'gameOver') {
-      if (resultPrompt === 'win') {
+      const isNaturalBJ = playerHands.some(
+        h => h.status === 'blackjack' && !h.fromSplit,
+      );
+      const isDoubleWin = playerHands.some(
+        h => (h.status === 'won' || h.status === 'blackjack') && h.isDoubled,
+      );
+
+      if (isNaturalBJ || isDoubleWin) {
+        // Natural Blackjack win or winning Double Down hand: celebratory impact
+        playWin();
+        triggerChipFountain();
+        shake(feltRef.current, 1.4);
+        setFeltPulse(true);
+        setTimeout(() => setFeltPulse(false), 600);
+        haptic('win');
+        setTimeout(() => haptic('impact'), 130);
+      } else if (resultPrompt === 'win') {
         playWin();
         haptic('win');
         particles('confetti', { el: feltRef.current, strength: 1.1 });
-      } else if (resultPrompt === 'lose') playLose();
+      } else if (resultPrompt === 'lose') {
+        playLose();
+      }
     }
     prevGameStateRef.current = gameState;
-  }, [gameState, resultPrompt]);
+  }, [gameState, resultPrompt, playerHands, triggerChipFountain]);
 
   const isBankrupt = balance < table.minBet && gameState === 'betting' && !sessionResult;
 
@@ -1347,6 +1422,29 @@ export default function App() {
       }}
     >
       <BackToMenu />
+      {/* Dealer Hole Card Suspense Beat Vignette Focus */}
+      <div
+        className={`pointer-events-none absolute inset-0 z-30 transition-all duration-200 ease-out ${
+          holeCardSuspense ? 'opacity-100' : 'opacity-0'
+        }`}
+        style={{
+          background:
+            'radial-gradient(circle at 50% 28%, rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0.6) 55%, rgba(0, 0, 0, 0.9) 100%)',
+          boxShadow: holeCardSuspense ? 'inset 0 0 140px rgba(0, 0, 0, 0.9)' : 'none',
+        }}
+        aria-hidden="true"
+      />
+
+      {/* Felt Haptic Celebratory Pulse Ring */}
+      <div
+        className={`pointer-events-none absolute inset-0 z-20 transition-all duration-300 ease-out ${
+          feltPulse
+            ? 'opacity-100 ring-8 ring-amber-400/60 shadow-[inset_0_0_80px_rgba(251,191,36,0.45)]'
+            : 'opacity-0'
+        }`}
+        aria-hidden="true"
+      />
+
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-emerald-800/50 blur-3xl"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-emerald-950/50 blur-3xl"></div>
@@ -1532,8 +1630,19 @@ export default function App() {
                     <motion.div
                       key={`${dealKey}-d-${i}-${card.rank}-${card.suit}`}
                       initial={{ opacity: 0, y: -48, x: 40, rotate: 12, scale: 0.85 }}
-                      animate={{ opacity: 1, y: 0, x: 0, rotate: 0, scale: 1 }}
+                      animate={{
+                        opacity: 1,
+                        y: 0,
+                        x: 0,
+                        rotate: 0,
+                        scale: card.isHidden && holeCardSuspense ? 1.08 : 1,
+                      }}
                       transition={{ type: 'spring', stiffness: 320, damping: 22, delay: i * 0.12 }}
+                      className={
+                        card.isHidden && holeCardSuspense
+                          ? 'relative z-20 transition-all duration-200 ring-4 ring-amber-400/90 rounded-lg shadow-[0_0_25px_rgba(251,191,36,0.85)]'
+                          : ''
+                      }
                     >
                       <Card card={card} />
                     </motion.div>

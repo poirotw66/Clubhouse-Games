@@ -43,7 +43,7 @@ import {
   resolveStyle,
   type Difficulty,
 } from './cpuAi';
-import { BOXER_HEIGHT, BOXER_WIDTH, drawToyBoxer } from './drawBoxer';
+import { BOXER_HEIGHT, BOXER_WIDTH, drawCounterSparkLines, drawToyBoxer } from './drawBoxer';
 import {
   FirstRunGuide,
   hasSeenFirstRunGuide,
@@ -62,6 +62,7 @@ import {
 import { OPPONENTS, getOpponent, type OpponentId } from './opponents';
 import {
   playBlock,
+  playCounterCrunch,
   playDodge,
   playImpact,
   playStunWarn,
@@ -157,6 +158,47 @@ interface Particle {
   vy: number;
   life: number;
   color: string;
+  kind?: 'debris' | 'spark';
+  lineLength?: number;
+  lineWidth?: number;
+}
+
+interface FloatText {
+  x: number;
+  y: number;
+  text: string;
+  life: number;
+  color: string;
+  vy?: number;
+}
+
+function updateParticlePhysics(particles: Particle[], dt: number): Particle[] {
+  const dtRatio = dt * 60;
+  return particles
+    .map((p) => {
+      const isSpark = p.kind === 'spark';
+      return {
+        ...p,
+        x: p.x + p.vx * dtRatio,
+        y: p.y + p.vy * dtRatio,
+        vx: isSpark ? p.vx * (1 - 0.03 * dtRatio) : p.vx * (1 - 0.05 * dtRatio),
+        vy: isSpark ? p.vy * (1 - 0.03 * dtRatio) : p.vy + 0.2 * dtRatio,
+        life: p.life - (isSpark ? 0.028 : 0.02) * dtRatio,
+      };
+    })
+    .filter((p) => p.life > 0);
+}
+
+function updateFloatTexts(texts: FloatText[], dt: number): FloatText[] {
+  const dtRatio = dt * 60;
+  return texts
+    .map((t) => ({
+      ...t,
+      y: t.y + (t.vy ?? -0.6) * dtRatio,
+      vy: t.vy !== undefined ? t.vy * (1 - 0.04 * dtRatio) : undefined,
+      life: t.life - 0.02 * dtRatio,
+    }))
+    .filter((t) => t.life > 0);
 }
 
 function createBoxer(
@@ -264,7 +306,7 @@ export default function ToyBoxing() {
     isKO: false,
     parryEffect: null as { x: number; y: number; life: number; text: string } | null,
     habit: emptyHabit() as HabitMemory,
-    floatTexts: [] as { x: number; y: number; text: string; life: number; color: string }[],
+    floatTexts: [] as FloatText[],
     koReason: null as 'health' | 'stun' | null,
   });
 
@@ -380,6 +422,9 @@ export default function ToyBoxing() {
           eng.hitStop -= rawDt;
           // Freeze sim during hit-stop; still allow shake decay visually.
           if (eng.screenShake > 0) eng.screenShake -= rawDt * 8;
+          // Update particles even during hitStop using unscaled dt (rawDt) (Sakurai fx-005)
+          eng.particles = updateParticlePhysics(eng.particles, rawDt);
+          eng.floatTexts = updateFloatTexts(eng.floatTexts, rawDt);
           render();
           animationFrameId = requestAnimationFrame(update);
           return;
@@ -413,19 +458,8 @@ export default function ToyBoxing() {
 
         checkCollisions();
 
-        eng.particles = eng.particles
-          .map((p) => ({
-            ...p,
-            x: p.x + p.vx,
-            y: p.y + p.vy,
-            vy: p.vy + 0.2,
-            life: p.life - 0.02,
-          }))
-          .filter((p) => p.life > 0);
-
-        eng.floatTexts = eng.floatTexts
-          .map((t) => ({ ...t, y: t.y - 0.6, life: t.life - 0.02 }))
-          .filter((t) => t.life > 0);
+        eng.particles = updateParticlePhysics(eng.particles, rawDt);
+        eng.floatTexts = updateFloatTexts(eng.floatTexts, rawDt);
 
         syncUi();
       }
@@ -483,6 +517,24 @@ export default function ToyBoxing() {
     prevGameStateRef.current = gameState;
   }, [gameState, winner, difficulty]);
 
+  useEffect(() => {
+    if (gameState !== 'game_over') return;
+
+    const handleGameOverKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Space' || e.code === 'Enter' || e.code === 'KeyR') {
+        e.preventDefault();
+        keysPressed.current.clear();
+        setActiveKeySet(new Set());
+        startFight(playMode, leagueIndex);
+      }
+    };
+
+    window.addEventListener('keydown', handleGameOverKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleGameOverKeyDown);
+    };
+  }, [gameState, playMode, leagueIndex]);
+
   const handleRoundEnd = () => {
     if (
       engineRef.current.round >= 3
@@ -521,6 +573,8 @@ export default function ToyBoxing() {
   };
 
   const startFight = (mode: PlayMode, oppIndex?: number) => {
+    keysPressed.current.clear();
+    setActiveKeySet(new Set());
     setPlayMode(mode);
     setWinRoute(null);
     const idx = oppIndex ?? leagueIndex;
@@ -952,8 +1006,8 @@ export default function ToyBoxing() {
     return cpu.lastHitTaken ?? 'high';
   };
 
-  const pushFloat = (x: number, y: number, text: string, color: string) => {
-    engineRef.current.floatTexts.push({ x, y, text, life: 1, color });
+  const pushFloat = (x: number, y: number, text: string, color: string, vy = -0.6) => {
+    engineRef.current.floatTexts.push({ x, y, text, life: 1, color, vy });
   };
 
   const checkCollisions = () => {
@@ -972,6 +1026,41 @@ export default function ToyBoxing() {
           vy: Math.sin(angle) * speed,
           life: 1.0 + Math.random() * 0.5,
           color,
+          kind: 'debris',
+        });
+      }
+    };
+
+    const spawnCounterSparks = (x: number, y: number) => {
+      // Radiant golden/red counter impact spark lines radiating outward (Sakurai gameplay-core-001)
+      const sparkCount = 18;
+      const colors = ['#f59e0b', '#fbbf24', '#ef4444', '#f87171', '#fde047', '#dc2626'];
+      for (let i = 0; i < sparkCount; i++) {
+        const angle = (i / sparkCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.25;
+        const speed = Math.random() * 10 + 12;
+        engineRef.current.particles.push({
+          x,
+          y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          life: 0.7 + Math.random() * 0.4,
+          color: colors[i % colors.length]!,
+          kind: 'spark',
+          lineLength: Math.random() * 12 + 14,
+          lineWidth: Math.random() * 1.5 + 2.5,
+        });
+      }
+      for (let i = 0; i < 10; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 7 + 3;
+        engineRef.current.particles.push({
+          x,
+          y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          life: 0.8 + Math.random() * 0.4,
+          color: Math.random() > 0.5 ? '#f59e0b' : '#ef4444',
+          kind: 'debris',
         });
       }
     };
@@ -1110,11 +1199,13 @@ export default function ToyBoxing() {
         }
 
         const strength = Math.min(1, outcome.damage / 18);
-        if (outcome.blocked && outcome.guardCorrect) playBlock();
+        if (outcome.isCounter) playCounterCrunch();
+        else if (outcome.blocked && outcome.guardCorrect) playBlock();
         else if (outcome.blocked && outcome.guardCorrect === false) playWrongBlock();
         else playImpact(outcome.isSuper ? 1 : 0.35 + strength);
 
-        if (outcome.isSuper) haptic('impact', 1.15);
+        if (outcome.isCounter) haptic('impact', 1.25);
+        else if (outcome.isSuper) haptic('impact', 1.15);
         else if (outcome.blocked) haptic('tap', 0.4);
         else haptic('impact', 0.55 + strength * 0.35);
 
@@ -1126,27 +1217,38 @@ export default function ToyBoxing() {
 
         if (newStun >= 70 && defender.stunMeter < 70) playStunWarn();
 
-        spawnParticles(
-          attackerHandX,
-          hitY,
-          outcome.isCounter ? '#f59e0b' : outcome.blocked ? '#94a3b8' : '#ffffff',
-          outcome.isSuper,
-        );
-        engineRef.current.screenShake = outcome.isSuper ? 1.15 : outcome.blocked ? 0.25 : 0.55;
-        engineRef.current.hitStop = outcome.isSuper
+        if (outcome.isCounter) {
+          spawnCounterSparks(attackerHandX, hitY);
+          engineRef.current.screenShake = 1.4;
+        } else {
+          spawnParticles(
+            attackerHandX,
+            hitY,
+            outcome.blocked ? '#94a3b8' : '#ffffff',
+            outcome.isSuper,
+          );
+          engineRef.current.screenShake = outcome.isSuper ? 1.15 : outcome.blocked ? 0.25 : 0.55;
+        }
+
+        let hitStopDuration = outcome.isSuper
           ? HIT_STOP_HEAVY
           : outcome.blocked
             ? HIT_STOP_LIGHT * 0.5
             : HIT_STOP_LIGHT + strength * 0.04;
+        if (outcome.isCounter) {
+          hitStopDuration += 0.06; // extra +60ms hitstop (Sakurai fx-005 / gameplay-core-001)
+        }
+        engineRef.current.hitStop = hitStopDuration;
 
-        if (outcome.blocked && outcome.guardCorrect === false) {
+        if (outcome.isCounter) {
+          pushFloat(defender.x + BOXER_WIDTH / 2, hitY - 28, '💥 COUNTER!', '#f59e0b', -2.4);
+        } else if (outcome.blocked && outcome.guardCorrect === false) {
           pushFloat(defender.x + BOXER_WIDTH / 2, hitY, '擋錯！', '#fb923c');
         } else if (!outcome.blocked && attacker.attack.height === 'high') {
           pushFloat(defender.x + BOXER_WIDTH / 2, hitY - 8, '暈+', '#fde047');
         } else if (!outcome.blocked && attacker.attack.height === 'low') {
           pushFloat(defender.x + BOXER_WIDTH / 2, hitY, '耗氣', '#fdba74');
         }
-        if (outcome.isCounter) pushFloat(defender.x + BOXER_WIDTH / 2, hitY - 24, '反擊', '#fbbf24');
 
         return {
           attackerUpdate: {
@@ -1313,21 +1415,30 @@ export default function ToyBoxing() {
       if (p.life <= 0) engineRef.current.parryEffect = null;
     }
 
+    drawCounterSparkLines(ctx, engineRef.current.particles);
     engineRef.current.particles.forEach((p) => {
-      ctx.save();
-      ctx.fillStyle = p.color;
-      ctx.globalAlpha = p.life;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
+      if (p.kind !== 'spark') {
+        ctx.save();
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = Math.min(1, Math.max(0, p.life));
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
     });
 
     engineRef.current.floatTexts.forEach((t) => {
       ctx.save();
-      ctx.globalAlpha = Math.min(1, t.life);
+      ctx.globalAlpha = Math.min(1, Math.max(0, t.life));
       ctx.fillStyle = t.color;
-      ctx.font = 'bold 18px sans-serif';
+      if (t.text.includes('COUNTER')) {
+        ctx.font = 'black 22px "Anton", sans-serif';
+        ctx.shadowColor = '#f59e0b';
+        ctx.shadowBlur = 10;
+      } else {
+        ctx.font = 'bold 18px sans-serif';
+      }
       ctx.textAlign = 'center';
       ctx.fillText(t.text, t.x, t.y);
       ctx.restore();
@@ -1874,10 +1985,16 @@ export default function ToyBoxing() {
                   { label: '最佳連勝', value: careerMode.bestWinStreak },
                 ]}
                 onPrimary={() => {
+                  keysPressed.current.clear();
+                  setActiveKeySet(new Set());
+                  startFight(playMode, leagueIndex);
+                }}
+                primaryLabel="再來一局 (Space)"
+                onSecondary={() => {
                   setFightTip(null);
                   setGameState('menu');
                 }}
-                primaryLabel="再選一局"
+                secondaryLabel="回選單"
               />
             )}
           </AnimatePresence>

@@ -34,6 +34,7 @@ var ClubhouseSynthAudio = (() => {
     playMove: () => playMove,
     playPaddleHit: () => playPaddleHit,
     playScore: () => playScore,
+    playTone: () => playTone,
     playWin: () => playWin
   });
   var AudioContextCtor = typeof window !== "undefined" ? window.AudioContext || window.webkitAudioContext : void 0;

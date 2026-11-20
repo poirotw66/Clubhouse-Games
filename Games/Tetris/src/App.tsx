@@ -4,7 +4,7 @@ import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
 import { haptic, particles, shake } from '@clubhouse/shared/juice';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { ScoreFlash } from '@clubhouse/shared/ScoreFlash';
-import { playGoal, playImpact, playLose, playMove, playScore, playWin } from '@clubhouse/shared/synthAudio';
+import { playImpact, playLose, playMove, playWin } from '@clubhouse/shared/synthAudio';
 import { TouchButton, touchControlsWrapClass } from '@clubhouse/shared/TouchButton';
 import { RefreshCw, Pause, Play, CircleHelp, X } from 'lucide-react';
 import { BoardWell } from './components/BoardWell';
@@ -12,6 +12,11 @@ import { CockpitLeftWing } from './components/CockpitLeftWing';
 import { CockpitRightWing } from './components/CockpitRightWing';
 import { EsportsKeyboardHud } from './components/EsportsKeyboardHud';
 import { TacticalTicker } from './components/TacticalTicker';
+import {
+  isFanfareClear,
+  isRapidRetryKey,
+  playClearFeedback,
+} from './utils/audioFeedback';
 import {
   computeStackTelemetry,
   computeBagDistribution,
@@ -209,13 +214,6 @@ function writeVersusStats(next: VersusStats) {
   }
 }
 
-function playClearFeedback(breakdown: ScoreBreakdown) {
-  if (breakdown.nextCombo >= 2 || breakdown.isBackToBack || breakdown.label.includes('T-SPIN')) {
-    playGoal();
-  } else {
-    playScore();
-  }
-}
 
 /** Presentation-only scale for clear / T-Spin / B2B juice — does not affect scoring. */
 function clearJuiceStrength(breakdown: ScoreBreakdown): number {
@@ -279,7 +277,8 @@ export default function App() {
   const cheeseAttemptRef = useRef(0);
   const dailyRecordedRef = useRef(false);
   const practiceRecordedRef = useRef(false);
-  const boardShellRef = useRef<HTMLDivElement>(null);
+  const boardRef = useRef<HTMLDivElement>(null);
+  const boardShellRef = boardRef;
 
   const lastDropTimeRef = useRef(performance.now());
   const cpuDropTimeRef = useRef(performance.now());
@@ -321,6 +320,14 @@ export default function App() {
       particles('burst', { el, strength });
       if (breakdown.label.includes('TETRIS')) {
         particles('confetti', { el, strength: Math.max(1, strength) });
+      }
+      if (isFanfareClear(breakdown)) {
+        particles('sparkle', {
+          el,
+          strength: Math.max(1.2, strength * 1.2),
+          colors: ['#fbbf24', '#f59e0b', '#fef08a', '#ffffff'],
+          count: 24,
+        });
       }
       setFlash({ text, tone: flashTone(breakdown), key: Date.now() });
     });
@@ -409,6 +416,24 @@ export default function App() {
   );
 
   const handleRestart = () => startRun(mode, difficulty, { keepSeries: true });
+
+  const triggerRapidRetry = useCallback(() => {
+    if (isVersus && versusMeta.bo3 && !seriesComplete(versusMeta)) {
+      startRun('versus', difficulty, { keepSeries: true });
+    } else if (isVersus && versusMeta.bo3 && seriesComplete(versusMeta)) {
+      startRun('versus', difficulty);
+    } else {
+      handleRestart();
+    }
+  }, [isVersus, versusMeta, difficulty, handleRestart, startRun]);
+
+  const isGameOver =
+    player.gameOver || (isVersus && (cpu.gameOver || versusWinner !== null));
+  const isGameOverRef = useRef(isGameOver);
+  isGameOverRef.current = isGameOver;
+
+  const triggerRapidRetryRef = useRef(triggerRapidRetry);
+  triggerRapidRetryRef.current = triggerRapidRetry;
 
   useEffect(() => {
     const ended =
@@ -699,7 +724,7 @@ export default function App() {
   const hardDrop = useCallback(() => {
     playImpact(0.45);
     haptic('impact');
-    shake(boardShellRef.current, 0.4);
+    shake(boardRef.current, 1.25);
     setPlayer((prev) => {
       if (!prev.active || prev.gameOver || prev.paused || prev.clearing) return prev;
       if (isVersus && versusWinner) return prev;
@@ -719,6 +744,9 @@ export default function App() {
         rows,
         soft,
       );
+      if (isFanfareClear(outcome.breakdown)) {
+        shake(boardRef.current, 2.2);
+      }
       if (outcome.breakdown && outcome.linesCleared > 0) {
         showPlayerFlash(outcome.breakdown);
         setClearStats((prevStats) =>
@@ -822,6 +850,13 @@ export default function App() {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const key = event.key;
+
+      if (isGameOverRef.current && isRapidRetryKey(event)) {
+        event.preventDefault();
+        triggerRapidRetryRef.current();
+        return;
+      }
+
       const handled = [
         'ArrowLeft',
         'ArrowRight',
@@ -1623,70 +1658,96 @@ export default function App() {
               isVersus && narrow ? 'flex-nowrap' : ''
             }`}
           >
-            <div
-              ref={boardShellRef}
-              data-tetris-board="1"
-              className="relative inline-block rounded-xl bg-slate-900/80 p-2 border border-slate-800 shadow-lg backdrop-blur-sm"
-            >
-              <div className="text-center text-xs text-slate-300 mb-1 font-semibold flex items-center justify-center gap-2">
-                <span>玩家陣地</span>
-                {player.incomingGarbage > 0 && (
-                  <span className="text-rose-300 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/30 text-[10px]">
-                    ↓ 垃圾 {player.incomingGarbage}
-                  </span>
-                )}
-              </div>
-              {flash && (
-                <ScoreFlash
-                  text={flash.text}
-                  tone={flash.tone}
-                  flashKey={flash.key}
-                  onDone={() => setFlash(null)}
-                />
-              )}
-              <BoardWell
-                board={player.board}
-                active={player.active}
-                clearing={player.clearing}
-                widthPx={wellWidth}
-                dangerZone={playerTelemetry.dangerZone}
-                showDangerLine={true}
-              />
-            </div>
+            {(() => {
+              const isPlayerGoldenClear = Boolean(
+                player.clearing &&
+                (isFanfareClear(player.pendingBreakdown) || player.clearing.length === 4)
+              );
+              const isCpuGoldenClear = Boolean(
+                cpu.clearing &&
+                (isFanfareClear(cpu.pendingBreakdown) || cpu.clearing.length === 4)
+              );
+              return (
+                <>
+                  <div
+                    ref={boardRef}
+                    data-tetris-board="1"
+                    className={`relative inline-block rounded-xl bg-slate-900/80 p-2 border transition-all duration-200 shadow-lg backdrop-blur-sm ${
+                      isPlayerGoldenClear
+                        ? 'border-amber-400/90 shadow-[0_0_30px_rgba(251,191,36,0.55)]'
+                        : 'border-slate-800'
+                    }`}
+                  >
+                    <div className="text-center text-xs text-slate-300 mb-1 font-semibold flex items-center justify-center gap-2">
+                      <span>玩家陣地</span>
+                      {player.incomingGarbage > 0 && (
+                        <span className="text-rose-300 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/30 text-[10px]">
+                          ↓ 垃圾 {player.incomingGarbage}
+                        </span>
+                      )}
+                    </div>
+                    {flash && (
+                      <ScoreFlash
+                        text={flash.text}
+                        tone={flash.tone}
+                        flashKey={flash.key}
+                        onDone={() => setFlash(null)}
+                      />
+                    )}
+                    <BoardWell
+                      board={player.board}
+                      active={player.active}
+                      clearing={player.clearing}
+                      widthPx={wellWidth}
+                      dangerZone={playerTelemetry.dangerZone}
+                      showDangerLine={true}
+                      isGoldenClear={isPlayerGoldenClear}
+                    />
+                  </div>
 
-            {isVersus && (
-              <div className="relative inline-block rounded-xl bg-slate-900/80 p-2 border border-slate-800 shadow-lg backdrop-blur-sm">
-                <div className="text-center text-xs text-slate-300 mb-1 font-semibold flex items-center justify-center gap-2">
-                  <span>CPU · {preset.label}</span>
-                  {cpu.incomingGarbage > 0 && (
-                    <span className="text-rose-300 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/30 text-[10px]">
-                      ↓ 垃圾 {cpu.incomingGarbage}
-                    </span>
+                  {isVersus && (
+                    <div
+                      className={`relative inline-block rounded-xl bg-slate-900/80 p-2 border transition-all duration-200 shadow-lg backdrop-blur-sm ${
+                        isCpuGoldenClear
+                          ? 'border-amber-400/90 shadow-[0_0_30px_rgba(251,191,36,0.55)]'
+                          : 'border-slate-800'
+                      }`}
+                    >
+                      <div className="text-center text-xs text-slate-300 mb-1 font-semibold flex items-center justify-center gap-2">
+                        <span>CPU · {preset.label}</span>
+                        {cpu.incomingGarbage > 0 && (
+                          <span className="text-rose-300 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/30 text-[10px]">
+                            ↓ 垃圾 {cpu.incomingGarbage}
+                          </span>
+                        )}
+                      </div>
+                      {cpuFlash && (
+                        <ScoreFlash
+                          text={cpuFlash.text}
+                          tone={cpuFlash.tone}
+                          flashKey={cpuFlash.key}
+                          onDone={() => setCpuFlash(null)}
+                        />
+                      )}
+                      <BoardWell
+                        board={cpu.board}
+                        active={cpu.active}
+                        clearing={cpu.clearing}
+                        widthPx={wellWidth}
+                        showGhost={false}
+                        dangerZone={cpuTelemetry.dangerZone}
+                        showDangerLine={true}
+                        isGoldenClear={isCpuGoldenClear}
+                      />
+                      <div className="mt-2 text-center text-[10px] text-slate-500 font-mono">
+                        {cpu.lines} 行
+                        {cpu.incomingGarbage > 0 ? ` · 佇列 ${cpu.incomingGarbage}` : ''}
+                      </div>
+                    </div>
                   )}
-                </div>
-                {cpuFlash && (
-                  <ScoreFlash
-                    text={cpuFlash.text}
-                    tone={cpuFlash.tone}
-                    flashKey={cpuFlash.key}
-                    onDone={() => setCpuFlash(null)}
-                  />
-                )}
-                <BoardWell
-                  board={cpu.board}
-                  active={cpu.active}
-                  clearing={cpu.clearing}
-                  widthPx={wellWidth}
-                  showGhost={false}
-                  dangerZone={cpuTelemetry.dangerZone}
-                  showDangerLine={true}
-                />
-                <div className="mt-2 text-center text-[10px] text-slate-500 font-mono">
-                  {cpu.lines} 行
-                  {cpu.incomingGarbage > 0 ? ` · 佇列 ${cpu.incomingGarbage}` : ''}
-                </div>
-              </div>
-            )}
+                </>
+              );
+            })()}
           </div>
 
           {/* 電競級鍵盤操作指南 HUD (桌面端即時高亮反饋) */}

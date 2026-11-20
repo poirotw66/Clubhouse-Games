@@ -18,7 +18,7 @@ function getContext(): AudioContext | null {
   return audioContext;
 }
 
-function playTone(
+export function playTone(
   frequency: number,
   type: ToneType,
   duration: number,

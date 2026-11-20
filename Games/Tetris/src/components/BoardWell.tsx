@@ -17,6 +17,7 @@ interface BoardWellProps {
   className?: string;
   dangerZone?: 'safe' | 'warning' | 'critical';
   showDangerLine?: boolean;
+  isGoldenClear?: boolean;
 }
 
 function ghostCellsFor(board: Cell[][], active: ActivePiece | null): Set<string> {
@@ -39,6 +40,7 @@ export function BoardWell({
   className = '',
   dangerZone = 'safe',
   showDangerLine = true,
+  isGoldenClear = false,
 }: BoardWellProps) {
   const ghostCells = showGhost ? ghostCellsFor(board, active) : new Set<string>();
   const activeCells = active
@@ -97,6 +99,11 @@ export function BoardWell({
           const isActive = activeCells.has(`${row},${col}`);
           const isGhost = ghostCells.has(`${row},${col}`) && !cell && !isActive;
           const isClearing = clearing?.includes(row) ?? false;
+          const clearingClass = isClearing
+            ? isGoldenClear
+              ? ' tetris-clearing tetris-clearing-golden'
+              : ' tetris-clearing'
+            : '';
           let bg = 'bg-slate-800/40';
           let tileStyle:
             | { backgroundImage: string; backgroundSize: string; backgroundPosition: string }
@@ -117,9 +124,7 @@ export function BoardWell({
           return (
             <div
               key={`${row}-${col}`}
-              className={`aspect-square rounded-[3px] ${bg} border border-slate-900/80${
-                isClearing ? ' tetris-clearing' : ''
-              }`}
+              className={`aspect-square rounded-[3px] ${bg} border border-slate-900/80${clearingClass}`}
               style={tileStyle}
             />
           );

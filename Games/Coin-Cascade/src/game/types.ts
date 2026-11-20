@@ -56,6 +56,8 @@ export interface PlayerInput {
   drop: boolean;
   /** Which purchasable kind the next drop/action uses. */
   special: 'normal' | 'heavy' | 'ball' | 'vibrate' | 'magnet';
+  /** Optional Fiend's Push aggressive high-stakes double bet mode. */
+  readonly fiendPush?: boolean;
 }
 
 export interface FallEvent {
@@ -84,6 +86,8 @@ export interface RunState {
   readonly seed: number;
   readonly seedCode: string;
   readonly tick: number;
+  /** Cumulative pusher position tick (advances at 1.35x speed during Fiend's Push). */
+  readonly pusherTick?: number;
   readonly phase: Phase;
   readonly config: RunConfig;
   /** Convenience mirror of `config.modeId` for HUD / result wiring. */

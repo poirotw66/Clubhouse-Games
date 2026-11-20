@@ -75,10 +75,13 @@
 |------|------|
 | 上／下段 | 攻擊與格擋皆分高／低；擋對減傷 80%，擋錯只減 20% |
 | 預備動作 | 刺拳／勾拳／招牌拳有 wind-up → active → recovery；畫面拳套後拉可讀 |
+| 迎擊（Counter） | 抓準對手起手預備（Wind-up）時機擊中，增幅 1.5 倍傷害、1.5 倍得分與 1.25 倍暈眩，觸發額外定格（+60ms）、強烈震動（1.4）、放射狀金紅火花與 `💥 COUNTER!`，並伴隨高衝擊碎裂重拳音效（Sakurai gameplay-core-001） |
+| 打擊定格火花 | 於命中定格（`hitStop > 0`）期間人物姿勢凍結，但火花線條與打擊碎片持續以真實時間（`rawDt`）向外噴濺，杜絕特效隨畫面停滯的假死感（Sakurai fx-005） |
 | 撥招 | 僅對正確段位有效；成功使對方硬直並回饋必殺量 |
 | 耐力 | 出拳消耗；下段命中提高對方 `bodyFatigue`，降低耐力回復 |
 | 暈眩 | 上段命中堆暈眩；滿條頭擊ＫＯ |
 | 招牌拳 | 長預備、無法格擋、可閃避 |
+| 快速重試 | 結算畫面支援 Space／Enter／KeyR 全域即時重開賽事，按鈕標註 `(Space)` 降低摩擦力（Sakurai gameplay-ux-009） |
 
 ### AI（`cpuAi.ts` + `opponents.ts`）
 
@@ -101,9 +104,9 @@
 |------|--------|
 | 模式／變體 | 聯賽階梯＋自由對戰三角難度 |
 | 競技座艙 | 雙翼冠軍拳擊環場座艙（Red Corner Telemetry + Blue Corner Dossier） |
-| Replay hook | 分難度生涯＋聯賽解鎖進度 |
+| Replay hook | 分難度生涯＋聯賽解鎖進度＋快速重試（Space／Enter／KeyR） |
 | Undo／Hint | 拳王大師即時錦囊（Master Coach Hints 動態提示對戰破綻與反制時機） |
-| Feedback | `ResultOverlay` + `synthAudio`／`boxingAudio`（hit-stop、震動、打擊音、G-Force 儀表、機械按鍵 HUD） |
+| Feedback | `ResultOverlay` + `synthAudio`／`boxingAudio`（hit-stop 粒子解凍、迎擊音浪火花、G-Force 儀表、機械按鍵 HUD） |
 | Touch | 對戰觸控列（含下段）＋行動端戰術速報條 |
 | Check | `npm run check` → cpu／stats／combat／league／balance／telemetry |
 | 首局引導 | `FirstRunGuide`（可關閉，可再開） |

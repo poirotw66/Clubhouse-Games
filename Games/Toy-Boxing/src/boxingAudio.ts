@@ -74,3 +74,18 @@ export function playStunWarn(): void {
   playTone(440, 'square', 0.06, 0, 0.05);
   playTone(330, 'square', 0.08, 0.06, 0.04);
 }
+
+/** High-impact counter punch crunch (Sakurai gameplay-core-001). */
+export function playCounterCrunch(): void {
+  // Deep bass transient punch
+  playTone(95, 'sawtooth', 0.18, 0, 0.12);
+  playTone(65, 'square', 0.22, 0.01, 0.10);
+  // Mid crunch body bite
+  playTone(280, 'square', 0.14, 0.02, 0.09);
+  playTone(420, 'triangle', 0.10, 0.03, 0.07);
+  // Sharp high crack transient
+  playTone(680, 'sawtooth', 0.08, 0.01, 0.06);
+}
+
+export const playCounterHit = playCounterCrunch;
+

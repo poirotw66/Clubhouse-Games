@@ -298,6 +298,79 @@ export function playAvalancheRoar(scale = 1): void {
   gain.connect(c.destination);
   osc.start(when);
   osc.stop(when + 0.4);
+
+  if (clampedScale >= 1.5) {
+    playHeavyCascadeRumble(clampedScale);
+  }
+}
+
+/**
+ * Layered heavy metal cascade rumble audio for massive avalanche cascades (>= 6 coins).
+ * Synthesizes deep subterranean low-frequency chassis rumble (dual detuned sub oscillators
+ * 58Hz / 62Hz ramping down to 26Hz) layered with resonant metallic friction, heavy mechanical
+ * clatter, and crunching coin landslide overtones.
+ */
+export function playHeavyCascadeRumble(intensity = 1.6): void {
+  if (muted || reducedMotion) return;
+  const c = ac();
+  if (!c) return;
+  const when = c.currentTime;
+  const clamped = Math.max(1.0, Math.min(2.5, intensity));
+  const duration = 0.55 + 0.15 * clamped;
+
+  // Layer 1: Sub-bass cabinet rumble (dual detuned oscillators)
+  for (const [freq, detune] of [[58, -4], [62, 5]] as const) {
+    const osc = c.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(freq, when);
+    osc.frequency.exponentialRampToValueAtTime(26, when + duration);
+    osc.detune.setValueAtTime(detune, when);
+
+    const filter = c.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(140, when);
+    filter.frequency.exponentialRampToValueAtTime(45, when + duration);
+
+    const gain = c.createGain();
+    gain.gain.setValueAtTime(0, when);
+    gain.gain.linearRampToValueAtTime(0.18 * clamped, when + 0.04);
+    gain.gain.exponentialRampToValueAtTime(0.001, when + duration);
+
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(c.destination);
+
+    osc.start(when);
+    osc.stop(when + duration + 0.05);
+  }
+
+  // Layer 2: Heavy metal clatter and friction noise burst
+  const noise = c.createBufferSource();
+  noise.buffer = getNoiseBuffer(c);
+  const bandpass = c.createBiquadFilter();
+  bandpass.type = 'bandpass';
+  bandpass.frequency.setValueAtTime(850, when);
+  bandpass.frequency.exponentialRampToValueAtTime(320, when + duration * 0.7);
+  bandpass.Q.value = 3.5;
+
+  const noiseGain = c.createGain();
+  noiseGain.gain.setValueAtTime(0, when);
+  noiseGain.gain.linearRampToValueAtTime(0.12 * clamped, when + 0.02);
+  noiseGain.gain.exponentialRampToValueAtTime(0.001, when + duration * 0.75);
+
+  noise.connect(bandpass);
+  bandpass.connect(noiseGain);
+  noiseGain.connect(c.destination);
+  noise.start(when);
+  noise.stop(when + duration * 0.8);
+
+  // Layer 3: Rapid staggered metallic coin collision impacts
+  const clinkCount = Math.floor(5 + clamped * 3);
+  for (let i = 0; i < clinkCount; i++) {
+    const clinkWhen = when + i * 0.035 + Math.sin(i * 1.7) * 0.01;
+    const freq = 980 + (i % 4) * 220 + Math.cos(i) * 110;
+    metalClink(c, clinkWhen, freq, 0.45 * (clamped / 1.6));
+  }
 }
 
 /** High-tech tactical sonar ping when coins overhang the edge dangerously. */

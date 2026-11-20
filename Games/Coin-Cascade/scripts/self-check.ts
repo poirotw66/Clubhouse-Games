@@ -1507,5 +1507,115 @@ for (const seed of LANE_SEEDS) {
   ok('cliff edge danger radar and Fever Overdrive dynamics hold');
 }
 
+// ── 21) Fiend's Cauldron (惡魔之釜) High-Stakes Double Bet Mode & Avalanche Shake ──
+{
+  // 21.1 Safeguard: Disabled / inactive when credits < 20
+  const lowCreditsRun = createRun('FIEND-SAFEGUARD', { startingCredits: 10 });
+  assert.equal(lowCreditsRun.creditsRemaining, 10);
+  const lowStep = step(
+    lowCreditsRun,
+    { dropX: (WALL_X0 + WALL_X1) / 2, drop: true, special: 'normal', fiendPush: true },
+    FIXED_DT,
+  );
+  // With < 20 credits, Fiend's Push is suppressed by safeguard: costs standard 1 coin, pusher speed 1.0x
+  assert.equal(lowStep.creditsSpent, 1, 'safeguard must prevent 2x double bet when balance < 20');
+  assert.equal(lowStep.creditsRemaining, 9);
+  assert.equal(
+    (lowStep.pusherTick ?? lowStep.tick) - (lowCreditsRun.pusherTick ?? lowCreditsRun.tick),
+    1.0,
+    'pusher speed must remain normal 1.0x when safeguarded',
+  );
+
+  // 21.2 Active Fiend's Push (balance >= 20): 2x drop costs & 1.35x pusher speed
+  const fiendRun = createRun('FIEND-ACTIVE', { startingCredits: 50 });
+  assert.equal(fiendRun.creditsRemaining, 50);
+
+  // Normal drop costs 2 coins (2x)
+  const drop1 = step(
+    fiendRun,
+    { dropX: (WALL_X0 + WALL_X1) / 2, drop: true, special: 'normal', fiendPush: true },
+    FIXED_DT,
+  );
+  assert.equal(drop1.creditsSpent, 2, 'normal drop must cost 2 coins in Fiend Push mode');
+  assert.equal(drop1.creditsRemaining, 48);
+  const deltaPusherTick = (drop1.pusherTick ?? drop1.tick) - (fiendRun.pusherTick ?? fiendRun.tick);
+  assert.ok(
+    Math.abs(deltaPusherTick - 1.35) < 1e-6,
+    `pusher speed must advance at 1.35x (expected 1.35, got ${deltaPusherTick})`,
+  );
+
+  // Special coin drop costs 2x special cost (e.g. heavy coin: 2 * 2 = 4)
+  const fiendRun2 = createRun('FIEND-HEAVY', { startingCredits: 50 });
+  const dropHeavy = step(
+    fiendRun2,
+    { dropX: (WALL_X0 + WALL_X1) / 2, drop: true, special: 'heavy', fiendPush: true },
+    FIXED_DT,
+  );
+  assert.equal(dropHeavy.creditsSpent, COST.heavy * 2, 'special coin drop must cost 2x in Fiend Push mode');
+  assert.equal(dropHeavy.creditsRemaining, 50 - COST.heavy * 2);
+
+  // 21.3 Dropped coin points: 2x points in prize chute vs 0 in side gutter (loss to house)
+  const prizeRun = createRun('FIEND-PRIZE', { startingCredits: 50 });
+  const centerPrecipiceCoin = {
+    id: 9999,
+    kind: 'normal' as const,
+    x: (WALL_X0 + WALL_X1) / 2, // Center prize chute
+    y: SHELF_LEN + 1, // Just over the edge
+    r: COIN_R,
+    mass: 1.0,
+    teeterSince: 10,
+    wellTimed: false,
+    prefilled: false,
+  };
+  const gutterPrecipiceCoin = {
+    id: 9998,
+    kind: 'normal' as const,
+    x: WALL_X0 - 2, // Gutter
+    y: SHELF_LEN + 1,
+    r: COIN_R,
+    mass: 1.0,
+    teeterSince: 10,
+    wellTimed: false,
+    prefilled: false,
+  };
+
+  // State with center falling coin
+  const stateWithCenter = { ...prizeRun, coins: [centerPrecipiceCoin] };
+  const stepCenter = step(
+    stateWithCenter,
+    { dropX: (WALL_X0 + WALL_X1) / 2, drop: false, special: 'normal', fiendPush: true },
+    FIXED_DT,
+  );
+  assert.equal(
+    stepCenter.score - prizeRun.score,
+    FALL_VALUE * 2,
+    'prize chute falls must award 2x score in Fiend Push mode',
+  );
+
+  // State with gutter falling coin
+  const stateWithGutter = { ...prizeRun, coins: [gutterPrecipiceCoin] };
+  const stepGutter = step(
+    stateWithGutter,
+    { dropX: (WALL_X0 + WALL_X1) / 2, drop: false, special: 'normal', fiendPush: true },
+    FIXED_DT,
+  );
+  assert.equal(
+    stepGutter.score - prizeRun.score,
+    0,
+    'side gutter falls must award 0 points in Fiend Push mode (lost to house)',
+  );
+
+  // 21.4 Avalanche (x6+ / x8+) Physical Frame Shake Intensity
+  const computeShakeIntensity = (cascade: number): number => {
+    return Math.min(2.4, 1.6 + (cascade - 6) * 0.4);
+  };
+  assert.equal(computeShakeIntensity(6), 1.6, 'cascade 6 intensity must be 1.6');
+  assert.equal(computeShakeIntensity(7), 2.0, 'cascade 7 intensity must be 2.0');
+  assert.equal(computeShakeIntensity(8), 2.4, 'cascade 8 intensity must be 2.4');
+  assert.equal(computeShakeIntensity(12), 2.4, 'cascade 12 intensity must clamp to 2.4');
+
+  ok('Fiend Push 2x bets, 1.35x pusher speed, 2x scoring, gutter loss, safeguard, and avalanche shake hold');
+}
+
 console.log(`\nself-check: ok (${passed} checks${HEAVY ? ', heavy' : ''})`);
 
