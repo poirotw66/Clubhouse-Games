@@ -333,9 +333,74 @@ h1 {
 }
 
 .player-card-header {
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 10px;
+}
+
+.player-profile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.character-avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(255, 215, 0, 0.65);
+  box-shadow: 0 0 10px rgba(122, 66, 214, 0.35);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.25s ease, box-shadow 0.25s ease;
+  flex-shrink: 0;
+  background: rgba(18, 13, 44, 0.8);
+}
+
+.player-card-p1 .character-avatar {
+  border-color: #38bdf8;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+}
+
+.player-card-p2 .character-avatar {
+  border-color: #e879f9;
+  box-shadow: 0 0 12px rgba(232, 121, 249, 0.4);
+}
+
+.character-avatar:hover {
+  transform: scale(1.08);
+}
+
+.player-card.is-defeated .character-avatar {
+  filter: grayscale(0.85) brightness(0.7);
+  transform: scale(0.92);
+}
+
+.player-card.is-victorious .character-avatar {
+  transform: scale(1.12);
+  box-shadow: 0 0 20px rgba(250, 204, 21, 0.85);
+  border-color: #facc15;
+}
+
+.fever-banner-badge {
+  display: block;
+  margin: 0 auto 6px;
+  animation: feverPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.fever-banner-img {
+  width: 130px;
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(255, 215, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+@keyframes feverPop {
+  0% { transform: scale(0.5); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
 }
 
 .player-card-header h2 {

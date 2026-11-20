@@ -168,6 +168,11 @@
     hintButton: document.getElementById('btn-hint'),
     colorSelect: document.getElementById('color-count'),
     difficultySelect: document.getElementById('cpu-difficulty'),
+    p1Card: document.getElementById('player-card-p1'),
+    p1Avatar: document.getElementById('p1-avatar'),
+    p1Title: document.getElementById('p1-title'),
+    p2Card: document.getElementById('player-card-p2'),
+    p2Avatar: document.getElementById('p2-avatar'),
     p2Title: document.getElementById('p2-title'),
     p2Badge: document.getElementById('p2-badge'),
     p2ControlsList: document.getElementById('p2-controls-list'),
@@ -641,10 +646,38 @@
     match.mode = selectedMode();
     var solo = isSoloMode();
     players[1].isCpu = match.mode === 'cpu';
-    players[1].label = isVersusMode() ? '2P' : 'CPU';
-    ui.p2Title.textContent = players[1].label;
-    ui.p2Badge.textContent = isVersusMode() ? '玩家 2' : '自動對手';
-    ui.p2Badge.classList.toggle('cpu-badge', !isVersusMode());
+    var diffKey = ui.difficultySelect ? ui.difficultySelect.value : 'normal';
+
+    if (isVersusMode()) {
+      players[1].label = '2P 玩家';
+      if (ui.p2Title) ui.p2Title.textContent = '2P 玩家';
+      if (ui.p2Badge) ui.p2Badge.textContent = '玩家 2';
+      if (ui.p2Avatar) {
+        ui.p2Avatar.src = './art/characters/player-amit.jpg';
+        ui.p2Avatar.alt = '2P 玩家';
+      }
+    } else {
+      if (diffKey === 'master' || diffKey === 'nightmare') {
+        var bossName = diffKey === 'nightmare' ? '深淵魔王' : '暗黑大魔導';
+        players[1].label = bossName;
+        if (ui.p2Title) ui.p2Title.textContent = bossName;
+        if (ui.p2Badge) ui.p2Badge.textContent = diffKey === 'nightmare' ? 'CPU (惡夢)' : 'CPU (達人)';
+        if (ui.p2Avatar) {
+          ui.p2Avatar.src = './art/characters/cpu-dark-lord.jpg';
+          ui.p2Avatar.alt = bossName;
+        }
+      } else {
+        var diffName = diffKey === 'easy' ? '簡單' : diffKey === 'hard' ? '困難' : '普通';
+        players[1].label = '見習魔女';
+        if (ui.p2Title) ui.p2Title.textContent = '見習魔女';
+        if (ui.p2Badge) ui.p2Badge.textContent = 'CPU (' + diffName + ')';
+        if (ui.p2Avatar) {
+          ui.p2Avatar.src = './art/characters/cpu-witch.jpg';
+          ui.p2Avatar.alt = '見習魔女';
+        }
+      }
+    }
+    if (ui.p2Badge) ui.p2Badge.classList.toggle('cpu-badge', !isVersusMode());
     if (match.mode === 'mission') ui.modeBadge.textContent = '任務模式 · 限手連鎖';
     else if (match.mode === 'daily') ui.modeBadge.textContent = '每日謎題 · 台北日種子';
     else if (match.mode === 'tutorial') ui.modeBadge.textContent = '連鎖教室 · 互動教學';
@@ -769,6 +802,8 @@
     clearHint();
     ui.pauseLabel.textContent = '暫停';
     ui.overlay.hidden = true;
+    if (ui.p1Card) ui.p1Card.classList.remove('is-victorious', 'is-defeated');
+    if (ui.playerCardP2) ui.playerCardP2.classList.remove('is-victorious', 'is-defeated');
     match.mode = selectedMode();
     refreshMissionSelect();
 
@@ -1014,6 +1049,14 @@
       if (J) J.onWin(players[0].field);
     } else {
       A.playLose();
+    }
+    if (ui.p1Card) {
+      ui.p1Card.classList.toggle('is-victorious', winner === players[0]);
+      ui.p1Card.classList.toggle('is-defeated', winner !== players[0]);
+    }
+    if (ui.playerCardP2) {
+      ui.playerCardP2.classList.toggle('is-victorious', winner === players[1]);
+      ui.playerCardP2.classList.toggle('is-defeated', winner !== players[1]);
     }
     ui.resultTitle.textContent = winner.label + ' 勝利';
     ui.resultSummary.textContent = summary;
@@ -1261,8 +1304,13 @@
 
   function showPopup(player, title, detail, intensity) {
     var chainNum = intensity > 1 ? intensity : 0;
+    var isFever = chainNum >= 4 || (title && (title.indexOf('全清') >= 0 || title.indexOf('All Clear') >= 0));
+    var feverBannerHtml = isFever
+      ? '<div class="fever-banner-badge"><img class="fever-banner-img" src="./art/banner-fever.jpg" alt="FEVER!!" /></div>'
+      : '';
     if (chainNum > 1 && !prefersReducedMotion) {
       player.popup.innerHTML =
+        feverBannerHtml +
         '<strong><span class="chain-count" data-target="' +
         chainNum +
         '">1</span> 連鎖！</strong><span>' +
@@ -1270,7 +1318,7 @@
         '</span>';
       animateChainCount(player.popup.querySelector('.chain-count'), chainNum);
     } else {
-      player.popup.innerHTML = '<strong>' + title + '</strong><span>' + detail + '</span>';
+      player.popup.innerHTML = feverBannerHtml + '<strong>' + title + '</strong><span>' + detail + '</span>';
     }
     player.popup.dataset.intensity = String(Math.min(intensity, 5));
     player.popup.classList.toggle('reduced-motion', prefersReducedMotion);

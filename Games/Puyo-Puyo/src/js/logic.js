@@ -83,7 +83,7 @@
       label: '夕燒海岸',
       starsRequired: 10,
       pageBg:
-        'linear-gradient(rgba(40, 12, 8, 0.55), rgba(20, 8, 6, 0.82)), radial-gradient(800px 480px at 70% 0%, rgba(255, 140, 60, 0.45), transparent 65%), radial-gradient(600px 400px at 20% 100%, rgba(255, 80, 100, 0.25), transparent 60%), #1a0c08',
+        'linear-gradient(rgba(40, 12, 8, 0.45), rgba(20, 8, 6, 0.78)), url("./art/backgrounds/bg-sunset.jpg") center / cover no-repeat, radial-gradient(800px 480px at 70% 0%, rgba(255, 140, 60, 0.45), transparent 65%), #1a0c08',
       fieldTop: '#4a1e14',
       fieldBottom: '#1a0c10',
       fieldTint: 'rgba(60, 20, 12, 0.4)',
@@ -93,7 +93,7 @@
       label: '極光庭園',
       starsRequired: 24,
       pageBg:
-        'linear-gradient(rgba(4, 18, 22, 0.6), rgba(4, 12, 18, 0.85)), radial-gradient(700px 420px at 30% 10%, rgba(60, 220, 180, 0.35), transparent 60%), radial-gradient(500px 360px at 90% 80%, rgba(80, 140, 255, 0.3), transparent 55%), #041216',
+        'linear-gradient(rgba(4, 18, 22, 0.45), rgba(4, 12, 18, 0.8)), url("./art/backgrounds/bg-aurora.jpg") center / cover no-repeat, radial-gradient(700px 420px at 30% 10%, rgba(60, 220, 180, 0.35), transparent 60%), #041216',
       fieldTop: '#0d2e36',
       fieldBottom: '#061820',
       fieldTint: 'rgba(8, 28, 32, 0.42)',
@@ -103,7 +103,7 @@
       label: '糖果工房',
       starsRequired: 40,
       pageBg:
-        'linear-gradient(rgba(28, 10, 28, 0.55), rgba(18, 8, 22, 0.82)), radial-gradient(700px 400px at 50% -5%, rgba(255, 120, 180, 0.4), transparent 60%), radial-gradient(500px 340px at 10% 90%, rgba(120, 200, 255, 0.28), transparent 55%), #160816',
+        'linear-gradient(rgba(28, 10, 28, 0.45), rgba(18, 8, 22, 0.78)), url("./art/backgrounds/bg-candy.jpg") center / cover no-repeat, radial-gradient(700px 400px at 50% -5%, rgba(255, 120, 180, 0.4), transparent 60%), #160816',
       fieldTop: '#3a1840',
       fieldBottom: '#1a0c22',
       fieldTint: 'rgba(40, 16, 44, 0.4)',

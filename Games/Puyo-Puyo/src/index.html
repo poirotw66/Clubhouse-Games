@@ -214,11 +214,14 @@
 
         <!-- Central Battle Arena -->
         <main class="versus-layout" id="versus-layout">
-        <section class="player-card player-card-p1">
+        <section class="player-card player-card-p1" id="player-card-p1">
           <div class="player-card-header">
-            <div>
-              <h2>1P</h2>
-              <p id="p1-status" class="status-text">等待開局</p>
+            <div class="player-profile">
+              <img class="character-avatar" id="p1-avatar" src="./art/characters/player-amit.jpg" alt="1P 魔導士" />
+              <div>
+                <h2 id="p1-title">1P 魔導士</h2>
+                <p id="p1-status" class="status-text">等待開局</p>
+              </div>
             </div>
             <div class="player-badge">玩家 1</div>
           </div>
@@ -247,11 +250,14 @@
 
         <section class="player-card player-card-p2" id="player-card-p2">
           <div class="player-card-header">
-            <div>
-              <h2 id="p2-title">CPU</h2>
-              <p id="p2-status" class="status-text">等待開局</p>
+            <div class="player-profile">
+              <img class="character-avatar" id="p2-avatar" src="./art/characters/cpu-witch.jpg" alt="CPU 見習魔女" />
+              <div>
+                <h2 id="p2-title">見習魔女</h2>
+                <p id="p2-status" class="status-text">等待開局</p>
+              </div>
             </div>
-            <div class="player-badge cpu-badge" id="p2-badge">自動對手</div>
+            <div class="player-badge cpu-badge" id="p2-badge">CPU (普通)</div>
           </div>
           <div class="ojama-tray" id="p2-ojama" aria-label="2P 垃圾預告"></div>
           <div class="field-wrap">
