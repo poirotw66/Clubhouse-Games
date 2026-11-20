@@ -102,6 +102,18 @@
 - 雙人：先得 5 分。
 - 練習：僅供訓練，不寫入挑戰最佳。
 
+## 櫻井政博遊戲手感原則實踐（Game Feel & Feedback）
+
+本遊戲繼承櫻井政博在《星之卡比 超級豪華版》「武士卡比（Samurai Kirby）」中創立的極限反應手感體系，導入以下強化：
+1. **待機懸念心跳音律（gameplay-core-002 Stress & Release）**：
+   - 居合納刀待機與警告階段導入低頻 60Hz 呼吸心跳音律脈動（Heartbeat Thump），在寂靜的對峙中營造極致神經緊張感，直到「閃」字爆發。
+2. **居合一閃 120ms Hit-stop 與物理震顫（fx-005 & fx-004）**：
+   - 完美反擊時啟動物理定格（Hit-stop）與畫布實體震顫（`shake(container, 1.8)`），搭配水墨金光與彩帶慶祝（`particles('confetti')`），極大化刀光一瞬的破壞張力。
+3. **搶拍與失誤詼諧音效反饋（communicate-through-feedback）**：
+   - 提前搶拍揮刀時合成滑稽鈍擊音與震顫（`shake(container, 1.1)`），清晰告知犯規。
+4. **極速重試（gameplay-ux-009）**：
+   - 對決或挑戰結束時，結算疊層支援 <kbd>Space</kbd>、<kbd>Enter</kbd> 與 <kbd>R</kbd> 鍵秒速立即再戰，無需滑鼠位移點擊。
+
 ## 品質門檻對齊
 
 對照 [`docs/GAME-QUALITY-BAR.md`](../docs/GAME-QUALITY-BAR.md)：

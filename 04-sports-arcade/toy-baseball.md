@@ -80,6 +80,17 @@
 | Check | `npm run check` → `check-baseball.mjs` |
 | 首局引導 | `FirstRunGuide`（可關閉，可再開） |
 
+## 櫻井政博遊戲手感原則實踐（Game Feel & Feedback）
+
+本遊戲依據櫻井政博（Masahiro Sakurai）遊戲設計哲學進行深度反饋強化：
+1. **打擊停格與物理震屏（fx-005 & fx-004）**：
+   - 當球棒命中球時，依打擊品質（Perfect 85ms、Good 55ms）觸發畫面微幅停格（Hit-stop）與實體畫布震顫（`shake(canvasRef.current, 1.2)`），創造極強的重擊衝擊感。
+2. **木棒清脆擊球音爆破合成（communicate-through-feedback）**：
+   - 揮棒命中球時合成真實木棒清脆爆破音 `playBatCrack`（1760Hz/1480Hz 高頻瞬態 snap 與 220Hz 木質共鳴 thud），告別單薄音效。
+   - 轟出全壘打時觸發勝利號角、慶祝彩帶噴泉（`particles('confetti')`）與球場全屏震顫。
+3. **極速重試（gameplay-ux-009）**：
+   - 在比賽或全壘打大賽結算疊層（`ResultOverlay`）中，全域監聽 <kbd>Space</kbd>、<kbd>Enter</kbd> 與 <kbd>R</kbd> 鍵，無需滑鼠尋標點擊即可一秒立即再戰。
+
 ## 規則說明（本館）
 
 ### 準備／設定

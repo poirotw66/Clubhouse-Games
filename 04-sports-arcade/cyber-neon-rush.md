@@ -74,6 +74,16 @@
 - **紀錄**：各難度最佳總分與最遠距離；車庫進度與任務另存。
 - **結算 UI**：共用 `@clubhouse/shared/ResultOverlay`。
 
+## 櫻井政博遊戲手感原則實踐（Game Feel & Feedback）
+
+本遊戲貫徹櫻井政博（Masahiro Sakurai）高速動作與風險回報設計原則：
+1. **極限擦身而過音階連擊（gameplay-core-001 Risk & Return）**：
+   - 冒著撞毀風險近距離擦身掠過障礙物時觸發「Near Miss」擦身加成，合成 1200Hz～2000Hz 高頻賽博電子音階，且連擊（Combo）隨連續極限閃避階梯式攀升音高，伴隨畫布實體微震（`shake(container, 0.35)`）。
+2. **重度衝撞與曲速物理震顫（fx-004）**：
+   - 撞毀結束時觸發 80Hz 低頻重型爆破音與全螢幕強烈震顫（`shake(container, 1.4)`），使失誤具有切實的沉重物理代價。
+3. **極速重試（gameplay-ux-009）**：
+   - 在遊戲結束結算畫面（`ResultOverlay`）中，全域監聽 <kbd>Space</kbd>、<kbd>Enter</kbd> 與 <kbd>R</kbd> 鍵，立即瞬間重開下一輪狂飆。
+
 ## 品質門檻對齊
 
 對照 [`docs/GAME-QUALITY-BAR.md`](../docs/GAME-QUALITY-BAR.md)：

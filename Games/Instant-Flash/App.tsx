@@ -259,6 +259,18 @@ export default function App() {
     restartSame();
   };
 
+  useEffect(() => {
+    if (gameState !== GameState.GAMEOVER || !lastStats) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Space' || e.code === 'Enter' || e.code === 'KeyR') {
+        e.preventDefault();
+        resultPrimary();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [gameState, lastStats, resultPrimary]);
+
   return (
     <div className="w-full min-h-dvh h-screen bg-slate-950 flex flex-col overflow-hidden font-sans text-slate-200 select-none">
       <BackToMenu />
@@ -698,7 +710,7 @@ export default function App() {
                       ]
                     : []),
           ]}
-          primaryLabel={resultMeta.primary}
+          primaryLabel={`${resultMeta.primary} (Space / Enter / R)`}
           onPrimary={resultPrimary}
           secondaryLabel="主選單"
           onSecondary={() => {

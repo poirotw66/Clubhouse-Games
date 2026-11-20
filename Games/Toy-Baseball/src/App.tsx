@@ -6,7 +6,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
-import { fxMultiplier, haptic } from '@clubhouse/shared/juice';
+import { fxMultiplier, haptic, particles, shake } from '@clubhouse/shared/juice';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { ScoreFlash, type ScoreFlashTone } from '@clubhouse/shared/ScoreFlash';
 import {
@@ -17,6 +17,7 @@ import {
   playMove,
   playPaddleHit,
   playScore,
+  playTone,
   playWin,
 } from '@clubhouse/shared/synthAudio';
 import { TouchButton } from '@clubhouse/shared/TouchButton';
@@ -1637,6 +1638,15 @@ class GameEngine {
 
 // --- React Component ---
 
+function playBatCrack(grade: ContactGrade | null): void {
+  const baseFreq = grade === 'perfect' ? 1760 : grade === 'good' ? 1480 : 1200;
+  playTone(baseFreq, 'triangle', 0.045, 0, 0.25);
+  playTone(220, 'sawtooth', 0.08, 0, 0.2);
+  if (grade === 'perfect' || grade === 'good') {
+    playTone(baseFreq * 1.5, 'sine', 0.03, 0, 0.15);
+  }
+}
+
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<GameEngine | null>(null);
@@ -1688,9 +1698,16 @@ export default function App() {
       if (state.score.away > prevScoreRef.current.away) playScore();
       if (state.score.home > prevScoreRef.current.home) playError();
       if (state.contactFlash > 0.9 && prevContactFlashRef.current <= 0.9) {
-        playPaddleHit();
-        if (state.contactGrade === 'perfect') playGoal();
-        else if (state.contactGrade === 'good') playMove();
+        playBatCrack(state.contactGrade);
+        if (state.contactGrade === 'perfect') {
+          playGoal();
+          if (canvasRef.current) shake(canvasRef.current, 1.2);
+        } else if (state.contactGrade === 'good') {
+          playMove();
+          if (canvasRef.current) shake(canvasRef.current, 0.7);
+        } else {
+          playPaddleHit();
+        }
       }
       if (state.resultText && state.resultText !== prevResultRef.current) {
         flashKeyRef.current += 1;
@@ -1699,9 +1716,15 @@ export default function App() {
           tone: resultFlashTone(state.resultText),
           key: flashKeyRef.current,
         });
-        if (state.resultText.includes('全壘打')) playGoal();
-        else if (state.resultText.includes('安打')) playScore();
-        else if (
+        if (state.resultText.includes('全壘打')) {
+          playGoal();
+          if (canvasRef.current) {
+            particles('confetti', { el: canvasRef.current, count: 60, strength: 1.5 });
+            shake(canvasRef.current, 1.5);
+          }
+        } else if (state.resultText.includes('安打')) {
+          playScore();
+        } else if (
           state.resultText.includes('接殺')
           || state.resultText.includes('滾地球')
         ) {
@@ -1787,6 +1810,13 @@ export default function App() {
     animationFrameId = requestAnimationFrame(loop);
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (engine.state.mode === 'gameOver') {
+        if (e.code === 'Space' || e.code === 'Enter' || e.code === 'KeyR') {
+          e.preventDefault();
+          handleRematch();
+          return;
+        }
+      }
       if (e.code === 'Space') {
         e.preventDefault();
         if (engine.state.mode === 'playing' && engine.isPlayerBatting) {
@@ -2560,7 +2590,7 @@ export default function App() {
                       ]
                 }
                 onPrimary={handleRematch}
-                primaryLabel={gameState.playMode === 'season' ? '回戰績表' : '再玩一局'}
+                primaryLabel={gameState.playMode === 'season' ? '回戰績表 (Space / Enter / R)' : '再玩一局 (Space / Enter / R)'}
                 onSecondary={handleReset}
                 secondaryLabel="回選單"
               />

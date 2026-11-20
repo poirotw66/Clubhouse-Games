@@ -9,6 +9,7 @@ import {
   playGoal,
   playLose,
   playMove,
+  playTone,
   playWin,
 } from '@clubhouse/shared/synthAudio';
 import { Card as CardComponent } from './components/Card';
@@ -60,14 +61,24 @@ import {
 } from './utils/yakuCodex';
 import { motion, AnimatePresence } from 'motion/react';
 
-type SfxKind = 'match' | 'yaku' | 'yaku_unlock' | 'win' | 'draw' | 'lose';
+type SfxKind = 'match' | 'yaku' | 'yaku_unlock' | 'win' | 'draw' | 'lose' | 'koikoi' | 'snap';
 
 /** Tatami table — juice particles / shake anchor (presentation only). */
 const juiceTableRef: { current: HTMLElement | null } = { current: null };
 
 function playSfx(kind: SfxKind): void {
   const table = juiceTableRef.current;
-  if (kind === 'match') {
+  if (kind === 'snap') {
+    playTone(1800, 'triangle', 0.04, 0, 0.3);
+    playTone(480, 'sine', 0.08, 0, 0.2);
+    haptic('tap');
+    if (table) shake(table, 0.45);
+  } else if (kind === 'koikoi') {
+    playTone(330, 'sawtooth', 0.25, 0, 0.3);
+    playTone(495, 'triangle', 0.35, 0, 0.25);
+    haptic('combo');
+    if (table) shake(table, 0.6);
+  } else if (kind === 'match') {
     playCapture();
     haptic('place');
     particles('sparkle', { el: table });
@@ -75,6 +86,7 @@ function playSfx(kind: SfxKind): void {
     playGoal();
     haptic('combo');
     particles('burst', { el: table });
+    particles('confetti', { el: table, count: 40 });
   } else if (kind === 'yaku_unlock') {
     playGoal();
     playCombo(3);
@@ -463,6 +475,7 @@ export default function App() {
     const newHand = state.playerHand.filter(c => c.id !== card.id);
 
     if (matches.length === 0) {
+      playSfx('snap');
       setState(s => ({
         ...s,
         playerHand: newHand,
@@ -472,6 +485,7 @@ export default function App() {
       }));
       schedule(() => executeDrawPhase({ ...state, playerHand: newHand, field: [...state.field, card] }, 'player'), 1000);
     } else if (matches.length === 1) {
+      playSfx('snap');
       playSfx('match');
       setState(s => ({
         ...s,
@@ -557,6 +571,7 @@ export default function App() {
   const handleKoiKoi = () => {
     if (lockRef.current) return;
     lockRef.current = true;
+    playSfx('koikoi');
     setHint(null);
     setState(s => ({
       ...s,
@@ -792,6 +807,20 @@ export default function App() {
       } = handlersRef.current;
 
       const key = e.key;
+
+      if (curState.phase === 'round_end') {
+        if (key === ' ' || key === 'Enter' || key === 'r' || key === 'R') {
+          e.preventDefault();
+          startGame(true);
+          return;
+        }
+      } else if (curState.phase === 'game_over') {
+        if (key === ' ' || key === 'Enter' || key === 'r' || key === 'R') {
+          e.preventDefault();
+          startGame(false, true);
+          return;
+        }
+      }
 
       if (key === 'ArrowLeft' || key === 'a' || key === 'A') {
         if (curState.phase === 'player_turn_hand' && curState.playerHand.length > 0) {
@@ -1400,7 +1429,7 @@ export default function App() {
             { label: opponent.name, value: state.botScore },
             { label: '目標', value: winScore },
           ]}
-          primaryLabel="下一局"
+          primaryLabel="下一局 (Space / Enter / R)"
           onPrimary={() => startGame(true)}
           secondaryLabel="役種圖鑑"
           onSecondary={() => setShowCodex(true)}
@@ -1425,7 +1454,7 @@ export default function App() {
             { label: '敗場', value: stats.losses },
             { label: '連勝', value: stats.winStreak },
           ]}
-          primaryLabel="再來一局"
+          primaryLabel="再來一局 (Space / Enter / R)"
           onPrimary={() => startGame(false, true)}
           secondaryLabel="役種圖鑑"
           onSecondary={() => setShowCodex(true)}

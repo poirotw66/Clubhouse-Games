@@ -2,14 +2,16 @@ import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent, t
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
-import { haptic } from '@clubhouse/shared/juice';
+import { haptic, particles, shake } from '@clubhouse/shared/juice';
 import {
   playCapture,
+  playCombo,
   playError,
   playGoal,
   playLose,
   playMove,
   playScore,
+  playTone,
   playWin,
 } from '@clubhouse/shared/synthAudio';
 import { GameCanvas } from './components/GameCanvas';
@@ -91,6 +93,7 @@ export default function App(): ReactElement {
   const [runId, setRunId] = useState(0);
   const [showTip, setShowTip] = useState(false);
   const worldRef = useRef<GameWorld | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const toastRef = useRef<string | null>(null);
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
 
@@ -105,9 +108,13 @@ export default function App(): ReactElement {
 
   const onHud = useCallback((next: HudSnapshot) => {
     if (next.toast && next.toast !== toastRef.current) {
-      if (next.toast === 'perfect' || next.toast === 'fever') playGoal();
-      else if (next.toast === 'boost' || next.toast === 'dash') playCapture();
-      else if (
+      if (next.toast === 'perfect' || next.toast === 'fever') {
+        playGoal();
+        playCombo(Math.min(8, next.combo || 1));
+        if (containerRef.current) shake(containerRef.current, 0.7);
+      } else if (next.toast === 'boost' || next.toast === 'dash') {
+        playCapture();
+      } else if (
         next.toast === 'shield' ||
         next.toast === 'magnet' ||
         next.toast === 'multiplier' ||
@@ -115,8 +122,13 @@ export default function App(): ReactElement {
       ) {
         playCapture();
         playScore();
-      } else if (next.toast === 'near') playScore();
-      else playMove();
+      } else if (next.toast === 'near') {
+        playTone(1200 + Math.min(800, (next.combo || 1) * 80), 'sawtooth', 0.05, 0, 0.25);
+        playScore();
+        if (containerRef.current) shake(containerRef.current, 0.35);
+      } else {
+        playMove();
+      }
     }
     toastRef.current = next.toast;
     setHud(next);
@@ -126,6 +138,8 @@ export default function App(): ReactElement {
     setResult(r);
     setScreen('gameover');
     setShowTip(false);
+    if (containerRef.current) shake(containerRef.current, 1.4);
+    playTone(80, 'sawtooth', 0.25, 0, 0.4);
     setBests(loadBests());
     setMeta((prev) =>
       recordRunEnd(prev, {
@@ -243,7 +257,7 @@ export default function App(): ReactElement {
           setScreen((s) => (s === 'paused' ? 'playing' : 'paused'));
         }
       }
-      if (screen === 'gameover' && (e.code === 'Space' || e.code === 'Enter')) {
+      if (screen === 'gameover' && (e.code === 'Space' || e.code === 'Enter' || e.code === 'KeyR')) {
         e.preventDefault();
         startRun();
       }
@@ -295,6 +309,7 @@ export default function App(): ReactElement {
 
   return (
     <div
+      ref={containerRef}
       className={`relative w-full h-dvh overflow-hidden select-none${shakeHard ? ' screen-shake-hard' : shakeSoft ? ' screen-shake' : ''}`}
       onPointerDown={onSwipePointerDown}
       onPointerUp={onSwipePointerUp}
@@ -516,7 +531,7 @@ export default function App(): ReactElement {
             { label: '霓虹幣', value: `+${result.creditsEarned}` },
             { label: '最高連擊', value: String(result.maxCombo) },
           ]}
-          primaryLabel="再試一次"
+          primaryLabel="再試一次 (Space / Enter / R)"
           onPrimary={startRun}
           secondaryLabel="車庫"
           onSecondary={() => {

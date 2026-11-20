@@ -60,7 +60,7 @@ import { BushidoScrolls } from './BushidoScrolls';
 import { KeyboardHud } from './KeyboardHud';
 import { TacticalTicker } from './TacticalTicker';
 import { X } from 'lucide-react';
-import { haptic } from '@clubhouse/shared/juice';
+import { haptic, particles, shake } from '@clubhouse/shared/juice';
 import {
   playCapture,
   playCombo,
@@ -69,6 +69,7 @@ import {
   playImpact,
   playMove,
   playScore,
+  playTone,
 } from '@clubhouse/shared/synthAudio';
 
 const PROJECTILE_DURATION: Record<
@@ -152,6 +153,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const playerStance = useRef<PlayerStance>(PlayerStance.IDLE);
   const sheathedSide = useRef<ParrySide | null>(null);
   const hitStopTimer = useRef<number>(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const lastHeartbeat = useRef<number>(0);
   const hp = useRef<number>(MAX_HP);
   const enemyHp = useRef<number>(opponent?.enemyHp ?? MAX_HP);
   const patternState = useRef<PatternState>(createPatternState());
@@ -339,6 +342,11 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       if (result === CounterResult.PERFECT) {
         playGoal();
         playCombo(stats.current.combo + 1);
+        playTone(920, 'triangle', 0.08, 0, 0.35);
+        if (containerRef.current) {
+          shake(containerRef.current, 1.8);
+          particles('confetti', { el: containerRef.current, count: 45, strength: 1.5 });
+        }
         haptic('combo', Math.min(1.2, 0.55 + stats.current.combo * 0.06));
         stats.current.score += SCORE_PERFECT + stats.current.combo * 100;
         stats.current.combo++;
@@ -355,6 +363,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       } else if (result === CounterResult.GOOD) {
         playScore();
         playImpact(0.45);
+        if (containerRef.current) {
+          shake(containerRef.current, 0.9);
+          particles('sparkle', { el: containerRef.current, count: 20 });
+        }
         haptic('success', 0.55);
         stats.current.score += SCORE_GOOD + stats.current.combo * 10;
         stats.current.combo++;
@@ -366,6 +378,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         hitStopTimer.current = HIT_STOP_DURATION / 2;
       } else if (result === CounterResult.EARLY) {
         playError();
+        playTone(180, 'sawtooth', 0.15, 0, 0.35);
+        if (containerRef.current) shake(containerRef.current, 1.1);
         haptic('error', 0.7);
         stats.current.combo = 0;
         stats.current.earlies++;
@@ -697,6 +711,10 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         enemyState.current === EnemyState.WARNING ||
         enemyState.current === EnemyState.ATTACKING
       ) {
+        if (time - lastHeartbeat.current > 550) {
+          lastHeartbeat.current = time;
+          playTone(60, 'sine', 0.07, 0, 0.12);
+        }
         const evt = currentEvent.current;
         const progress =
           (time - warningStartTime.current) / currentProjectileDuration.current;
@@ -924,7 +942,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   })();
 
   return (
-    <div className={containerClass}>
+    <div ref={containerRef} className={containerClass}>
       {/* Background scenery */}
       <div className="absolute inset-0 pointer-events-none">
         <div

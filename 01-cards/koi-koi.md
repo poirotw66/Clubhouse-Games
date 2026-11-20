@@ -91,6 +91,16 @@
 - **戰績**：`localStorage` 鍵 `clubhouse-koi-koi-stats`（wins／losses／winStreak／lastDifficulty／lastWinScore）。
 - **音效**：`synthAudio`（出牌／取牌／勝負）；另有可靜音 BGM。
 
+## 櫻井政博遊戲手感原則實踐（Game Feel & Feedback）
+
+本遊戲落實櫻井政博（Masahiro Sakurai）感官反饋與博弈張力原則：
+1. **花牌敲擊實體觸感音效與微震（communicate-through-feedback & fx-004）**：
+   - 出牌落於榻榻米桌面時，觸發合成木質硬卡瞬態敲擊聲 `playSfx('snap')`（1800Hz 銳利木塊碰撞與 480Hz 共鳴）以及桌面物理微震（`shake(table, 0.45)`），完美重現傳統花札拍桌快感。
+2. **Koi-Koi 豪賭懸念音律與彩帶（gameplay-core-001 & gameplay-core-002）**：
+   - 玩家成役宣告「Koi-Koi（來來）」時，啟動 330Hz～495Hz 緊張懸念音階與金色桌面光暈，凸顯雙倍風險回報；組成大役時噴發慶祝彩帶（`particles('confetti')`）。
+3. **極速重試（gameplay-ux-009）**：
+   - 在回合結束與對局結算疊層（`ResultOverlay`）中，全域支援 <kbd>Space</kbd>、<kbd>Enter</kbd> 與 <kbd>R</kbd> 鍵秒速下一局，無需移動游標。
+
 ## 品質門檻對齊
 
 對照 [`docs/GAME-QUALITY-BAR.md`](../docs/GAME-QUALITY-BAR.md)：
