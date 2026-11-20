@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
 import { TouchButton } from '@clubhouse/shared/TouchButton';
 import {
   CAREER_CHALLENGES,
@@ -203,6 +204,11 @@ export function TitleScreen({
           />
         )}
       </div>
+
+      <section className="dy-card p-4">
+        <h2 className="text-sm font-bold text-slate-300 mb-2">打擊回饋偏好</h2>
+        <JuiceSettingsPanel compact />
+      </section>
 
       {archive.length > 0 && (
         <section className="dy-card p-4">

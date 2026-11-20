@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { TouchButton } from '@clubhouse/shared/TouchButton';
+import { haptic, particles, shake } from '@clubhouse/shared/juice';
 import {
   ATTR_LABELS,
   POSITIONS,
@@ -59,6 +60,36 @@ export function SummaryScreen({
   };
 
   const totals = summary.totals;
+
+  useEffect(() => {
+    if (summary.hofScore >= 1450 || challengeCleared) {
+      shake(document.body, 0.65);
+      haptic('win');
+      particles('confetti');
+    } else {
+      shake(document.body, 0.25);
+      haptic('success');
+    }
+  }, [summary.hofScore, challengeCleared]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+      if (event.key === ' ' || event.key === 'Enter' || event.key === 'r' || event.key === 'R') {
+        event.preventDefault();
+        haptic('tap');
+        if (challenge && onRetryChallenge) {
+          onRetryChallenge();
+        } else {
+          onRestart();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [challenge, onRetryChallenge, onRestart]);
 
   return (
     <div className="bl-title-shell min-h-screen" style={sceneBackgroundStyle('over')}>
@@ -379,26 +410,36 @@ export function SummaryScreen({
       <div className="mt-6 flex flex-col gap-3 sm:flex-row">
         {challenge && onRetryChallenge ? (
           <TouchButton
-            label="再試一次挑戰"
+            label="再試一次挑戰 (Space / Enter / R)"
             ariaLabel="用同一組挑戰設定重新開始"
-            onClick={onRetryChallenge}
+            onClick={() => {
+              haptic('tap');
+              onRetryChallenge();
+            }}
             className="flex-1 rounded-xl border border-sky-500/50 bg-sky-500/15 px-4 text-sm font-bold text-sky-100"
           />
         ) : (
           <TouchButton
             label="用同一組種子碼重來"
             ariaLabel="用同一組種子碼重新開始"
-            onClick={onSameSeed}
+            onClick={() => {
+              haptic('tap');
+              onSameSeed();
+            }}
             className="flex-1 rounded-xl border border-slate-600 bg-slate-800 px-4 text-sm font-bold text-slate-100"
           />
         )}
         <TouchButton
-          label="開始新的人生"
+          label={challenge && onRetryChallenge ? '回到標題畫面' : '開始新的人生 (Space / Enter / R)'}
           ariaLabel="回到標題畫面開始新的人生"
-          onClick={onRestart}
+          onClick={() => {
+            haptic('tap');
+            onRestart();
+          }}
           className="flex-1 rounded-xl bg-amber-500 px-4 text-base font-black text-slate-950"
         />
       </div>
+      <p className="mt-2 text-center text-xs text-slate-500">提示：按 Space / Enter / R 鍵可立即展開下一輪</p>
       </div>
     </div>
   );

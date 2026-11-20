@@ -155,6 +155,18 @@ export function createResultOverlay(parent: HTMLElement = document.body): Result
   let onSecondary: (() => void) | null = null;
   let countHandles: CountUpHandle[] = [];
 
+  const handleKey = (e: KeyboardEvent): void => {
+    if (root.hidden || !onPrimary) return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const target = e.target as HTMLElement | null;
+    if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+    if (e.key === ' ' || e.key === 'Enter' || e.key === 'r' || e.key === 'R') {
+      e.preventDefault();
+      onPrimary();
+    }
+  };
+  window.addEventListener('keydown', handleKey);
+
   primaryBtn.addEventListener('click', () => onPrimary?.());
   secondaryBtn.addEventListener('click', () => onSecondary?.());
   parent.appendChild(root);
@@ -263,6 +275,7 @@ export function createResultOverlay(parent: HTMLElement = document.body): Result
       root.hidden = true;
     },
     destroy(): void {
+      window.removeEventListener('keydown', handleKey);
       for (const handle of countHandles) handle.cancel();
       countHandles = [];
       onPrimary = null;

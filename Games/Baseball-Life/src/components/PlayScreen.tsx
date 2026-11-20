@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { TouchButton } from '@clubhouse/shared/TouchButton';
+import { haptic, shake } from '@clubhouse/shared/juice';
 import type { CareerChallenge } from '../game/challenges';
 import { ATTR_LABELS, LEAGUES, formatMoney } from '../game/config';
 import { DESTINY_COST, deltaLabel, previewTrainingPlan } from '../game/engine';
@@ -134,8 +135,12 @@ export function PlayScreen({
       if (report.tone === 'great' || report.tone === 'good') {
         playBatCrack('sweet');
         playStadiumRoar(1.0);
+        shake(document.body, 0.25);
+        haptic('win');
       } else if (report.tone === 'bad') {
         playMittCatch();
+        shake(document.body, 0.15);
+        haptic('error');
       }
     }
   }, [report]);
@@ -150,10 +155,23 @@ export function PlayScreen({
     });
   };
 
+  const handleUndo = () => {
+    haptic('tap');
+    onUndo();
+  };
+
+  const handleAcknowledge = () => {
+    haptic('impact');
+    shake(document.body, 0.12);
+    onAcknowledge();
+  };
+
   const commitOption = (optionId: string) => {
     // A held key or Enter's native button click must never execute two choices.
     if (lastCommit.current === state) return;
     lastCommit.current = state;
+    haptic('tap');
+    shake(document.body, 0.08);
     if (decision?.kind === 'clutch') {
       const opt = decision.options.find((o) => o.id === optionId);
       if (
@@ -185,6 +203,7 @@ export function PlayScreen({
   const handleChooseOption = (optionId: string) => {
     if (decision?.kind === 'training') {
       if (previewTrainingPlan(state, optionId)) {
+        haptic('tap');
         setTrainingSelection({ state, id: optionId });
         requestAnimationFrame(() => decisionPanel.current?.querySelector('[data-training-workspace]')?.scrollIntoView({ block: 'nearest' }));
       }
@@ -209,7 +228,7 @@ export function PlayScreen({
 
       if (event.key === 'Backspace' && canUndo) {
         event.preventDefault();
-        onUndo();
+        handleUndo();
         return;
       }
 
@@ -237,7 +256,7 @@ export function PlayScreen({
       if (ended) {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
-          onAcknowledge();
+          handleAcknowledge();
         }
         return;
       }
@@ -489,7 +508,7 @@ export function PlayScreen({
                 <TouchButton
                   label="看生涯總結"
                   ariaLabel="看生涯總結"
-                  onClick={onAcknowledge}
+                  onClick={handleAcknowledge}
                   className="mt-4 w-full rounded-xl bg-amber-500 px-4 text-base font-black text-slate-950"
                 />
               )}
@@ -614,7 +633,7 @@ export function PlayScreen({
               <div className="mt-3 flex items-center justify-between">
                 <button
                   type="button"
-                  onClick={onUndo}
+                  onClick={handleUndo}
                   disabled={!canUndo}
                   className="min-h-11 rounded-lg border border-slate-700 px-3 text-xs font-semibold text-slate-400 hover:bg-slate-800 disabled:opacity-35"
                 >

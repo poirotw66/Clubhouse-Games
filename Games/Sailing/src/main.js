@@ -23,6 +23,7 @@ import {
   sfxTrimSweet,
   sfxUnlock,
 } from './sfx.js';
+import { haptic, particles, shake } from '@clubhouse/shared/juice';
 import { createResultOverlay } from '@clubhouse/shared/resultOverlayDom';
 import {
   bestFor,
@@ -933,6 +934,9 @@ function startGame(gl, canvas) {
       showToast(`解鎖航線：${result.unlocked.map((id) => loadCourseDef(id).name).join('、')}`);
     }
     sfxFinish(isRecord);
+    shake(canvas, 0.75);
+    haptic('win');
+    particles('confetti');
 
     const place = playMode === 'trial' ? null : playerPlace();
     if (place != null) {
@@ -956,7 +960,7 @@ function startGame(gl, canvas) {
       resultOverlay.show({
         title: isRecord ? `${course.name}・新紀錄！` : `${course.name}・完賽`,
         badge: place != null ? `第 ${place} 名` : undefined,
-        subtitle: `海灣盃積分 ${regattaPoints} · 下一場準備`,
+        subtitle: `海灣盃積分 ${regattaPoints} · 下一場準備 (Space / Enter / R 繼續)`,
         stats: finishStats,
         primaryLabel: '下一航線',
         onPrimary: () => {
@@ -979,7 +983,7 @@ function startGame(gl, canvas) {
       resultOverlay.show({
         title: regattaPoints >= 9 ? '海灣盃・優勝！' : '海灣盃・完賽',
         badge: `${regattaPoints} 分`,
-        subtitle: '三場積分累計（5／3／1）',
+        subtitle: '三場積分累計（5／3／1） (Space / Enter / R 繼續)',
         stats: finishStats,
         primaryLabel: '再挑戰盃賽',
         onPrimary: () => {
@@ -996,7 +1000,7 @@ function startGame(gl, canvas) {
     resultOverlay.show({
       title: isRecord ? '完賽・新紀錄！' : '完賽！',
       badge: isRecord ? '新紀錄' : (place != null ? `第 ${place} 名` : undefined),
-      subtitle: '點「再航一趟」重開，或按 R',
+      subtitle: '點「再航一趟」重開，或按 Space / Enter / R 鍵立即重啟',
       stats: finishStats,
       primaryLabel: '再航一趟',
       onPrimary: resetRace,
@@ -1112,6 +1116,8 @@ function startGame(gl, canvas) {
 
       if (!input.autoTrim && !input.easy && boat.luffing > 0.45 && luffSfxCooldown <= 0) {
         sfxLuff();
+        shake(canvas, 0.12);
+        haptic('error');
         luffSfxCooldown = 1.2;
       }
 
@@ -1129,12 +1135,17 @@ function startGame(gl, canvas) {
           perfectGates += 1;
           raceTime = Math.max(0, raceTime - 1.2);
           boat.surge = Math.min(20.5, boat.surge + 4.0);
+          shake(canvas, 0.22);
+          haptic('success');
+          particles('sparkle');
           if (isRound) sfxMarkRound(true);
           else sfxGateClear(true);
           showToast(isRound
             ? `漂亮繞標！−1.2s · 加速（完美 ${perfectGates}）`
             : `完美穿門！−1.2s · 加速（完美 ${perfectGates}）`);
         } else if (!(cleared.cleared.isFinish || marks.nextIndex >= course.gates.length)) {
+          shake(canvas, 0.08);
+          haptic('tap');
           if (isRound) sfxMarkRound(false);
           else sfxGateClear(false);
           showToast(`${cleared.cleared.name} · ${formatTime(raceTime)} · 剩 ${left}`);

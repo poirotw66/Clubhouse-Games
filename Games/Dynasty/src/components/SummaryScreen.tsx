@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { haptic, particles, shake } from '@clubhouse/shared/juice';
 import { TouchButton } from '@clubhouse/shared/TouchButton';
 import type { CareerChallenge } from '../game/challenges';
 import { CLUBS, EXPECTATIONS, formatMoney } from '../game/config';
@@ -32,6 +33,37 @@ export function SummaryScreen({
   onRetryChallenge,
 }: Props): React.ReactElement {
   const summary = state.summary;
+
+  useEffect(() => {
+    if (!summary) return;
+    if (challengeCleared || summary.score >= 1900 || summary.titles > 0) {
+      haptic('win');
+      shake(document.body, 0.65);
+      particles('confetti');
+    } else if (summary.fired) {
+      haptic('error');
+      shake(document.body, 0.45);
+    } else {
+      haptic('success');
+      shake(document.body, 0.25);
+    }
+  }, [summary, challengeCleared]);
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+      if (e.key === ' ' || e.key === 'Enter' || e.key === 'r' || e.key === 'R') {
+        e.preventDefault();
+        if (onRetryChallenge) onRetryChallenge();
+        else onRestart();
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [onRetryChallenge, onRestart]);
+
   if (!summary) return <p className="p-8 text-slate-300">任期資料遺失了。</p>;
   const club = CLUBS.find((c) => c.id === state.teamId);
 
@@ -149,19 +181,22 @@ export function SummaryScreen({
       <div className="mt-6 flex flex-col gap-3 sm:flex-row">
         {onRetryChallenge ? (
           <TouchButton
-            label="再試一次挑戰"
+            label="再試一次挑戰 (Space / Enter / R)"
             ariaLabel="用同一組挑戰設定重新開始"
             onClick={onRetryChallenge}
             className="flex-1 rounded-xl border border-sky-500/50 bg-sky-500/15 px-4 text-sm font-bold text-sky-100"
           />
         ) : null}
         <TouchButton
-          label="再接一次任期"
+          label="再接一次任期 (Space / Enter / R)"
           ariaLabel="回到標題畫面重新開始"
           onClick={onRestart}
           className="flex-1 rounded-xl bg-emerald-500 px-4 text-base font-black text-slate-950"
         />
       </div>
+      <p className="mt-2 text-center text-xs text-slate-500">
+        Space / Enter / R 鍵立即重啟
+      </p>
       </div>
     </div>
   );

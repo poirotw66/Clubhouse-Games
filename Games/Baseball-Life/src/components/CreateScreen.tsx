@@ -70,7 +70,7 @@ export function CreateScreen({
               </h1>
             </div>
             <p className="font-mono text-xs text-amber-300 drop-shadow">
-              種子碼 {seedCode}
+              種子碼 <span>{seedCode}</span>
             </p>
           </div>
         </div>

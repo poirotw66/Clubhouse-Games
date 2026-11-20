@@ -339,6 +339,22 @@ src/game/
 | **觸控與無障礙** | 完整觸控駕駛支援：常駐頂部行動端戰術速報條（Tactical Quick Bar），一鍵「🧭 戰略沙盤」呼出全屏雙翼作戰中心彈窗抽屜；決策卡審批選項卡與一二軍抽屜皆符合行動端最小 44×44 px 點擊範圍；全桌機快捷鍵導航（<kbd>1</kbd>–<kbd>9</kbd> 快速審批、<kbd>Backspace</kbd> 撤銷誤選、<kbd>W</kbd> 開關沙盤、<kbd>R</kbd> 名單抽屜、<kbd>Enter</kbd> 確認）；深色高對比運動數據排版並支援 `prefers-reduced-motion` 無障礙平滑降級。 | [`src/App.tsx`](../Games/Dynasty/src/App.tsx)<br>[`src/components/PlayScreen.tsx`](../Games/Dynasty/src/components/PlayScreen.tsx)<br>[`src/components/WarRoomModal.tsx`](../Games/Dynasty/src/components/WarRoomModal.tsx) |
 | **自我驗證腳本** | 深度自動化測試腳本：`Games/Dynasty/scripts/self-check.ts`（>1,350 行，涵蓋 10 年任期決定論、董事會期望協商與信任危機處置、球探 ABCD 精度與選秀迷霧、工資帽奢侈稅與票價彈性模型、球員老化曲線／傷病機制與季後賽勝率公式、挑戰解鎖、紀錄累計等 34 項驗證）。執行指令：`npm run check -w dynasty`（0 errors）、`npm run lint -w dynasty`（0 errors）。 | [`scripts/self-check.ts`](../Games/Dynasty/scripts/self-check.ts) |
 
+## 櫻井政博風格打擊感與手感強化（Sakurai Game Feel Upgrades）
+
+本作在第 8 波體驗優化中，全面落實櫻井政博（Masahiro Sakurai）遊戲設計哲學：
+
+1. **實體撞擊與總管審批反饋（fx-004 Impact & Screen Shake）**：
+   - **決策蓋印手感**：審批簽約、交易、選秀或訓練方案時，觸發清脆敲擊微震（`haptic('tap')`、`shake 0.08`），重現印信落定的厚重物理質感。
+   - **年度結算推進**：確認賽季報告或休賽期進度時，釋放沉穩推動打擊（`haptic('impact')`、`shake 0.12`）。
+   - **總冠軍與王朝登頂慶祝**：奪冠或達成「王朝締造者／名總管」時，觸發強烈勝利震屏（`shake 0.65`）、勝利觸感（`haptic('win')`）與滿屏金色彩帶紙花（`particles('confetti')`）。
+   - **解僱中途下車警報**：信任度歸零遭到董事會解僱時，觸發沉重失誤微震（`shake 0.45`、`haptic('error')`）。
+
+2. **零延遲極速再建王朝（gameplay-ux-009 Rapid Retry）**：
+   - 在長篇十年任期總結（`SummaryScreen`）中，全面監聽鍵盤事件，支援 <kbd>Space</kbd>、<kbd>Enter</kbd> 或 <kbd>R</kbd> 鍵一鍵再接新任期或重試當前挑戰，大幅減少滑鼠點擊滾動阻力。
+
+3. **打擊感偏好面板（Juice Settings Integration）**：
+   - 標題畫面整合 [`JuiceSettingsPanel compact`](../Games/Dynasty/src/components/TitleScreen.tsx)，讓玩家依個人習慣自由調整震動強弱、紙花特效與觸覺回饋。
+
 ## 備註
 
 - **首局引導**：首次進入標題頁顯示三步上手疊層（`clubhouse:dynasty:howto-seen`）；關閉後可從「操作教學」再開。CTA 為「知道了」，避免與「接下總管職務」衝突。

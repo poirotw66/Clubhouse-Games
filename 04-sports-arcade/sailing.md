@@ -86,6 +86,25 @@
 | Touch | 轉舵／加速／換舷觸控板 |
 | Check | `npm run check`（sailing／gates／assist／coach／progress） |
 
+## 櫻井政博風格打擊感與手感強化（Sakurai Game Feel Upgrades）
+
+本作在第 8 波體驗優化中，全面落實櫻井政博（Masahiro Sakurai）遊戲設計哲學：
+
+1. **實體撞擊與航行微震（fx-004 Impact & Screen Shake）**：
+   - **完美繞標與穿門衝擊**：精準擦過閘門或繞標成功（Perfect Gate Clear）時，觸發中度螢幕微震（`shake 0.22`）、金色星爆粒子（`sparkle`）與成功觸覺脈衝（`haptic('success')`）。
+   - **順利過門反饋**：一般過標觸發輕量微震（`shake 0.08`）與觸覺點擊（`haptic('tap')`）。
+   - **頂風失速抖帆警報**：進入 32° 頂風死角（No-Go Zone）或帆索過鬆抖帆（Luffing）時，觸發警告微震（`shake 0.12`）與失誤觸感（`haptic('error')`）。
+   - **終點衝線大慶祝**：通過終點線時，配合禮砲號角與滿屏彩帶紙花（`confetti`），釋放強烈勝利震屏（`shake 0.75`）與勝利觸感（`haptic('win')`）。
+
+2. **音高階梯與航速音效（fx-005 Audio Pitch Ramp）**：
+   - 浪花翻湧與破浪音效隨航速動態調整頻率與音量；完美過門時釋放階梯式上升清脆水晶鈴聲。
+
+3. **風險與回報（gameplay-core-001 Risk & Reward）**：
+   - 迎風搶風 Z 字折返路線選擇：大膽貼近 32° 邊緣能大幅縮短航程，但稍有不慎即落入頂風死角失速；完美繞標獎勵 1.2 秒扣時與爆發推力（Surge）。
+
+4. **極速重試與零延遲再航（gameplay-ux-009 Rapid Retry）**：
+   - 透過 `@clubhouse/shared/resultOverlayDom` 原生監聽鍵盤事件，在結算彈窗出現時支援 <kbd>Space</kbd>、<kbd>Enter</kbd> 或 <kbd>R</kbd> 鍵秒速開啟下一航線或再航一趟。
+
 ## 參考來源
 
 - 帆船繞標（triangular / windward-leeward）常見賽制

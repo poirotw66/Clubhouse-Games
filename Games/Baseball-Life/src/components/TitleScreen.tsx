@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
 import { TouchButton } from '@clubhouse/shared/TouchButton';
 import { ACHIEVEMENTS, progressOf } from '../game/achievements';
 import type { AchievementProgress } from '../game/achievements';
@@ -167,6 +168,10 @@ export function TitleScreen({
           {showRecordsCta && <button type="button" onClick={() => setShowRecords(true)}><span className="bl-extra-icon" aria-hidden="true">★</span><span><strong>紀錄牆</strong><small>位置最佳 {bestFilled}/5・里程碑 {milestoneTotal}</small></span><span aria-hidden="true">→</span></button>}
         </nav>
         <div className="bl-home-collection">
+      <section className="bl-card p-4">
+        <h2 className="text-sm font-bold text-slate-300 mb-2">打擊回饋偏好</h2>
+        <JuiceSettingsPanel compact />
+      </section>
       <section className="bl-card p-4">
         <button
           type="button"

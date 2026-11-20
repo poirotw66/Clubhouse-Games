@@ -314,6 +314,22 @@
 | **觸控與無障礙** | 全面支援行動裝置觸控操作，所有訓練選項卡、態度按鈕與對話確認鈕皆具備最低 44×44 px 點擊熱區與 `touch-action: manipulation`。全鍵盤盲打操作支援（<kbd>1</kbd>–<kbd>9</kbd> 數字鍵直接選取主課／副課／情境選項，<kbd>Enter</kbd> 或 <kbd>Space</kbd> 推進回合，可無滑鼠一路打完一局）。首局新手指引（`FirstRunGuide.tsx`，三步上手導覽，本機儲存 `clubhouse:baseball-life:howto-seen`，隨時可重新呼叫）。高對比深色主題排版；能力等級色（S/A/B/C/D/E/F）與疲勞狀態色（獨立紅／黃／綠燈號）明確解耦，避免色覺認知混淆；完整相容 `prefers-reduced-motion` 關閉骰子物理彈跳。 | [`src/App.tsx`](../Games/Baseball-Life/src/App.tsx)<br>[`src/components/PlayScreen.tsx`](../Games/Baseball-Life/src/components/PlayScreen.tsx)<br>[`src/components/FirstRunGuide.tsx`](../Games/Baseball-Life/src/components/FirstRunGuide.tsx) |
 | **自我檢查測試** | 深度自動化測試腳本 `Games/Baseball-Life/scripts/self-check.ts`（大幅擴充至 2,269 行，50 個專屬測試套件，涵蓋 100+ 項關鍵不變量）：<br>1. 高中三年 15 回合養成歷程、黑豹旗與夏季甲子園四場大賽態度抉擇、選秀輪次門檻與機率模型、海外特例門檻校驗；<br>2. 二刀流（TW）投打雙側疲勞消耗懲罰、雙側屬性均衡 vs 專精邊際效益比較、0.78 工作量稅、專屬特權與綜合評分投影；<br>3. 生涯傷病風險模型（輕傷／重傷／生涯級）、自律與鐵人特質防護、復原時程、30 歲後衰退加重與老將門檻淘汰；<br>4. 歷史里程碑累計（3000 安、300 轟、200 勝）、單場壯舉機率判定與名人堂票選加權積分數學模型；<br>5. 多世界線決定論分支驗證、種子碼亂數流獨立性、歷代存檔回填相容性與時光機防作弊驗證。<br>執行指令：`npm run lint -w baseball-life`（TypeScript 零錯誤）、`npm run check -w baseball-life`（50 項自我檢查全數通過，0 錯誤）。 | [`scripts/self-check.ts`](../Games/Baseball-Life/scripts/self-check.ts) |
 
+## 櫻井政博風格打擊感與手感強化（Sakurai Game Feel Upgrades）
+
+本作在第 8 波體驗優化中，全面落實櫻井政博（Masahiro Sakurai）遊戲設計哲學：
+
+1. **實體撞擊與打席震撼反饋（fx-004 Impact & Screen Shake）**：
+   - **訓練與決策選擇敲擊感**：選取主副課訓練或抉擇選項時，觸發清脆敲擊微震（`haptic('tap')`、`shake 0.08`），給予手指明確的觸感應答。
+   - **重大戰報與關鍵打席衝擊**：關鍵得點圈局面敲出致勝安打或全壘打時，同步釋放甜蜜擊球音效、球場歡呼與震屏衝擊（`shake 0.25`、`haptic('win')`）；若遭三振或化解危機則給予手套捕球悶音與微震（`shake 0.15`、`haptic('error')`）。
+   - **引退結算推進**：回合進展與檢視生涯總結時，釋放厚重推進回饋（`haptic('impact')`、`shake 0.12`）。
+   - **名人堂光榮引退慶祝**：名人堂積分達標或通關生涯挑戰時，觸發強烈勝利震屏（`shake 0.65`）、勝利觸感（`haptic('win')`）與滿屏金色彩帶紙花（`particles('confetti')`）。
+
+2. **零延遲極速重啟生涯（gameplay-ux-009 Rapid Retry）**：
+   - 在長篇生涯總結（`SummaryScreen`）中，全面監聽鍵盤事件，支援 <kbd>Space</kbd>、<kbd>Enter</kbd> 或 <kbd>R</kbd> 鍵一鍵再啟新人生或重試當前挑戰，消除多次手勢切換的摩擦力。
+
+3. **打擊感偏好面板（Juice Settings Integration）**：
+   - 標題首頁整合 [`JuiceSettingsPanel compact`](../Games/Baseball-Life/src/components/TitleScreen.tsx)，讓玩家自由設定螢幕微震、彩帶紙花特效與觸覺回饋強弱。
+
 ## 備註
 
 - **首局引導**：首次進入標題頁顯示三步上手疊層（`clubhouse:baseball-life:howto-seen`）；關閉後可從「操作教學」再開。CTA 為「知道了」，避免與「開始新的棒球人生」衝突。

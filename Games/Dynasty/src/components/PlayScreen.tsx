@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { haptic, shake } from '@clubhouse/shared/juice';
 import { TouchButton } from '@clubhouse/shared/TouchButton';
 import type { CareerChallenge } from '../game/challenges';
 import { formatMoney } from '../game/config';
@@ -127,12 +128,15 @@ export function PlayScreen({
       }
       if (event.key === 'Backspace' && canUndo) {
         event.preventDefault();
+        haptic('tap');
         onUndo();
         return;
       }
       if (ended) {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
+          haptic('impact');
+          shake(document.body, 0.12);
           onAcknowledge();
         }
         return;
@@ -140,6 +144,8 @@ export function PlayScreen({
       const index = Number(event.key) - 1;
       if (Number.isInteger(index) && index >= 0 && index < pickable.length) {
         event.preventDefault();
+        haptic('tap');
+        shake(document.body, 0.08);
         onChoose(pickable[index].id);
       }
     };
@@ -266,7 +272,11 @@ export function PlayScreen({
                   <TouchButton
                     label="看任期總結"
                     ariaLabel="看任期總結"
-                    onClick={onAcknowledge}
+                    onClick={() => {
+                      haptic('impact');
+                      shake(document.body, 0.12);
+                      onAcknowledge();
+                    }}
                     className="mt-4 w-full rounded-xl bg-emerald-500 px-4 py-3 text-base font-black text-slate-950 hover:bg-emerald-400 transition-colors"
                   />
                 )}
@@ -300,7 +310,11 @@ export function PlayScreen({
                         key={option.id}
                         type="button"
                         disabled={option.disabled}
-                        onClick={() => onChoose(option.id)}
+                        onClick={() => {
+                          haptic('tap');
+                          shake(document.body, 0.08);
+                          onChoose(option.id);
+                        }}
                         className="dy-choice min-h-16 px-4 py-3 text-left focus:outline-none"
                       >
                         <span className="flex items-baseline gap-2">
@@ -340,7 +354,10 @@ export function PlayScreen({
                 <div className="mt-4 flex items-center justify-between border-t border-slate-800 pt-3">
                   <button
                     type="button"
-                    onClick={onUndo}
+                    onClick={() => {
+                      haptic('tap');
+                      onUndo();
+                    }}
                     disabled={!canUndo}
                     className="min-h-11 rounded-lg border border-slate-700 bg-slate-800/80 px-3 text-xs font-semibold text-slate-300 hover:bg-slate-700 disabled:opacity-35 transition-colors"
                   >
@@ -453,7 +470,11 @@ export function PlayScreen({
                   <TouchButton
                     label="看任期總結"
                     ariaLabel="看任期總結"
-                    onClick={onAcknowledge}
+                    onClick={() => {
+                      haptic('impact');
+                      shake(document.body, 0.12);
+                      onAcknowledge();
+                    }}
                     className="mt-4 w-full rounded-xl bg-emerald-500 px-4 text-base font-black text-slate-950"
                   />
                 )}
@@ -474,7 +495,11 @@ export function PlayScreen({
                         key={option.id}
                         type="button"
                         disabled={option.disabled}
-                        onClick={() => onChoose(option.id)}
+                        onClick={() => {
+                          haptic('tap');
+                          shake(document.body, 0.08);
+                          onChoose(option.id);
+                        }}
                         className="dy-choice min-h-16 px-4 py-3 text-left"
                       >
                         <span className="flex items-baseline gap-2">
@@ -514,7 +539,10 @@ export function PlayScreen({
                 <div className="mt-3 flex items-center justify-between">
                   <button
                     type="button"
-                    onClick={onUndo}
+                    onClick={() => {
+                      haptic('tap');
+                      onUndo();
+                    }}
                     disabled={!canUndo}
                     className="min-h-11 rounded-lg border border-slate-700 px-3 text-xs font-semibold text-slate-400 hover:bg-slate-800 disabled:opacity-35"
                   >
