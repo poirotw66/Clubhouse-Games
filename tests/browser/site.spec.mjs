@@ -85,8 +85,8 @@ test('menu search, shared URL, categories and responsive covers', { tag: ['@smok
 
 for (const game of workspaceGames) {
   test(`${game.gameFolder}: loads from the menu and returns`, { tag: '@smoke' }, async ({ page }) => {
-    // Sailing boots a WebGL title loop; mobile CI needs headroom beyond the 30s default.
-    if (game.gameFolder === 'Sailing') test.setTimeout(60_000);
+    // Menu navigation + game bundle boot + return navigation needs headroom on 2-vCPU CI runners.
+    test.setTimeout(60_000);
     await page.goto('./');
     await page.locator(`.game-tile[data-folder="${game.gameFolder}"] .tile-play`).click();
     await expect(page).toHaveURL(new RegExp(`/Games/${game.gameFolder}/$`));
@@ -99,7 +99,7 @@ for (const game of workspaceGames) {
       await expect(page.getByRole('group', { name: '遊玩模式' })).toBeVisible();
     }
     const back = page.getByRole('link', { name: /返回總覽/ });
-    await expect(back).toBeVisible({ timeout: game.gameFolder === 'Sailing' ? 45_000 : undefined });
+    await expect(back).toBeVisible({ timeout: 45_000 });
     await back.click();
     await expect(page.locator('#game-search')).toBeVisible();
     await expect(page.locator('#recent-list')).toContainText(game.name);
