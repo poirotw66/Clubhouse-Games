@@ -3,7 +3,6 @@ import { GRID_H, GRID_W, TOWER_DEFS, type TowerType } from '../game/constants';
 import { resolveTowerStats } from '../game/economy';
 import { makeEmptyOccupancy, reconstructPath, wouldSealExit } from '../game/pathfinding';
 import {
-  drawCenteredSprite,
   boardFloorImage,
   enemySprite,
   preloadBattlefieldSprites,
@@ -341,18 +340,28 @@ function draw(
       ctx.restore();
     }
     ctx.save();
-    ctx.strokeStyle = isSelected ? '#fff' : 'rgba(0,0,0,0.5)';
-    ctx.lineWidth = isSelected ? 3 : 2;
-    const size = CELL * 0.7;
+    const size = CELL * 0.72;
+    const half = size / 2;
+    const cornerRadius = 7;
     const img = towerSprite(t.type);
-    if (!drawCenteredSprite(ctx, img, cx, cy, size)) {
+    if (img.complete && img.naturalWidth > 0) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(cx - half, cy - half, size, size, cornerRadius);
+      ctx.clip();
+      ctx.drawImage(img, cx - half, cy - half, size, size);
+      ctx.restore();
+    } else {
       ctx.fillStyle = TOWER_COLORS[t.type];
       ctx.beginPath();
-      ctx.roundRect(cx - size / 2, cy - size / 2, size, size, 8);
+      ctx.roundRect(cx - half, cy - half, size, size, cornerRadius);
       ctx.fill();
     }
+    // High-contrast rim border for readable silhouette (Sakurai skill-gfx-013)
     ctx.beginPath();
-    ctx.roundRect(cx - size / 2, cy - size / 2, size, size, 8);
+    ctx.strokeStyle = isSelected ? '#fde68a' : 'rgba(0,0,0,0.6)';
+    ctx.lineWidth = isSelected ? 3 : 1.5;
+    ctx.roundRect(cx - half, cy - half, size, size, cornerRadius);
     ctx.stroke();
     ctx.restore();
 
@@ -396,8 +405,48 @@ function draw(
     const r =
       e.type === 'boss' ? 18 : e.type === 'ironclad' || e.type === 'bloater' ? 14 : 10;
     const img = enemySprite(e.type);
-    const size = r * 2.4;
-    if (!drawCenteredSprite(ctx, img, cx, cy, size)) {
+    const size = r * 2.2;
+    ctx.save();
+    if (img.complete && img.naturalWidth > 0) {
+      ctx.save();
+      ctx.beginPath();
+      if (e.flying) {
+        ctx.moveTo(cx, cy - r);
+        ctx.lineTo(cx + r, cy);
+        ctx.lineTo(cx, cy + r);
+        ctx.lineTo(cx - r, cy);
+        ctx.closePath();
+      } else {
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      }
+      ctx.clip();
+      ctx.drawImage(img, cx - size / 2, cy - size / 2, size, size);
+      ctx.restore();
+
+      // Colored rim outline matching unit role (Sakurai skill-gfx-001 & 013)
+      ctx.beginPath();
+      ctx.strokeStyle = e.flying ? '#ffffff' : ENEMY_COLORS[e.type];
+      ctx.lineWidth = e.type === 'boss' ? 3 : 2;
+      if (e.flying) {
+        ctx.moveTo(cx, cy - r);
+        ctx.lineTo(cx + r, cy);
+        ctx.lineTo(cx, cy + r);
+        ctx.lineTo(cx - r, cy);
+        ctx.closePath();
+      } else {
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      }
+      ctx.stroke();
+
+      // Boss pulsating threat aura
+      if (e.type === 'boss') {
+        ctx.beginPath();
+        ctx.strokeStyle = 'rgba(239, 68, 68, 0.5)';
+        ctx.lineWidth = 1.5;
+        ctx.arc(cx, cy, r + 3 + Math.sin(dashOffset * 0.4) * 1.5, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    } else {
       ctx.beginPath();
       ctx.fillStyle = ENEMY_COLORS[e.type];
       ctx.strokeStyle = e.flying ? '#ffffff' : 'rgba(0,0,0,0.5)';
@@ -414,6 +463,7 @@ function draw(
       ctx.fill();
       ctx.stroke();
     }
+    ctx.restore();
 
     const barW = r * 2.2;
     const pct = Math.max(0, e.hp / e.maxHp);

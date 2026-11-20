@@ -1217,14 +1217,21 @@ export default function App(): ReactElement {
       {selectedTower && (
         <div className="w-full max-w-3xl mt-3 p-3 rounded-xl bg-black/30 border border-amber-900/50 flex flex-col gap-2 text-sm">
           <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="font-semibold">
-                {TOWER_DEFS[selectedTower.type].name} · Lv.{selectedTower.level + 1}
-                {selectedTower.branch
-                  ? ` · ${TOWER_DEFS[selectedTower.type].branches.find((b) => b.id === selectedTower.branch)?.name ?? ''}`
-                  : ''}
-              </p>
-              <p className="text-amber-200/60 text-xs">已投入 {selectedTower.investedGold}G</p>
+            <div className="flex items-center gap-3">
+              <img
+                src={`${import.meta.env.BASE_URL}towers/${selectedTower.type}.jpg`}
+                alt=""
+                className="w-12 h-12 rounded-xl object-cover border border-amber-600/60 shadow-md shrink-0"
+              />
+              <div>
+                <p className="font-semibold text-amber-100">
+                  {TOWER_DEFS[selectedTower.type].name} · Lv.{selectedTower.level + 1}
+                  {selectedTower.branch
+                    ? ` · ${TOWER_DEFS[selectedTower.type].branches.find((b) => b.id === selectedTower.branch)?.name ?? ''}`
+                    : ''}
+                </p>
+                <p className="text-amber-200/60 text-xs">已投入 {selectedTower.investedGold}G</p>
+              </div>
             </div>
             <div className="flex gap-2 shrink-0">
               <button
