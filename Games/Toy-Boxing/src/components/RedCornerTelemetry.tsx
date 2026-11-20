@@ -1,6 +1,7 @@
 import React from 'react';
 import { Activity, AlertTriangle, Flame, ShieldAlert, Zap } from 'lucide-react';
 import type { GForceTelemetry, StrikeRecord } from '../telemetry';
+import { characterPortraitUrl } from '../characters';
 
 interface RedCornerTelemetryProps {
   telemetry: GForceTelemetry;
@@ -9,6 +10,7 @@ interface RedCornerTelemetryProps {
   stun: number;
   counterWindowActive: boolean;
   recentStrikes: StrikeRecord[];
+  playerCharId?: string;
 }
 
 export const RedCornerTelemetry: React.FC<RedCornerTelemetryProps> = ({
@@ -18,6 +20,7 @@ export const RedCornerTelemetry: React.FC<RedCornerTelemetryProps> = ({
   stun,
   counterWindowActive,
   recentStrikes,
+  playerCharId,
 }) => {
   const isStunDangerous = stun >= 70;
   const gForcePct = Math.min(100, (telemetry.currentGForce / 60) * 100);
@@ -62,10 +65,20 @@ export const RedCornerTelemetry: React.FC<RedCornerTelemetryProps> = ({
       {/* Wing Header */}
       <div className="flex items-center justify-between border-b border-rose-500/20 pb-2">
         <div className="flex items-center gap-2">
-          <span className="flex h-2 w-2 rounded-full bg-rose-500 animate-pulse" />
-          <h3 className="text-xs font-black uppercase tracking-widest text-rose-400">
-            紅角遙測儀 · 打擊生化
-          </h3>
+          {playerCharId && (
+            <img
+              src={characterPortraitUrl(playerCharId)}
+              alt=""
+              className="w-7 h-7 rounded-lg object-cover border border-rose-500/40 shadow-[0_0_8px_rgba(244,63,94,0.3)] shrink-0"
+              draggable={false}
+            />
+          )}
+          <div className="flex items-center gap-1.5">
+            <span className="flex h-2 w-2 rounded-full bg-rose-500 animate-pulse" />
+            <h3 className="text-xs font-black uppercase tracking-widest text-rose-400">
+              紅角遙測儀 · 打擊生化
+            </h3>
+          </div>
         </div>
         <span className="rounded bg-rose-950/60 px-1.5 py-0.5 font-mono text-[9px] font-bold text-rose-300 border border-rose-800/50">
           RED WING

@@ -23,10 +23,19 @@ export interface CharacterDef {
   signatureBlurb: string;
 }
 
-/** Vite base-aware portrait URL for select UI / HUD. */
-export function characterPortraitUrl(id: CharacterId): string {
+/** Vite base-aware portrait URL for select UI / HUD. Supports playable toys and league opponents. */
+export function characterPortraitUrl(id: string): string {
   const base = import.meta.env.BASE_URL ?? '/';
+  if (['pillow', 'rush', 'needle', 'feint', 'ironbelly', 'champ'].includes(id)) {
+    return `${base}portraits/opponents/${id}.jpg`;
+  }
   return `${base}portraits/${id}.jpg`;
+}
+
+/** Explicit opponent portrait helper. */
+export function opponentPortraitUrl(id: string): string {
+  const base = import.meta.env.BASE_URL ?? '/';
+  return `${base}portraits/opponents/${id}.jpg`;
 }
 
 const ringImageCache = new Map<string, HTMLImageElement>();
@@ -50,18 +59,22 @@ export function ringFloorImage(): HTMLImageElement {
   return loadRingImage('ring-floor.jpg');
 }
 
-export function fighterBodyImage(id: CharacterId): HTMLImageElement {
+export function fighterBodyImage(id: CharacterId | string, opponentId?: string): HTMLImageElement {
+  if (opponentId && ['pillow', 'rush', 'needle', 'feint', 'ironbelly', 'champ'].includes(opponentId)) {
+    return loadRingImage(`fighters/opponents/${opponentId}.jpg`);
+  }
   return loadRingImage(`fighters/${id}.jpg`);
 }
 
 /** Soft full-body plate under procedural gloves / hit FX. */
 export function drawFighterBody(
   ctx: CanvasRenderingContext2D,
-  id: CharacterId,
+  id: CharacterId | string,
   width: number,
   height: number,
+  opponentId?: string,
 ): boolean {
-  const img = fighterBodyImage(id);
+  const img = fighterBodyImage(id, opponentId);
   if (!img.complete || img.naturalWidth === 0) return false;
   ctx.drawImage(img, -width / 2, -height / 2 - 28, width, height + 36);
   return true;
@@ -70,6 +83,9 @@ export function drawFighterBody(
 /** Kick off fighter plate loads (safe to call often). */
 export function preloadFighterBodies(): void {
   for (const id of ['bot', 'bear', 'bunny', 'dino'] as const) fighterBodyImage(id);
+  for (const oppId of ['pillow', 'rush', 'needle', 'feint', 'ironbelly', 'champ'] as const) {
+    fighterBodyImage('bot', oppId);
+  }
 }
 
 export const CHARACTERS: CharacterDef[] = [

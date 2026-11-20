@@ -96,6 +96,35 @@
 | ironbelly | 鐵腹恐龍 | 專打下段耗氣 |
 | champ | 冠軍拳王 | 強適應玩家習慣 |
 
+### 櫻井政博美術原則實踐（Sakurai Visual Art Design）
+
+依據櫻井政博遊戲美學與視覺原則，本作全面重構遊戲美術資產與戰鬥呈現：
+
+1. **剪影優先可讀性（Silhouette-First Readability, `skill-gfx-013`）**：
+   - 四位可玩玩具拳手升級為 600×900 高解析度、高對比輪廓的專屬戰鬥立繪（`public/fighters/`）與 512×512 肖像（`public/portraits/`）：
+     - `bot` 藍拳機器人：方正金屬機體、發光天線、氣壓拳套與後背銅發條鑰匙（`機` 徽章）。
+     - `bear` 紅絨熊仔：圓耳絨布熊、粗縫線十字鈕扣眼、厚重紅銅拳套（`熊` 徽章）。
+     - `bunny` 閃電兔：長直空氣動力學兔耳、粉紅流線機身、彈簧步法（`兔` 徽章）。
+     - `dino` 鐵拳恐龍：背脊骨板、巨型咬合鋼顎、重型鐵甲拳套（`龍` 徽章）。
+
+2. **六位聯賽對手專屬角色肖像與立繪（`skill-gfx-007`）**：
+   - 全面告別共用基礎四造型的限制，六位聯賽階梯對手全數建立專屬 512×512 肖像（`public/portraits/opponents/`）與 600×900 戰鬥立繪（`public/fighters/opponents/`）：
+     - `pillow` 軟棉拳手：粉紫棉花兔、棉花護頭套與柔軟緩衝拳套（`綿` 徽章）。
+     - `rush` 衝撞熊：猩紅重裝機甲熊、肩部蒸氣排氣管與帶刺鐵拳（`撞` 徽章）。
+     - `needle` 刺拳機器：金黃黃銅極速機甲、雙針天線與連刺活塞拳套（`刺` 徽章）。
+     - `feint` 假動作兔：暗紫魅影兔、銀面具與幻惑身法（`幻` 徽章）。
+     - `ironbelly` 鐵腹恐龍：黑曜石青銅厚甲暴龍、鉚釘鋼腹防禦板（`鐵` 徽章）。
+     - `champ` 冠軍拳王：帝王黃金時鐘發條機甲、紅寶石冠軍腰帶與皇冠排氣孔（`王` 徽章）。
+
+3. **錦標賽環場震撼擂台（`skill-gfx-001`）**：
+   - 擂台背景升級為 1350×900 雙重光束掃描的巨型競技場聚光燈與觀眾席繁星閃光（[ring-sky.jpg](file:///Users/cfh00896102/Github/Clubhouse-Games/Games/Toy-Boxing/public/ring-sky.jpg)）。
+   - 擂台畫布升級為 1350×900 頂級錦標賽帆布材質、時鐘齒輪冠軍中央圖騰與繩圈反光（[ring-floor.jpg](file:///Users/cfh00896102/Github/Clubhouse-Games/Games/Toy-Boxing/public/ring-floor.jpg)）。
+
+4. **雙翼戰術座艙肖像連動**：
+   - 右翼藍角情報檔案（Blue Corner Dossier）導入當前對手之專屬頭像。
+   - 左翼紅角打擊遙測（Red Corner Telemetry）導入玩家選用拳手之專屬頭像。
+   - 聯賽天梯清單全面直觀展現各關對手專屬肖像。
+
 ### 品質門檻對齊
 
 對照 [`docs/GAME-QUALITY-BAR.md`](../docs/GAME-QUALITY-BAR.md)：

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Award, Compass, Lightbulb, Shield, Swords, Target } from 'lucide-react';
 import type { MasterCoachHint, TacticalOpponentIntel } from '../telemetry';
+import { characterPortraitUrl } from '../characters';
 
 interface BlueCornerDossierProps {
   intel: TacticalOpponentIntel;
@@ -51,15 +52,25 @@ export const BlueCornerDossier: React.FC<BlueCornerDossierProps> = ({
 
       {/* Opponent Identity & Style Badge */}
       <div className="rounded-xl border border-white/5 bg-neutral-900/90 p-3">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-black text-white">{intel.name}</span>
-          <span className="rounded-md border border-blue-400/30 bg-blue-950/50 px-2 py-0.5 text-[10px] font-bold text-blue-300">
-            {intel.styleBadge}
-          </span>
+        <div className="flex items-center gap-3">
+          <img
+            src={characterPortraitUrl(intel.opponentId)}
+            alt=""
+            className="w-12 h-12 rounded-xl object-cover border border-blue-400/30 shadow-[0_0_10px_rgba(59,130,246,0.2)] shrink-0"
+            draggable={false}
+          />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-1">
+              <span className="text-sm font-black text-white truncate">{intel.name}</span>
+              <span className="rounded-md border border-blue-400/30 bg-blue-950/50 px-2 py-0.5 text-[10px] font-bold text-blue-300 shrink-0">
+                {intel.styleBadge}
+              </span>
+            </div>
+            <p className="mt-1 text-[11px] leading-relaxed text-neutral-400 line-clamp-2">
+              {intel.styleDescription}
+            </p>
+          </div>
         </div>
-        <p className="mt-1.5 text-[11px] leading-relaxed text-neutral-400">
-          {intel.styleDescription}
-        </p>
 
         {/* Tactical Radar Stat Bars */}
         <div className="mt-3 grid grid-cols-2 gap-2 text-[10px]">

@@ -28,6 +28,7 @@ export interface DrawBoxerState {
   height: Height;
   attack: ActiveAttack | null;
   stunRatio?: number;
+  opponentId?: string;
 }
 
 function roundRect(
@@ -214,7 +215,7 @@ export function drawToyBoxer(ctx: CanvasRenderingContext2D, b: DrawBoxerState): 
   ctx.save();
   ctx.scale(b.facing, 1);
   const usedPlate =
-    !flashHit && b.action !== 'STAGGER' && drawFighterBody(ctx, char.id, BOXER_WIDTH, BOXER_HEIGHT);
+    !flashHit && b.action !== 'STAGGER' && drawFighterBody(ctx, char.id, BOXER_WIDTH, BOXER_HEIGHT, b.opponentId);
   ctx.restore();
   if (!usedPlate) {
     ctx.fillStyle = char.body;

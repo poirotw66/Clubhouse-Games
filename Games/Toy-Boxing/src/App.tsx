@@ -1377,7 +1377,7 @@ export default function ToyBoxing() {
       ctx.stroke();
     }
 
-    const paint = (b: Boxer) => {
+    const paint = (b: Boxer, opponentId?: string) => {
       drawToyBoxer(ctx, {
         x: b.x,
         y: b.y,
@@ -1388,11 +1388,12 @@ export default function ToyBoxing() {
         height: b.attack?.height ?? b.height,
         attack: b.attack,
         stunRatio: b.stunMeter / 100,
+        opponentId,
       });
     };
 
     paint(engineRef.current.player);
-    paint(engineRef.current.cpu);
+    paint(engineRef.current.cpu, playMode === 'league' ? activeOpponent.id : undefined);
 
     if (engineRef.current.parryEffect) {
       const p = engineRef.current.parryEffect;
@@ -1673,6 +1674,7 @@ export default function ToyBoxing() {
               stun={uiState.playerStun}
               counterWindowActive={counterWindowActive}
               recentStrikes={recentStrikes}
+              playerCharId={playerCharId}
             />
           }
           rightWing={
@@ -1821,7 +1823,7 @@ export default function ToyBoxing() {
                           >
                             <div className="flex gap-3 items-start">
                               <img
-                                src={characterPortraitUrl(opp.visual)}
+                                src={characterPortraitUrl(opp.id)}
                                 alt=""
                                 className="w-12 h-12 rounded-lg object-cover border border-white/10"
                                 draggable={false}
