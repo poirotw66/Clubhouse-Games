@@ -90,6 +90,9 @@
    - 轟出全壘打時觸發勝利號角、慶祝彩帶噴泉（`particles('confetti')`）與球場全屏震顫。
 3. **極速重試（gameplay-ux-009）**：
    - 在比賽或全壘打大賽結算疊層（`ResultOverlay`）中，全域監聽 <kbd>Space</kbd>、<kbd>Enter</kbd> 與 <kbd>R</kbd> 鍵，無需滑鼠尋標點擊即可一秒立即再戰。
+4. **球場鑽石草皮與投打肖像高畫質重繪（skill-gfx-013 & skill-gfx-001）**：
+   - 升級 512×512 玩具猛虎打者（`portraits/batter.jpg`）與王牌投手（`portraits/pitcher.jpg`）英雄肖像，具備清晰輪廓第一識別度與朱印印章。
+   - 繪製 512×512 大聯盟菱形交錯推草草皮（`field-grass.jpg`）與紅土扒耙拖痕（`field-dirt.jpg`），搭配 1350×900 泛光燈暮色天空（`field-sky.jpg`）與錦標賽球場主視覺（`menu-hero.jpg`），營造熱血沸騰的賽事臨場感。
 
 ## 規則說明（本館）
 

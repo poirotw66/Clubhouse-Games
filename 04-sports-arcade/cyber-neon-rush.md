@@ -83,6 +83,10 @@
    - 撞毀結束時觸發 80Hz 低頻重型爆破音與全螢幕強烈震顫（`shake(container, 1.4)`），使失誤具有切實的沉重物理代價。
 3. **極速重試（gameplay-ux-009）**：
    - 在遊戲結束結算畫面（`ResultOverlay`）中，全域監聽 <kbd>Space</kbd>、<kbd>Enter</kbd> 與 <kbd>R</kbd> 鍵，立即瞬間重開下一輪狂飆。
+4. **賽博龐克光軌高速公路與全息障礙物重塑（skill-gfx-013 & skill-gfx-001）**：
+   - 升級 1024×1024 高速反射微濕瀝青與雙色霓虹標線賽道（`textures/road.jpg`），以青藍與洋紅雷射動態指引前進方向。
+   - 繪製 512×512 流線型賽博超跑（`textures/car.jpg`）、四軸巡弋無人機（`textures/drone.jpg`）、電漿斜紋防護欄（`textures/barrier.jpg`）與全息高亮路錐（`textures/cone.jpg`），在極速 160+ KM/H 下依然具備超高剪影可讀性與避障辨識度。
+   - 搭配 1350×900 新東京摩天大樓雨夜全景（`menu-bg.jpg`），提供純粹的合成波（Synthwave）沉浸美學。
 
 ## 品質門檻對齊
 
