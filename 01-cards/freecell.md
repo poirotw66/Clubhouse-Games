@@ -178,6 +178,15 @@
 | **觸控與操作（Touch）** | 完整支援滑鼠拖曳、點擊選取／移動相容；流體卡牌佈局（Container Queries `cqi` 自適應 `--fc-corner-size` 與動態牌角露出步伐，徹底避免牌面切字與遮擋）；直屏與小螢幕裝置自動折疊為頂部半透明戰術速報條（`TacticalMobileBar`）與底部快速戰術抽屜 |
 | **驗證腳本（Check）** | `npm run check -w freecell` → `src/check-freecell.mjs`（>700 行深度檢驗，涵蓋 Supermove 容量公式所有暫存格 0～4 與空牌列 0～8 之 45 種組合邊界、2 格挑戰模式鎖定與轉移容量上限、Undo 扣分與 ≥0 鉗位、時間懲罰增量、Foundation 自動收牌相反花色 N-1 數學安全不變量、台北時區跨日種子與連勝防斷、Solver 可解性啟發式、微軟局號發牌一致性等） |
 
+### 櫻井政博美術原則實踐（Sakurai Visual Art Design）
+
+1. **高解析度 384×384 撲克四花色材質（`skill-gfx-013`）**：
+   - 告別舊版 96×96 像素模糊，升級為 384×384 高對比、高銳利度立體花色材質（`public/suits/`：黑桃、紅心、方塊、梅花）。
+2. **皇家緋紅金箔牌背與象牙白牌板（`skill-gfx-007`）**：
+   - 導入 1024×1536 皇家深紅與金邊菱格幾何牌背（`public/card-back.jpg`）與 746×1120 象牙白紋理牌板（`public/face-plate.jpg`）。
+3. **沉浸式皇家深色賭桌氛圍（`skill-gfx-001`）**：
+   - 升級為 1350×900 典雅深色羊毛呢絨牌桌背景（`public/table-bg.jpg`），周邊暗角光暈集中焦點。
+
 ## 常見變體或可選規則
 
 - **Baker's Game**：Tableau 接牌改為同花色遞減（而非紅黑交替）。

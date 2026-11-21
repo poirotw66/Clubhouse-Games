@@ -114,6 +114,10 @@
    - 升變國王（👑 Kinging）時奏響大調和弦聖樂（C5-E5-G5-C6）、噴發金色符文彩帶（`particles confetti`），讓突破底線獲得最強正向反饋。
 3. **極速重試（gameplay-ux-009）**：
    - 在勝利、落敗或殘局謎題結算疊層（`ResultOverlay`）中，全域監聽 <kbd>Space</kbd>、<kbd>Enter</kbd> 與 <kbd>R</kbd> 鍵，一鍵秒速開始下一局。
+4. **實木精雕工藝與古典棋盤美術（skill-gfx-013 & skill-gfx-007）**：
+   - 棋子材質升級至 512×512 實木精雕立體黑檀木（`piece-black.jpg`）與象牙白楓木（`piece-white.jpg`），呈現真實車床旋削倒角、同心圓金邊與微浮雕凹面。
+   - 棋盤格紋升級至 512×512 頂級胡桃木紋（`square-dark.jpg`）與絲滑楓木紋（`square-light.jpg`）。
+   - 桌面背景升級為 1350×900 典雅古典大師書房實木桌面氛圍（`table-bg.jpg`）。
 
 ## 常見變體或可選規則
 

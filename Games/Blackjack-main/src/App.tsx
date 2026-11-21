@@ -1621,8 +1621,16 @@ export default function App() {
           {/* Table */}
           <div className="flex-1 min-h-0 w-full flex flex-col items-center justify-center gap-2 sm:gap-3 py-1 relative z-10 overflow-hidden">
             <div className="flex flex-col items-center gap-1 shrink-0 min-h-0">
-              <div className="text-white/40 uppercase tracking-widest text-xs font-bold bg-black/20 px-2 py-0.5 rounded-full border border-white/5">
-                莊家
+              <div className="flex items-center gap-1.5 bg-black/40 backdrop-blur-md pl-1 pr-2.5 py-0.5 rounded-full border border-amber-400/30 shadow-md">
+                <img
+                  src={`${import.meta.env.BASE_URL}avatars/dealer-pro.jpg`}
+                  alt=""
+                  className="w-5 h-5 rounded-full object-cover border border-amber-400/50 shrink-0"
+                  draggable={false}
+                />
+                <span className="text-amber-200/90 uppercase tracking-widest text-xs font-bold">
+                  莊家 · 艾蓮娜
+                </span>
               </div>
               <div className="flex -space-x-4 sm:-space-x-5 md:-space-x-6">
                 <AnimatePresence>
