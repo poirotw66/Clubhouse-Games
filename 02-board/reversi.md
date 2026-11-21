@@ -136,6 +136,9 @@
    - 奪取關鍵四角（Golden Fortress Lock）時觸發 95Hz 低頻重錘打擊、聚光金芒彩帶爆裂（`particles confetti`）與棋盤實體震顫（`shake 0.6`），給予戰略制高點最強反饋。
 3. **極速重試（gameplay-ux-009）**：
    - 在終局勝負或殘局謎題結算疊層（`ResultOverlay`）中，全域監聽 <kbd>Space</kbd>、<kbd>Enter</kbd> 與 <kbd>R</kbd> 鍵，一鍵秒速開始下一題或下一局。
+4. **高解析度旋車黑曜與象牙雙面棋（skill-gfx-013 & skill-gfx-001）**：
+   - 升級 512×512 物理旋車車削（lathe-turned）黑曜石與珍珠象牙雙面棋子（`piece-black.jpg` / `piece-white.jpg`），具備微米級同心觸覺凹槽、邊緣倒角立體高光與落子震波。
+   - 搭配 512×512 錦標賽級深綠呢絨棋格（`cell.jpg`）與 1350×900 典雅深色胡桃木客廳牌桌（`table-bg.jpg`），兼顧輪廓第一可讀性與真實桌遊厚重質感。
 
 ## 常見變體或可選規則
 

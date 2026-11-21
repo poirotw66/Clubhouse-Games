@@ -207,6 +207,11 @@ export function BoardGrid({
                           className={`piece-face piece-face-front ${
                             cell === 'black' ? 'disc-black' : 'disc-white'
                           }`}
+                          style={{
+                            backgroundImage: `url(${import.meta.env.BASE_URL}piece-${cell}.jpg)`,
+                            backgroundSize: 'cover',
+                            backgroundPosition: 'center',
+                          }}
                         >
                           {/* Tactical Vision: Stable Disc Shield Icon */}
                           {tacticalVision && isStable && !isCorner && (
@@ -224,6 +229,11 @@ export function BoardGrid({
                           className={`piece-face piece-face-back ${
                             cell === 'black' ? 'disc-white' : 'disc-black'
                           }`}
+                          style={{
+                            backgroundImage: `url(${import.meta.env.BASE_URL}piece-${cell === 'black' ? 'white' : 'black'}.jpg)`,
+                            backgroundSize: 'cover',
+                            backgroundPosition: 'center',
+                          }}
                         />
                       </div>
                     </div>

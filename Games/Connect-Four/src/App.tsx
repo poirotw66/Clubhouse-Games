@@ -1916,6 +1916,9 @@ export default function App() {
                               isDropAnim ? 'c4-piece-drop' : ''
                             } ${isGateOpen ? 'c4-piece-gate-drop' : ''}`}
                             style={{
+                              backgroundImage: `url(${import.meta.env.BASE_URL}piece-${cell}.jpg)`,
+                              backgroundSize: 'cover',
+                              backgroundPosition: 'center',
                               ...(dropFrom ? { ['--c4-drop-from']: dropFrom } : {}),
                               ...(isGateOpen ? { animationDelay: `${col * 40}ms` } : {}),
                             }}
@@ -1928,6 +1931,11 @@ export default function App() {
                                 ? 'c4-token-red'
                                 : 'c4-token-yellow'
                             }`}
+                            style={{
+                              backgroundImage: `url(${import.meta.env.BASE_URL}piece-${state.currentTurn}.jpg)`,
+                              backgroundSize: 'cover',
+                              backgroundPosition: 'center',
+                            }}
                           />
                         )}
                         {!cell && isHoverLanding && !isHintCell && (
@@ -1937,6 +1945,11 @@ export default function App() {
                                 ? 'c4-token-red'
                                 : 'c4-token-yellow'
                             }`}
+                            style={{
+                              backgroundImage: `url(${import.meta.env.BASE_URL}piece-${state.currentTurn}.jpg)`,
+                              backgroundSize: 'cover',
+                              backgroundPosition: 'center',
+                            }}
                           />
                         )}
                       </div>

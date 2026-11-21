@@ -330,8 +330,10 @@ export default function App() {
         saveCodex(nextCodex);
         setCodex(nextCodex);
         playSfx(newlyUnlocked.length > 0 ? 'yaku_unlock' : 'yaku');
+        const primaryYaku = freshYaku.length > 0 ? freshYaku[0] : yaku[0];
         setCelebration({
           names: announceNames,
+          yakuId: primaryYaku?.id,
           isNewUnlock: newlyUnlocked.length > 0,
         });
         setState({

@@ -8,6 +8,18 @@ import {
   type YakuCodexState,
 } from '../utils/yakuCodex';
 
+const YAKU_BANNER_IDS = new Set([
+  'gokou',
+  'shikou',
+  'ame_shikou',
+  'sankou',
+  'ino_shika_cho',
+  'hanami_zake',
+  'tsukimi_zake',
+  'akatan',
+  'aotan',
+]);
+
 const YAKU_ACCENT: Record<YakuId, string> = {
   gokou: 'border-gold/50 bg-gold/10',
   shikou: 'border-gold/50 bg-gold/10',
@@ -79,6 +91,16 @@ export const YakuCodexModal: React.FC<YakuCodexModalProps> = ({ codex, onClose }
                       <p className="font-display text-sm text-cream">{meta.name}</p>
                       <span className="text-[10px] text-gold shrink-0">{meta.pointsBlurb}</span>
                     </div>
+                    {YAKU_BANNER_IDS.has(id) && (
+                      <div className="w-full h-12 rounded-lg overflow-hidden my-1.5 border border-gold/40 shadow-sm relative">
+                        <img
+                          src={`${import.meta.env.BASE_URL}textures/yaku/${id}.jpg`}
+                          alt={meta.name}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                      </div>
+                    )}
                     <p className="text-[11px] text-cream/65 leading-snug mb-1.5">{meta.hint}</p>
                     <p className="text-[10px] text-cream/45 space-x-2">
                       <span>首成 {entry.firstCompletedAt}</span>
