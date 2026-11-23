@@ -70,7 +70,7 @@ export function GaragePanel({
                         if (unlocked) onSelectRunner(runner.id);
                         else onBuyRunner(runner.id);
                       }}
-                      className="flex min-h-14 w-full flex-col rounded-xl border border-white/10 bg-slate-900/50 px-3 py-2.5 text-left"
+                      className="flex min-h-14 w-full items-center gap-3 rounded-xl border border-white/10 bg-slate-900/50 p-2.5 text-left"
                       style={
                         selected
                           ? {
@@ -80,19 +80,26 @@ export function GaragePanel({
                           : undefined
                       }
                     >
-                      <span className="flex w-full items-center justify-between gap-2">
-                        <span className="text-sm font-bold text-slate-100">{runner.name}</span>
-                        <span className="shrink-0 text-[11px] font-semibold text-slate-400">
-                          {selected
-                            ? '使用中'
-                            : unlocked
-                              ? '裝備'
-                              : meta.bolts >= runner.cost
-                                ? `${runner.cost} 螺栓`
-                                : `需 ${runner.cost}`}
+                      <img
+                        src={`${import.meta.env.BASE_URL}runners/${runner.id}.jpg`}
+                        alt={runner.name}
+                        className="h-12 w-12 shrink-0 rounded-lg border border-emerald-400/30 object-cover shadow"
+                      />
+                      <div className="flex flex-1 flex-col">
+                        <span className="flex w-full items-center justify-between gap-2">
+                          <span className="text-sm font-bold text-slate-100">{runner.name}</span>
+                          <span className="shrink-0 text-[11px] font-semibold text-slate-400">
+                            {selected
+                              ? '使用中'
+                              : unlocked
+                                ? '裝備'
+                                : meta.bolts >= runner.cost
+                                  ? `${runner.cost} 螺栓`
+                                  : `需 ${runner.cost}`}
+                          </span>
                         </span>
-                      </span>
-                      <span className="mt-1 text-[11px] leading-snug text-slate-400">{runner.blurb}</span>
+                        <span className="mt-1 text-[11px] leading-snug text-slate-400">{runner.blurb}</span>
+                      </div>
                     </button>
                   </li>
                 );

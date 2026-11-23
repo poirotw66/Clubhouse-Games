@@ -802,6 +802,13 @@ document.body.insertBefore(renderer.domElement, document.getElementById('ui'));
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x9fd8f5);
+try {
+  const skyTex = new THREE.TextureLoader().load('./textures/sky.jpg');
+  skyTex.colorSpace = THREE.SRGBColorSpace;
+  scene.background = skyTex;
+} catch (e) {
+  /* Fallback to background color if texture fails */
+}
 scene.fog = new THREE.Fog(0xbfe4f7, 30, 95);
 
 const camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.1, 220);
@@ -820,8 +827,30 @@ scene.add(sun); scene.add(sun.target);
 
 function buildWorld(){
   // grass
-  const groundMat=new THREE.MeshStandardMaterial({color:0x7cab58, roughness:1});
-  groundMatRef=groundMat;
+  const texLoader = new THREE.TextureLoader();
+  let turfTex = null;
+  let dirtTex = null;
+  try {
+    turfTex = texLoader.load('./textures/turf.jpg');
+    turfTex.wrapS = THREE.RepeatWrapping;
+    turfTex.wrapT = THREE.RepeatWrapping;
+    turfTex.repeat.set(50, 40);
+    turfTex.colorSpace = THREE.SRGBColorSpace;
+    dirtTex = texLoader.load('./textures/dirt.jpg');
+    dirtTex.wrapS = THREE.RepeatWrapping;
+    dirtTex.wrapT = THREE.RepeatWrapping;
+    dirtTex.repeat.set(16, 1);
+    dirtTex.colorSpace = THREE.SRGBColorSpace;
+  } catch (e) {
+    /* Fallback to solid colors */
+  }
+
+  const groundMat = new THREE.MeshStandardMaterial({
+    color: 0x7cab58,
+    map: turfTex,
+    roughness: 0.95,
+  });
+  groundMatRef = groundMat;
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(500,400),
     groundMat);
@@ -830,7 +859,11 @@ function buildWorld(){
   scene.add(ground);
 
   // dirt track
-  const trackMat=new THREE.MeshStandardMaterial({color:0xc09a6a, roughness:1});
+  const trackMat = new THREE.MeshStandardMaterial({
+    color: 0xc09a6a,
+    map: dirtTex,
+    roughness: 0.95,
+  });
   trackMatRef=trackMat;
   const track = new THREE.Mesh(
     new THREE.BoxGeometry(96,0.06,4.6),

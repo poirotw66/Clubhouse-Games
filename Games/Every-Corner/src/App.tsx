@@ -961,7 +961,7 @@ export default function App(): React.ReactElement {
             )}
 
             {/* Board Container */}
-            <div ref={boardRef} className="ec-card p-3 shadow-2xl relative border border-violet-500/30">
+            <div ref={boardRef} className="ec-card ec-board-shell p-3 shadow-2xl relative border border-violet-500/30">
               <Board
                 puzzle={puzzle}
                 path={path}

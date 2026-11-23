@@ -116,6 +116,15 @@ export class CockpitManager {
           <span class="royal-crest">⚜</span>
         </div>
 
+        <!-- Champion Steed Avatar Badge -->
+        <div class="steed-badge" style="display:flex;align-items:center;gap:10px;padding:8px;background:rgba(212,175,55,0.12);border:1.5px solid #d4af37;border-radius:12px;">
+          <img src="./portraits/thunder.jpg" alt="疾風" style="width:42px;height:42px;border-radius:8px;border:1.5px solid #d4af37;object-fit:cover;" />
+          <div style="text-align:left;">
+            <div style="font-size:12px;font-weight:900;color:#fce79f;">王牌戰駒「疾風」</div>
+            <div style="font-size:10px;color:rgba(255,246,232,0.75);">純血錦標賽認證 · 步態校準</div>
+          </div>
+        </div>
+
         <!-- Stride Cadence Tachometer -->
         <div class="cockpit-section cadence-tach">
           <div class="section-label" data-i18n="telemetry_cadence">馬匹步態頻率 (RPM)</div>
