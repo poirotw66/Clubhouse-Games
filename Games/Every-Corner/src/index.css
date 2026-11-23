@@ -47,7 +47,7 @@ body {
 .ec-board-shell {
   background-image:
     radial-gradient(circle at 50% 50%, rgba(36, 26, 61, 0.45) 0%, rgba(12, 9, 22, 0.92) 100%),
-    url('./board-bg.jpg');
+    url('../public/board-bg.jpg');
   background-size: cover;
   background-position: center;
 }

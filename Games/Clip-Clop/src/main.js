@@ -802,13 +802,6 @@ document.body.insertBefore(renderer.domElement, document.getElementById('ui'));
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x9fd8f5);
-try {
-  const skyTex = new THREE.TextureLoader().load('./textures/sky.jpg');
-  skyTex.colorSpace = THREE.SRGBColorSpace;
-  scene.background = skyTex;
-} catch (e) {
-  /* Fallback to background color if texture fails */
-}
 scene.fog = new THREE.Fog(0xbfe4f7, 30, 95);
 
 const camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.1, 220);
@@ -876,6 +869,18 @@ function buildWorld(){
   const start = new THREE.Mesh(new THREE.BoxGeometry(0.14,0.02,4.4),
     new THREE.MeshStandardMaterial({color:0xf2ead8}));
   start.position.set(0,0.065,0); scene.add(start);
+
+  // sky backdrop
+  try {
+    const skyTex = texLoader.load('./textures/sky.jpg');
+    skyTex.colorSpace = THREE.SRGBColorSpace;
+    const skyMat = new THREE.MeshBasicMaterial({ map: skyTex, depthWrite: false });
+    const skyMesh = new THREE.Mesh(new THREE.PlaneGeometry(400, 160), skyMat);
+    skyMesh.position.set(25, 60, -90);
+    scene.add(skyMesh);
+  } catch (e) {
+    /* Fallback if texture fails */
+  }
 
   // fences both sides (instanced posts)
   const fenceMat = new THREE.MeshStandardMaterial({color:0xf2ead8, roughness:.9});
@@ -2776,7 +2781,9 @@ function buildRain(){
 }
 function applyWeather(w){
   const pa=WEATHER[w]||WEATHER.day;
-  scene.background.setHex(pa.sky);
+  if(scene.background && typeof scene.background.setHex === 'function'){
+    scene.background.setHex(pa.sky);
+  }
   scene.fog.color.setHex(pa.fog);
   sun.color.setHex(pa.sun); sun.intensity=pa.sunI;
   hemi.color.setHex(pa.hemiSky); hemi.groundColor.setHex(pa.hemiGnd);
