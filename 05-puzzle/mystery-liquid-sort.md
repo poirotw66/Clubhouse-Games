@@ -155,6 +155,23 @@ Home「機制挑戰」入口；6 關新手感機制：
 - 主要介面組件：[`components/Game.tsx`](../Games/Mystery-Liquid-Sort/components/Game.tsx)、[`components/Bottle.tsx`](../Games/Mystery-Liquid-Sort/components/Bottle.tsx)、[`components/TestTubeRack.tsx`](../Games/Mystery-Liquid-Sort/components/TestTubeRack.tsx)、[`components/TacticalStrip.tsx`](../Games/Mystery-Liquid-Sort/components/TacticalStrip.tsx)、[`components/CockpitLeftWing.tsx`](../Games/Mystery-Liquid-Sort/components/CockpitLeftWing.tsx)、[`components/CockpitRightWing.tsx`](../Games/Mystery-Liquid-Sort/components/CockpitRightWing.tsx)
 - 深度驗證腳本：[`check-liquid-sort.mjs`](../Games/Mystery-Liquid-Sort/check-liquid-sort.mjs)
 
+## 櫻井政博風格視覺美術與鍊金試管重繪（Sakurai Art Design & Wave 15 Visual Assets）
+
+本作在第 15 波美術優化中，全面落實櫻井政博液體層次可讀性與鍊金實驗室厚重材質原則：
+
+- **大師鍊金合成實驗室主視覺（skill-gfx-013 & skill-gfx-007）**：繪製 1350×900 鍊金座艙全景主背景（`alchemy-hero.jpg`），描繪深邃實驗室、多層次實木試劑架、冷凝玻璃蛇形管、微光發光試劑瓶與神秘鍊金反應釜。
+- **高質感胡桃木試管架底座（skill-gfx-004 Tactile Wood Test Tube Rack）**：繪製 1024×1024 物理拋光深紅胡桃木試管架材質貼圖（`rack-wood.jpg`），具備黃銅固定銘環、圓形倒角插孔槽與細緻木紋光澤。
+- **高純度硼矽酸鹽玻璃試管貼圖（skill-gfx-001 Borosilicate Glass Texture）**：繪製 512×512 物理高光玻璃試管貼圖（`glass-texture.jpg`），呈現立體圓柱反射倒影、液面微彎月弧光與精準毫升（ml）雷射雕刻容量刻度線。
+- **七大元素鍊金試劑專屬徽章（skill-gfx-001 Elemental Reagent Emblems）**：
+  - 緋紅之淚（`reagents/reagent-crimson.jpg`，熾熱紅寶石鍊金藥劑、火焰昇華光霧，朱印「緋」）
+  - 湛藍精萃（`reagents/reagent-azure.jpg`，深邃藍寶石結晶水溶液、水華電芒，朱印「湛」）
+  - 翠綠靈露（`reagents/reagent-emerald.jpg`，翡翠草本活性萃取液、發光孢子光環，朱印「翠」）
+  - 澄黃琥珀（`reagents/reagent-amber.jpg`，溫潤托帕石金蜜樹脂、日曜微粒，朱印「澄」）
+  - 紫晶星塵（`reagents/reagent-amethyst.jpg`，皇家紫晶以太星塵氣霧、星芒閃爍，朱印「紫」）
+  - 青碧冰魄（`reagents/reagent-cyan.jpg`，極寒低溫碧藍溶劑、冰晶霜芒，朱印「碧」）
+  - 暖橙精油（`reagents/reagent-orange.jpg`，柑橘暖陽日珥精煉油，朱印「橙」）
+- **高解析主題背景全套重製（skill-gfx-007 Thematic Atmosphere Backdrops）**：全套升級重繪 9 組 1350×900 高畫質主題環境背景（鍊金實驗室、霓虹電玩城、深海水族館、夢幻糖果屋、夜景天台、台灣夜市、台北街景、老街巷弄、青翠竹林）。
+
 ## 參考來源
 
 - 本專案實作：`Games/Mystery-Liquid-Sort/`

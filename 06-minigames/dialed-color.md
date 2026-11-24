@@ -124,6 +124,21 @@
 | Touch | 360° 環形 Conic 色輪觸控滑動、極座標向量儀即時拖曳、光軌滑桿與 ±1 / ±10 微調步進按鈕、行動端戰術切換標籤條（調色艙／雷達／星圖／光矩陣） |
 | Check | `npm run check` → `src/check-dialed-color.mjs`（3D HSL 正規化距離計分、RGB/HSL 邊界轉換、單調衰減感知梯度、台北時間每日種子、混色與互補色、連勝計算、Wordle 分享文案） |
 
+## 櫻井政博風格視覺美術與色感座艙重繪（Sakurai Art Design & Wave 15 Visual Assets）
+
+本作在第 15 波美術優化中，全面落實櫻井政博光學可讀性與高對比色相層次原則：
+
+- **賽博光學研發實驗室主視覺（skill-gfx-013 & skill-gfx-007）**：繪製 1350×900 賽博光學調色實驗室主背景（`studio-bg.jpg`），描繪遠方消失點霓虹透視光軌、懸浮光譜環形色度計、頂部雙側平行雷射發射器與動態全光譜雷射光束。
+- **實體高精度玻璃色盤刻度（skill-gfx-004 Tactile Dial Glass）**：繪製 512×512 物理抗反射鍍膜光學玻璃色盤（`dial-glass.jpg`），具備同心微米刻紋、360° 精密角度刻度線、十字瞄準光標與外環金屬倒角。
+- **光學分光稜鏡晶體核心（skill-gfx-001 Optical Dispersion Prism）**：繪製 512×512 物理三稜鏡分光結晶（`prism-core.jpg`），描繪入色白光折射散色為赤橙黃綠青藍紫七彩光譜扇面與焦散光芒。
+- **六階色感天梯榮譽徽章（skill-gfx-001 Chromatic Rank Crests）**：
+  - 光譜至尊（`ranks/rank-sovereign.jpg`，奇點階八角星芒、深紫與黃金電磁環，朱印「尊」）
+  - 稜鏡指揮官（`ranks/rank-commander.jpg`，超導階青碧霓虹八角戰術護盾，朱印「令」）
+  - 波長調諧師（`ranks/rank-tuner.jpg`，共振階翠綠與日曜金音波共振環，朱印「諧」）
+  - 光學航行者（`ranks/rank-voyager.jpg`，常態階深海鈷藍八面光學星羅盤，朱印「航」）
+  - 色感研發員（`ranks/rank-researcher.jpg`，基底階暖琥珀光學實驗透鏡，朱印「研」）
+  - 光譜初生體（`ranks/rank-novice.jpg`，啟動階純白新生光芒與純淨初生稜鏡，朱印「初」）
+
 ## 實作
 
 - 專案路徑：[Games/Dialed-Color/](../Games/Dialed-Color/)

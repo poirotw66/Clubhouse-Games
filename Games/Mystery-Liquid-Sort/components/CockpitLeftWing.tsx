@@ -1,6 +1,17 @@
 import React from 'react';
 import { Activity, Compass, Droplet, Sparkles, CheckCircle2 } from 'lucide-react';
 import type { LabPuritySummary, StepRatingResult } from '../utils/cockpitMetrics.ts';
+import { publicAsset } from '../utils/backgrounds.ts';
+
+const REAGENT_MAP: Record<string, string> = {
+  緋紅: 'reagents/reagent-crimson.jpg',
+  湛藍: 'reagents/reagent-azure.jpg',
+  翠綠: 'reagents/reagent-emerald.jpg',
+  澄黃: 'reagents/reagent-amber.jpg',
+  紫晶: 'reagents/reagent-amethyst.jpg',
+  青碧: 'reagents/reagent-cyan.jpg',
+  暖橙: 'reagents/reagent-orange.jpg',
+};
 
 interface CockpitLeftWingProps {
   purity: LabPuritySummary;
@@ -85,10 +96,18 @@ export const CockpitLeftWing: React.FC<CockpitLeftWingProps> = ({
               >
                 <div className="flex items-center justify-between text-[10px]">
                   <div className="flex items-center gap-1.5 min-w-0">
-                    <span
-                      className="w-2.5 h-2.5 rounded-full flex-shrink-0 shadow-sm border border-white/30"
-                      style={{ backgroundColor: m.color }}
-                    />
+                    {REAGENT_MAP[m.name] ? (
+                      <img
+                        src={publicAsset(REAGENT_MAP[m.name])}
+                        alt={m.name}
+                        className="w-4 h-4 rounded-full flex-shrink-0 object-cover border border-white/30 shadow-sm"
+                      />
+                    ) : (
+                      <span
+                        className="w-2.5 h-2.5 rounded-full flex-shrink-0 shadow-sm border border-white/30"
+                        style={{ backgroundColor: m.color }}
+                      />
+                    )}
                     <span className="font-bold text-white/90 truncate">{m.name}</span>
                   </div>
                   <div className="flex items-center gap-1.5 font-mono text-[9px]">

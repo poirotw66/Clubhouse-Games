@@ -355,6 +355,25 @@ src/game/
 3. **打擊感偏好面板（Juice Settings Integration）**：
    - 標題畫面整合 [`JuiceSettingsPanel compact`](../Games/Dynasty/src/components/TitleScreen.tsx)，讓玩家依個人習慣自由調整震動強弱、紙花特效與觸覺回饋。
 
+## 櫻井政博風格視覺美術與球團王朝重繪（Sakurai Art Design & Wave 15 Visual Assets）
+
+本作在第 15 波美術優化中，全面落實櫻井政博視覺第一眼辨識與職業球團厚重質感原則：
+
+- **球團總管戰略戰情室主視覺（skill-gfx-013 & skill-gfx-007）**：繪製 1350×900 總管辦公室全景戰情室背景（`title-bg.jpg`），描繪挑高落地窗外夜間球場投光燈、戰術戰情白板、胡桃木行政辦公桌與戰術決策台。
+- **錦標賽夜間球場燈光全景（skill-gfx-004 Championship Stadium Night）**：繪製 1350×900 夜間總冠軍戰球場全景（`stadium-night.jpg`），描繪萬人看台閃光燈海、高流明立體投光燈柱、深邃夜空與整飭細緻的紅土內野鑽石。
+- **台灣大賽總冠軍金盃徽飾（skill-gfx-001 Taiwan Series Golden Trophy）**：繪製 512×512 24K 拋光鍍金總冠軍金盃（`trophy.jpg`），具備高浮雕棒球縫線、雙耳桂冠紋飾與朱印「冠」。
+- **六大中職球團專屬高畫質隊徽（skill-gfx-001 CPBL Club Heraldry Emblems）**：
+  - 南方猛獅（`clubs/lions.jpg`，烈焰金鬃雄獅盾徽、深海湛藍戰袍，朱印「獅」）
+  - 桃園天使（`clubs/angels.jpg`，神聖雙翼大天使光環盾徽、天藍與日曜金，朱印「天」）
+  - 台中巨砲（`clubs/cannons.jpg`，重裝工業青銅巨砲堡壘、鋼鐵緋紅陣線，朱印「砲」）
+  - 台南飛鷹（`clubs/eagles.jpg`，蒼穹戴冠獵鷹振翅盾徽、常青翡翠金邊，朱印「鷹」）
+  - 新北海豚（`clubs/dolphins.jpg`，躍浪流線海豚浪花盾徽、蔚藍海波紋理，朱印「豚」）
+  - 高雄火山（`clubs/volcano.jpg`，熔岩噴發破火山口盾徽、烈焰黑曜玄武岩，朱印「炎」）
+- **總管核心幕僚團隊專屬肖像（skill-gfx-001 Front Office Staff Portraits）**：
+  - 球團總經理（`staff/gm.jpg`，剪裁俐落深灰西裝、戰術平板電腦與銳利目光，朱印「總」）
+  - 首席球探（`staff/scout.jpg`，老練球探棒球帽、測速槍與手寫情資簿，朱印「探」）
+  - 球團董事長（`staff/owner.jpg`，高階主管條紋西服、沈穩企業領袖風範，朱印「董」）
+
 ## 備註
 
 - **首局引導**：首次進入標題頁顯示三步上手疊層（`clubhouse:dynasty:howto-seen`）；關閉後可從「操作教學」再開。CTA 為「知道了」，避免與「接下總管職務」衝突。

@@ -2,6 +2,15 @@ import { useRef, useCallback, useMemo } from 'react';
 import type { Color } from '../types';
 import { computeTelemetry } from '../utils/physics';
 
+const RANK_CRESTS: Record<string, string> = {
+  '光譜至尊': 'ranks/rank-sovereign.jpg',
+  '稜鏡指揮官': 'ranks/rank-commander.jpg',
+  '波長調諧師': 'ranks/rank-tuner.jpg',
+  '光學航行者': 'ranks/rank-voyager.jpg',
+  '色感研發員': 'ranks/rank-researcher.jpg',
+  '光譜初生體': 'ranks/rank-novice.jpg',
+};
+
 interface ChromaRadarProps {
   color: Color;
   targetColor?: Color | null;
@@ -275,6 +284,11 @@ export function ChromaRadar({
       <div className="flex items-center justify-between px-2 py-1.5 bg-cyan-950/30 rounded-lg border border-cyan-500/20 text-xs">
         <span className="text-white/60">當前色感階位</span>
         <div className="flex items-center gap-1.5 font-semibold text-cyan-300">
+          <img
+            src={`${import.meta.env.BASE_URL}${RANK_CRESTS[telemetry.rank.title] || 'ranks/rank-novice.jpg'}`}
+            alt={telemetry.rank.title}
+            className="w-5 h-5 rounded-md border border-cyan-400/40 object-cover shadow-sm"
+          />
           <span>{telemetry.rank.badge}</span>
           <span>{telemetry.rank.title}</span>
         </div>
