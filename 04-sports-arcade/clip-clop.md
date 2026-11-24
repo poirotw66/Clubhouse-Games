@@ -109,3 +109,8 @@
 
 4. **極速重試與零延遲再跑（gameplay-ux-009 Rapid Retry）**：
    - 在完賽或時間到結算畫面（`resultScreen`）出現時，支援鍵盤 <kbd>Space</kbd>、<kbd>Enter</kbd> 或 <kbd>R</kbd> 鍵秒速開啟下一場或再跑一次，完全省去滑鼠點擊延遲。
+
+5. **皇家德比草場草皮、紅土賽道與純血戰駒肖像高畫質重繪（skill-gfx-013 & skill-gfx-001）**：
+   - 繪製 1350×900 皇家德比錦標賽主視覺（`menu-hero.jpg`），描繪暮色暖陽、遠景看台、林木剪影與金黃月桂冠朱印徽飾。
+   - 升級 512×512 肯塔基草地推草條紋草皮貼圖（`textures/turf.jpg`）與紅土扒耙拖痕跑道貼圖（`textures/dirt.jpg`），搭配 1024×512 暮色晴空（`textures/sky.jpg`）與障礙木欄（`textures/hurdle.jpg`），以 Three.js 紋理映射大幅強化真實賽事臨場手感。
+   - 繪製 512×512 王牌戰駒「疾風」（`portraits/thunder.jpg`，印章「風」）與宿敵戰駒「夜影」（`portraits/shadow.jpg`，印章「影」）英雄肖像，內嵌於皇家德比座艙遙測儀表，具備第一識別度與專屬朱印印章。

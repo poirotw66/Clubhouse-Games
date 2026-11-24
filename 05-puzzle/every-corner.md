@@ -288,6 +288,11 @@ src/game/
 5. **打擊感偏好面板（Juice Settings Integration）**：
    - 在標題選單與右側遙測儀表板皆內嵌 `<JuiceSettingsPanel compact />`，讓玩家自由調整震動強弱、紙花火花特效與觸覺回饋。
 
+6. **賽博超導矩陣、晶圓盤面與發光信標美術重鑄（skill-gfx-013 & skill-gfx-007）**：
+   - 升級 1350×900 賽博超導矩陣標題視覺（`title-bg.jpg`）與沉浸式微影蝕刻電路板桌面（`board-bg.jpg`），呈現暗紫幽光、金屬微導線與超導母線質感。
+   - 升級 512×512 矽晶圓精密切割底盤地磚（`tile-floor.jpg`），強化四角圓潤防漏電保護槽與精密蝕刻槽。
+   - 繪製 512×512 編號節點發光信標肖像（`beacons/checkpoint-start.jpg` 起點「始」、`beacons/checkpoint-node.jpg` 中繼「通」、`beacons/checkpoint-end.jpg` 終點「終」），具備第一眼清晰辨識度與朱印印記。
+
 ## 備註
 
 題目全部由程式即時生成，不含任何第三方的題庫或美術資源。

@@ -183,3 +183,11 @@
 - **街機框體**：`src/components/CabinetWings.tsx`；桌面端大螢幕展示。
 - **每日挑戰**：`src/game/daily.ts`；標題「今日挑戰」、結算分享文案。
 - 實作路徑：`Games/Danmaku-Abyss/`；UI：`src/App.tsx`、`src/components/FirstRunGuide.tsx`、`src/components/CabinetWings.tsx`、`src/components/CraftHangarModal.tsx`；核心：`src/game/`。
+
+### 櫻井政博風格深淵星雲、戰機與首領圖鑑重繪（Sakurai Art Design & Boss Codex Assets）
+
+本作在第 12 波美術優化中，全面落實櫻井政博視覺第一眼識別與色彩層級原則：
+
+- **深淵星雲與符卡幾何陣主視覺（skill-gfx-013 & skill-gfx-007）**：繪製 1350×900 宇宙深淵星雲全景（`title-bg.jpg`），融合紫粉深空星塵、多重同心符卡法陣與深淵引力漩渦，並生成 1024×1024 宇宙星空深空貼圖（`textures/starfield.jpg`）。
+- **三款專屬戰機高畫質肖像（skill-gfx-001 Craft Portraits）**：繪製 512×512「迅羽」（`crafts/swift.jpg`，印章「羽」）、「重炮」（`crafts/cannon.jpg`，印章「炮」）與「縫影」（`crafts/stitch.jpg`，印章「影」）戰術肖像，內嵌於機庫展示室與左翼戰術座艙。
+- **五大關卡首領專屬立繪圖鑑（skill-gfx-001 Boss Codex Roster）**：為 Stage 1「燈守」（`bosses/lantern.jpg`，印章「燈」）、Stage 2「潮鳴」（`bosses/tide.jpg`，印章「潮」）、Stage 3「刃霜」（`bosses/frost.jpg`，印章「霜」）、Stage 4「燼裔」（`bosses/ash.jpg`，印章「燼」）與 Stage 5「深淵」（`bosses/abyss.jpg`，印章「淵」）繪製專屬 512×512 宇宙天體／神祇立繪，營造無與倫比的史詩壓迫感。

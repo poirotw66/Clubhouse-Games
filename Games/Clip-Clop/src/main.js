@@ -820,8 +820,30 @@ scene.add(sun); scene.add(sun.target);
 
 function buildWorld(){
   // grass
-  const groundMat=new THREE.MeshStandardMaterial({color:0x7cab58, roughness:1});
-  groundMatRef=groundMat;
+  const texLoader = new THREE.TextureLoader();
+  let turfTex = null;
+  let dirtTex = null;
+  try {
+    turfTex = texLoader.load('./textures/turf.jpg');
+    turfTex.wrapS = THREE.RepeatWrapping;
+    turfTex.wrapT = THREE.RepeatWrapping;
+    turfTex.repeat.set(50, 40);
+    turfTex.colorSpace = THREE.SRGBColorSpace;
+    dirtTex = texLoader.load('./textures/dirt.jpg');
+    dirtTex.wrapS = THREE.RepeatWrapping;
+    dirtTex.wrapT = THREE.RepeatWrapping;
+    dirtTex.repeat.set(16, 1);
+    dirtTex.colorSpace = THREE.SRGBColorSpace;
+  } catch (e) {
+    /* Fallback to solid colors */
+  }
+
+  const groundMat = new THREE.MeshStandardMaterial({
+    color: 0x7cab58,
+    map: turfTex,
+    roughness: 0.95,
+  });
+  groundMatRef = groundMat;
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(500,400),
     groundMat);
@@ -830,7 +852,11 @@ function buildWorld(){
   scene.add(ground);
 
   // dirt track
-  const trackMat=new THREE.MeshStandardMaterial({color:0xc09a6a, roughness:1});
+  const trackMat = new THREE.MeshStandardMaterial({
+    color: 0xc09a6a,
+    map: dirtTex,
+    roughness: 0.95,
+  });
   trackMatRef=trackMat;
   const track = new THREE.Mesh(
     new THREE.BoxGeometry(96,0.06,4.6),
@@ -843,6 +869,18 @@ function buildWorld(){
   const start = new THREE.Mesh(new THREE.BoxGeometry(0.14,0.02,4.4),
     new THREE.MeshStandardMaterial({color:0xf2ead8}));
   start.position.set(0,0.065,0); scene.add(start);
+
+  // sky backdrop
+  try {
+    const skyTex = texLoader.load('./textures/sky.jpg');
+    skyTex.colorSpace = THREE.SRGBColorSpace;
+    const skyMat = new THREE.MeshBasicMaterial({ map: skyTex, depthWrite: false });
+    const skyMesh = new THREE.Mesh(new THREE.PlaneGeometry(400, 160), skyMat);
+    skyMesh.position.set(25, 60, -90);
+    scene.add(skyMesh);
+  } catch (e) {
+    /* Fallback if texture fails */
+  }
 
   // fences both sides (instanced posts)
   const fenceMat = new THREE.MeshStandardMaterial({color:0xf2ead8, roughness:.9});
@@ -2743,7 +2781,9 @@ function buildRain(){
 }
 function applyWeather(w){
   const pa=WEATHER[w]||WEATHER.day;
-  scene.background.setHex(pa.sky);
+  if(scene.background && typeof scene.background.setHex === 'function'){
+    scene.background.setHex(pa.sky);
+  }
   scene.fog.color.setHex(pa.fog);
   sun.color.setHex(pa.sun); sun.intensity=pa.sunI;
   hemi.color.setHex(pa.hemiSky); hemi.groundColor.setHex(pa.hemiGnd);

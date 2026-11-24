@@ -67,12 +67,17 @@ export function CraftHangarModal({
                 key={craft.id}
                 type="button"
                 onClick={() => setActiveTabId(craft.id)}
-                className={`flex flex-col items-center justify-center p-2.5 rounded-xl border transition-all text-center ${
+                className={`flex flex-col items-center justify-center p-2 rounded-xl border transition-all text-center ${
                   isSelectedTab
                     ? 'border-cyan-400 bg-cyan-950/60 shadow-[0_0_16px_rgba(34,211,238,0.35)]'
                     : 'border-slate-800 bg-slate-900/50 hover:bg-slate-850 hover:border-slate-700'
                 }`}
               >
+                <img
+                  src={`${import.meta.env.BASE_URL}crafts/${craft.id}.jpg`}
+                  alt={craft.name}
+                  className="w-10 h-10 rounded-lg border border-cyan-400/30 object-cover mb-1 shadow"
+                />
                 <span className="font-bold text-sm text-slate-100">{craft.name}</span>
                 <span className="text-[10px] mt-0.5 font-mono">
                   {isEquippedThis ? (
@@ -97,29 +102,18 @@ export function CraftHangarModal({
                 <p className="text-xs text-slate-300 mt-0.5">{activeCraft.blurb}</p>
               </div>
               <div
-                className="w-12 h-12 rounded-xl flex items-center justify-center border shadow-inner"
+                className="w-14 h-14 rounded-xl flex items-center justify-center border shadow-inner overflow-hidden"
                 style={{
                   borderColor: `hsl(${activeCraft.hullHue}, 80%, 60%)`,
                   background: `hsla(${activeCraft.hullHue}, 80%, 20%, 0.4)`,
                   boxShadow: `0 0 16px hsla(${activeCraft.beamHue}, 90%, 60%, 0.4)`,
                 }}
               >
-                {/* SVG Silhouette representation */}
-                <svg viewBox="0 0 40 40" className="w-8 h-8">
-                  <polygon
-                    points={
-                      activeCraft.id === 'cannon'
-                        ? '20,6 6,34 16,28 20,32 24,28 34,34'
-                        : activeCraft.id === 'stitch'
-                          ? '20,4 12,32 18,26 20,30 22,26 28,32'
-                          : '20,6 8,32 17,26 20,30 23,26 32,32'
-                    }
-                    fill={`hsl(${activeCraft.hullHue}, 85%, 65%)`}
-                    stroke="#ffffff"
-                    strokeWidth="1.2"
-                  />
-                  <circle cx="20" cy="20" r={activeCraft.hitboxMult * 2.5} fill="#f472b6" />
-                </svg>
+                <img
+                  src={`${import.meta.env.BASE_URL}crafts/${activeCraft.id}.jpg`}
+                  alt={activeCraft.name}
+                  className="w-full h-full object-cover"
+                />
               </div>
             </div>
 

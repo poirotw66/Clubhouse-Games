@@ -40,11 +40,21 @@ export function CabinetLeftWing({ hud }: { hud: RunState | null }): React.ReactE
 
       {/* Craft Hologram Silhouette Card */}
       <div className="rounded-xl border border-cyan-500/30 bg-[#0a1226]/90 p-3 shadow-[0_0_20px_rgba(34,211,238,0.12)]">
-        <div className="flex items-center justify-between">
-          <span className="font-display text-sm font-bold text-slate-100">{craft.name}</span>
-          <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-900/60 text-cyan-200">
-            {craft.shotStyle === 'wide' ? '寬幅重擊' : craft.shotStyle === 'needle' ? '細針穿孔' : '均衡扇射'}
-          </span>
+        <div className="flex items-center gap-2.5 mb-2">
+          <img
+            src={`${import.meta.env.BASE_URL}crafts/${craft.id}.jpg`}
+            alt={craft.name}
+            className="w-10 h-10 rounded-lg border border-cyan-400/40 object-cover shadow"
+          />
+          <div className="flex-1">
+            <div className="flex items-center justify-between">
+              <span className="font-display text-sm font-bold text-slate-100">{craft.name}</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-cyan-900/60 text-cyan-200">
+                {craft.shotStyle === 'wide' ? '寬幅重擊' : craft.shotStyle === 'needle' ? '細針穿孔' : '均衡扇射'}
+              </span>
+            </div>
+            <span className="text-[10px] text-slate-400 block line-clamp-1">{craft.blurb}</span>
+          </div>
         </div>
 
         {/* Tactical Specs Grid */}

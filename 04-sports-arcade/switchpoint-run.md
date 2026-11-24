@@ -154,3 +154,11 @@ Meta 存於 `switchpoint-run:meta-v1`；讀取時逐欄驗證，損壞資料回�
 - 不含任何第三方美術資源。
 - **極速重試（`gameplay-ux-009` Rapid Retry）**：被列車追上或通關結算時，直接支援按 <kbd>Space</kbd> / <kbd>Enter</kbd> / <kbd>KeyR</kbd> 瞬時重啟跑酷，免除滑鼠點擊等待，將失敗重試的熱情冷卻時間降至零；結算按鈕標籤明確提示 `(Space)` 快捷鍵。
 - 語言：程式識別字與註解用英文；玩家可見文案僅繁體中文。
+
+## 櫻井政博風格視覺美術與車庫肖像重繪（Sakurai Art Design & Garage Assets）
+
+本作在第 12 波美術優化中，全面落實櫻井政博視覺辨識與打擊感原則：
+
+- **中央調度場與追趕列車主視覺（skill-gfx-013 & skill-gfx-007）**：繪製 1350×900 賽博調度中心全景（`title-bg.jpg`），描繪透視收束的三股道多重道岔、高聳調度塔全息路徑看板、迫近列車的刺眼雙頭燈與夜幕摩天樓群。
+- **四款專屬扳道車高畫質肖像（skill-gfx-001 High-Fidelity Character Portraits）**：為「標準扳道車」（`runners/standard.jpg`，印章「標」）、「重載鐵道車」（`runners/freight.jpg`，印章「載」）、「迅捷導流車」（`runners/courier.jpg`，印章「捷」）與「疾風特快車」（`runners/express.jpg`，印章「特」）繪製 512×512 專屬賽博機關車肖像，內嵌於車庫挑選面板（GaragePanel）與左翼信號雷達座艙（DispatchLeftWing）。
+- **花崗岩道碴與信號燈組高解析紋理（skill-gfx-004）**：繪製 512×512 碎石道碴與防腐枕木貼圖（`textures/ballast.jpg`）與三聯裝信號切換指示燈（`textures/signal.jpg`），強化軌道工業質感。

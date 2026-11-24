@@ -51,6 +51,19 @@ export const DispatchLeftWing: React.FC<Props> = ({ state: s }) => {
         <p className="mt-1 text-[11px] text-slate-400">
           全線軌道拓撲與追越差速即時測繪
         </p>
+
+        {/* Runner Tactical Badge */}
+        <div className="mt-2.5 flex items-center gap-2.5 rounded-lg border border-emerald-500/25 bg-emerald-950/20 p-2">
+          <img
+            src={`${import.meta.env.BASE_URL}runners/${runner.id}.jpg`}
+            alt={runner.name}
+            className="h-10 w-10 shrink-0 rounded-md border border-emerald-400/40 object-cover shadow"
+          />
+          <div className="flex flex-col text-left">
+            <span className="text-xs font-bold text-emerald-200">{runner.name}</span>
+            <span className="text-[10px] text-slate-400 line-clamp-1">{runner.blurb}</span>
+          </div>
+        </div>
       </div>
 
       {/* Cockpit Module 2: Pursuit Buffer & Delta Speed */}
