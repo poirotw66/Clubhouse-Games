@@ -155,3 +155,27 @@
 - 驗證腳本：
   - `npm run lint -w clockwork-keep`（TypeScript 零錯誤）
   - `npm run check -w clockwork-keep`（包含最短路徑、戰鬥公式、經濟收支、任務包、分支成就、齒輪動力學與音效反饋測試）
+
+## 櫻井政博風格視覺美術與戰場貼圖重繪（Sakurai Art Design & Wave 14 Visual Assets）
+
+本作在第 14 波美術優化中，全面落實櫻井政博視覺第一眼辨識與蒸氣龐克發條材質原則：
+
+- **維多利亞蒸氣工坊與發條天際線主視覺（skill-gfx-013 & skill-gfx-007）**：繪製 1350×900 蒸氣龐克鐘樓觀測台主視覺（`setup-bg.jpg`），描繪深邃黃昏暮色、高聳哥德式拱窗、黃銅齒輪傳動組、壓力計與蒸氣管道、橡木繪圖桌藍圖與真空管燈光，並附專屬朱印「堡」。
+- **高解析度鉚釘鋼板機械地磚（skill-gfx-004 Mechanical Paver Grid）**：升級 1024×1024 模組化無縫地磚（`board-floor.jpg`），具備 8×8 機械防滑鋼板、內嵌齒輪機構、蒸氣散熱格柵、四角鉚釘與琥珀／青藍導電管線。
+- **六座 1024×1024 獨立高解析度防禦塔圖標（skill-gfx-001 Crystalline Machine Towers）**：
+  - 弩砲機關（`towers/crossbow.jpg`，雙反曲複合鋼弓、張力齒輪盤與黃金飛矢，朱印「弩」）
+  - 絞肉齒輪（`towers/grinder.jpg`，重鍛鋼製齧合雙齒輪與火花飛濺，朱印「齒」）
+  - 極寒霜晶（`towers/frost.jpg`，黃銅冷凝容器、青藍凍結晶體與螺旋冷媒管，朱印「霜」）
+  - 泰斯拉電圈（`towers/coil.jpg`，梯級感應線圈、球型銀質放電極與紫青雷弧，朱印「雷」）
+  - 重裝蒸汽槌（`towers/hammer.jpg`，氣動蒸氣鍛錘、爐火高熱與重型鐵砧，朱印「槌」）
+  - 高爆迫擊砲（`towers/mortar.jpg`，重型膛線青銅迫擊砲、仰角齒輪扇區與彈藥滑槽，朱印「砲」）
+- **八種 512×512 特色發條敵軍圖鑑肖像（skill-gfx-013 Distinct Silhouettes）**：
+  - 發條步兵（`enemies/grunt.jpg`，黃銅圓頂頭盔與背部發條鑰匙，朱印「兵」）
+  - 刺客發條鼠（`enemies/runner.jpg`，流線型青銅外殼與鋒利耳刀，朱印「捷」）
+  - 鐵甲巨像（`enemies/ironclad.jpg`，鉚釘黑鐵裝甲與液壓肩甲，朱印「甲」）
+  - 滑翔飛行器（`enemies/kite.jpg`，翼展帆布撲翼機與機頭螺旋槳，朱印「翼」）
+  - 齒輪甲蟲（`enemies/gearbug.jpg`，六足機械蜘蛛與旋轉齒輪背甲，朱印「蛛」）
+  - 高壓蒸汽爆彈（`enemies/bloater.jpg`，膨脹高壓蒸氣球形鍋爐與危險紅針壓力表，朱印「爆」）
+  - 厚殼陸龜機關（`enemies/shellbug.jpg`，半球重疊防禦鋼甲與鐵釘突刺，朱印「盾」）
+  - 泰坦發條領主（`enemies/boss.jpg`，金冠 automaton 指揮官與發光複眼核心，朱印「王」）
+
