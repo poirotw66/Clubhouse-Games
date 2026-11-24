@@ -546,15 +546,34 @@ function App() {
                         color: !unlocked ? '#666' : selected ? '#062010' : '#eee',
                         border: selected ? 'none' : '1px solid rgba(255,255,255,0.12)',
                         cursor: unlocked ? 'pointer' : 'not-allowed',
-                        padding: '12px 14px',
+                        padding: '10px 14px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 12,
                       }}
                       onClick={() => unlocked && setOpponentId(opp.id)}
                     >
-                      <div style={{ fontSize: 17 }}>{unlocked ? opp.name : '???（未解鎖）'}</div>
-                      <div style={{ fontSize: 12, opacity: 0.8, fontWeight: 500, marginTop: 2 }}>
-                        {unlocked
-                          ? `${opp.habit.label} · ${opp.tagline} · 先至 ${opp.pointsToWin} · 勝 ${wins}`
-                          : '先擊敗前一位對手'}
+                      <img
+                        src={`${import.meta.env.BASE_URL}opponents/${opp.id}.jpg`}
+                        alt={opp.name}
+                        style={{
+                          width: 48,
+                          height: 48,
+                          borderRadius: 8,
+                          objectFit: 'cover',
+                          border: selected ? '2px solid #062010' : '1px solid rgba(255,255,255,0.2)',
+                          flexShrink: 0,
+                          opacity: unlocked ? 1 : 0.35,
+                          filter: unlocked ? 'none' : 'grayscale(1)',
+                        }}
+                      />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 17 }}>{unlocked ? opp.name : '???（未解鎖）'}</div>
+                        <div style={{ fontSize: 12, opacity: 0.8, fontWeight: 500, marginTop: 2 }}>
+                          {unlocked
+                            ? `${opp.habit.label} · ${opp.tagline} · 先至 ${opp.pointsToWin} · 勝 ${wins}`
+                            : '先擊敗前一位對手'}
+                        </div>
                       </div>
                     </button>
                   );

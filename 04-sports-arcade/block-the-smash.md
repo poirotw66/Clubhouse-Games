@@ -139,6 +139,21 @@
 | Touch | 完整行動端原生觸控支援：底部電競虛擬按鍵（◀ 步法、⚡ 魚躍撲救、步法 ▶、⯅ 截擊、⯆ 挑球），支援觸控即時拖曳定位球拍、點擊揮拍防守與大尺寸完美回殺落點觸控卡片。 |
 | Check | 專屬深度驗證腳本 `check-smash.mjs`（>650 行），嚴密覆蓋連續重殺不變量（shouldStartBurst）、節奏打亂機率（counterDisruptsRhythm）、橫向瞄準與難度邊界外推（resolveAimX）、極限時機與空間幾何接觸判定（gradePosition, gradeTiming, combineContact）、完美回殺窗口與得分乘數（COUNTER_WINDOW_SEC, counterScoreBonus）、8 對手天梯進度與系列賽賽制（seriesWinsNeeded, isOpponentUnlocked）、台北每日挑戰種子確定性、跨日連續天數保持與分享文本格式化。 |
 
+## 櫻井政博風格視覺美術與天梯對手肖像重繪（Sakurai Art Design & Badminton Ladder Assets）
+
+本作在第 13 波美術優化中，全面落實櫻井政博視覺第一眼辨識與運動打擊臨場感原則：
+
+- **錦標賽競技大巨蛋主視覺（skill-gfx-013 & skill-gfx-007）**：繪製 1350×900 國際羽球錦標賽主視覺（`menu-bg.jpg`），描繪俯瞰視角的大型體育館看台、強烈動態聚光燈束、高速重殺羽球金黃破空衝擊波與白金羽毛尾跡，並附帶專屬朱印「羽」。
+- **3D 專業比賽級木質地板與高挑球場穹頂（skill-gfx-004 Tournament Court & Sky Textures）**：升級 1024×1024 專業防滑綠色比賽地墊貼圖（`textures/court.jpg`，具備清晰雙打／單打與發球線，外圍環繞高級柚木實木邊框）與 1350×900 體育館鋼構桁架天頂貼圖（`textures/sky.jpg`，配置高輸出鹵素排燈組與光束微粒）。
+- **七位天梯 CPU 對手專屬高畫質肖像（skill-gfx-001 Opponent Roster Portraits）**：為天梯 7 位特色對手繪製 512×512 專屬英雄肖像，每位角色具備專屬氛圍光暈、運動服飾特徵、球拍揮擊動態與專屬繁體中文朱印印章，並內嵌至 BO3 天梯選擇面板：
+  - 閃電阿豪（`opponents/hao.jpg`，烈焰紅光暈，印章「豪」）
+  - 斜線美美（`opponents/mei.jpg`，青空藍光暈，印章「美」）
+  - 假動作阿鬼（`opponents/gui.jpg`，迷幻紫光暈，印章「鬼」）
+  - 鐵壁教練（`opponents/coach.jpg`，古銅金光暈，印章「壁」）
+  - 節奏阿律（`opponents/lu.jpg`，碧海青光暈，印章「律」）
+  - 追身小敏（`opponents/min.jpg`，閃電金光暈，印章「敏」）
+  - 羽球魔王（`opponents/king.jpg`，深紅魔王光暈，印章「魔」）
+
 ## 實作
 
 - 專案路徑：[Games/Block-the-smash/](../Games/Block-the-smash/)
