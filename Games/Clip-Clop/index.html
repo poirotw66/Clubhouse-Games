@@ -1038,7 +1038,10 @@ h1{font-size:44px;line-height:1.05}
 <link rel="stylesheet" href="./src/stride-coach.css">
 </head>
 <body>
-<a class="back-to-menu" href="../../" aria-label="返回總覽"><span aria-hidden="true">←</span><span class="back-to-menu-label">返回總覽</span></a>
+<nav class="back-to-menu-nav" aria-label="導航選單" style="position:fixed;top:14px;left:14px;z-index:20;display:inline-flex;align-items:center;gap:6px;pointer-events:auto;">
+  <button type="button" id="btnToTitle" class="back-to-menu" aria-label="回到主選單" style="display:none;cursor:pointer;"><span aria-hidden="true">⌂</span><span class="back-to-menu-label">回到主選單</span></button>
+  <a class="back-to-menu" href="../../" aria-label="返回總覽"><span aria-hidden="true">←</span><span class="back-to-menu-label">返回總覽</span></a>
+</nav>
 <div id="ui">
   <div id="hud" class="hidden">
     <div class="pill"><span data-i18n="hud_time"></span><b id="hudTime">0.0</b></div>
@@ -1268,6 +1271,7 @@ h1{font-size:44px;line-height:1.05}
       <div id="achToastRow" class="achToastRow"></div>
       <div class="btnRow">
         <button id="retryBtn" class="btn" data-i18n="retry"></button>
+        <button id="resultToTitleBtn" class="btn alt">回到主選單</button>
         <button id="shareBtn" class="btn alt" data-i18n="share"></button>
       </div>
       <div class="retry-hint" style="font-size:12px;color:rgba(74,47,24,0.75);margin-top:6px;text-align:center;">

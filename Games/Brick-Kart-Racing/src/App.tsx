@@ -689,6 +689,7 @@ export default function App() {
 
   return (
     <div className="flex h-full w-full flex-col items-center justify-center overflow-hidden bg-slate-950 p-1 lg:p-3 select-none">
+      <BackToMenu onBackToTitle={backToMenu} />
       <div className="flex h-full w-full max-w-[1720px] items-center justify-center gap-3">
         {/* Left Cockpit Wing: Telemetry */}
         <aside className="hidden lg:flex w-64 xl:w-72 2xl:w-80 h-[min(88vh,720px)] shrink-0">
@@ -766,7 +767,7 @@ export default function App() {
                       onClick={backToMenu}
                       className="w-full min-h-[44px] rounded-xl border border-white/15 bg-slate-800 py-3 font-bold text-slate-200 touch-manipulation"
                     >
-                      回選單
+                      回到主選單
                     </button>
                   </div>
                 </div>

@@ -1,8 +1,8 @@
 /** Focus the result actions and keep keyboard navigation inside the dialog. */
 export function focusResultOverlay(root: HTMLElement): () => void {
   const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-  const actions = () => Array.from(root.querySelectorAll<HTMLButtonElement>('button:not([disabled])'))
-    .filter(button => !button.hidden && button.getClientRects().length > 0);
+  const actions = () => Array.from(root.querySelectorAll<HTMLElement>('button:not([disabled]), a[href]:not([disabled])'))
+    .filter(el => !el.hidden && el.getClientRects().length > 0);
   const onKeyDown = (event: KeyboardEvent) => {
     // Game shortcuts must not run while choosing a result action.
     event.stopPropagation();

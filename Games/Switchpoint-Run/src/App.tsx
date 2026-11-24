@@ -1080,7 +1080,7 @@ export default function App(): React.ReactElement {
         isEmergency ? 'sr-alarm-border' : ''
       }${fxRef.current.shake > 4 ? ' sr-shake-hard' : fxRef.current.shake > 1.5 ? ' sr-shake' : ''}`}
     >
-      <BackToMenu />
+      <BackToMenu onBackToTitle={() => setScreen('menu')} />
 
       {/* Top HUD Command Strip */}
       <div className="sr-hud shrink-0 px-3 pt-12 pb-2 flex items-center justify-between text-xs sm:text-sm text-slate-300">
@@ -1173,14 +1173,27 @@ export default function App(): React.ReactElement {
               <div className="sr-panel rounded-2xl px-6 py-4 text-center">
                 <p className="text-lg font-semibold mb-1 text-slate-100">調度運轉暫停</p>
                 <p className="text-slate-400 text-sm">按 P 或 Esc 繼續</p>
-                <button
-                  type="button"
-                  onPointerDown={(event) => event.stopPropagation()}
-                  onClick={() => setPaused(false)}
-                  className="mt-4 rounded-xl border border-cyan-400/60 bg-slate-900 px-6 py-3 text-base font-bold text-cyan-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
-                >
-                  繼續遊戲
-                </button>
+                <div className="mt-4 flex flex-wrap justify-center gap-3">
+                  <button
+                    type="button"
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={() => setPaused(false)}
+                    className="rounded-xl border border-cyan-400/60 bg-slate-900 px-6 py-3 text-base font-bold text-cyan-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+                  >
+                    繼續遊戲
+                  </button>
+                  <button
+                    type="button"
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={() => {
+                      setPaused(false);
+                      setScreen('menu');
+                    }}
+                    className="rounded-xl border border-slate-700 bg-slate-800/80 px-6 py-3 text-base font-bold text-slate-300 hover:bg-slate-700 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-400"
+                  >
+                    回到主選單
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -1223,7 +1236,7 @@ export default function App(): React.ReactElement {
           ]}
           primaryLabel="再試一次 (Space)"
           onPrimary={() => startRun(activeChallenge.seedCode, activeChallenge, 'challenge')}
-          secondaryLabel="回選單"
+          secondaryLabel="回到主選單"
           onSecondary={() => {
             setActiveChallenge(null);
             activeChallengeRef.current = null;
@@ -1272,7 +1285,7 @@ export default function App(): React.ReactElement {
             else if (runMode === 'daily') startRun(s.seedCode, null, 'daily', dailyDate);
             else startRun(s.seedCode, null, 'free');
           }}
-          secondaryLabel="回選單"
+          secondaryLabel="回到主選單"
           onSecondary={() => {
             setActiveChallenge(null);
             activeChallengeRef.current = null;

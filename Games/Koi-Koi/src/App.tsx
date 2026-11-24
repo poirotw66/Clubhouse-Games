@@ -923,7 +923,7 @@ export default function App() {
         ].join(', '),
       }}
     >
-      <BackToMenu />
+      <BackToMenu onBackToTitle={() => startGame(false, true)} titleLabel="回到主選單" />
       {showFirstRun && (
         <FirstRunGuide onClose={() => setShowFirstRun(false)} />
       )}

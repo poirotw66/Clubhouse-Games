@@ -648,7 +648,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-50 flex flex-col items-center p-3 pt-14 sm:pt-4">
-      <BackToMenu />
+      <BackToMenu onBackToTitle={returnToTitle} />
 
       {/* Low-Health Tension (Sakurai gameplay-core-002 Stress & Release) */}
       {isLowHealth && (
@@ -773,14 +773,27 @@ export default function App() {
               <div className="absolute inset-0 z-20 flex items-center justify-center rounded-2xl bg-slate-950/80">
                 <div className="text-center">
                   <p className="text-xl font-bold">暫停中（P 繼續）</p>
-                  <button
-                    type="button"
-                    onPointerDown={(event) => event.stopPropagation()}
-                    onClick={() => setPaused(false)}
-                    className="mt-4 rounded-xl border border-cyan-400/60 bg-slate-900 px-6 py-3 text-base font-bold text-cyan-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
-                  >
-                    繼續遊戲
-                  </button>
+                  <div className="mt-4 flex flex-wrap justify-center gap-3">
+                    <button
+                      type="button"
+                      onPointerDown={(event) => event.stopPropagation()}
+                      onClick={() => setPaused(false)}
+                      className="rounded-xl border border-cyan-400/60 bg-slate-900 px-6 py-3 text-base font-bold text-cyan-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
+                    >
+                      繼續遊戲
+                    </button>
+                    <button
+                      type="button"
+                      onPointerDown={(event) => event.stopPropagation()}
+                      onClick={() => {
+                        setPaused(false);
+                        returnToTitle();
+                      }}
+                      className="rounded-xl border border-slate-700 bg-slate-800/80 px-6 py-3 text-base font-bold text-slate-300 hover:bg-slate-700 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-400"
+                    >
+                      回到主選單
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -956,16 +969,12 @@ export default function App() {
               ? shareCopied
                 ? '已複製'
                 : '複製分享結果'
-              : activeChallenge || hud.ironsnake
-                ? '返回標題'
-                : undefined
+              : '回到主選單'
           }
           onSecondary={
             hud.daily
               ? () => void copyDailyShare(false)
-              : activeChallenge || hud.ironsnake
-                ? returnToTitle
-                : undefined
+              : returnToTitle
           }
         />
       )}
@@ -1051,7 +1060,7 @@ export default function App() {
                 onClick={returnToTitle}
                 className="w-full rounded-xl border border-slate-600 bg-slate-900 px-6 py-3 font-semibold hover:bg-slate-800"
               >
-                返回標題
+                回到主選單
               </button>
             </div>
           </div>

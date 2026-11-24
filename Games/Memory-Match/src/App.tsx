@@ -1179,7 +1179,7 @@ export default function App() {
         className="mm-shell flex flex-col items-center p-3 sm:p-4 gap-3"
         style={shellBg()}
       >
-        <BackToMenu />
+        <BackToMenu onBackToTitle={() => setScreen('play')} />
         <h1 className="mm-title">短戰役</h1>
         <p className="mm-title-sub">Campaign</p>
         <p className="mm-meta max-w-md text-sm !text-slate-300">
@@ -1246,7 +1246,7 @@ export default function App() {
         className="mm-shell flex flex-col items-center p-3 sm:p-4 gap-3"
         style={shellBg()}
       >
-        <BackToMenu />
+        <BackToMenu onBackToTitle={() => setScreen('play')} />
         <h1 className="mm-title">CPU 名冊</h1>
         <p className="mm-title-sub">Roster</p>
         <p className="mm-meta max-w-md text-sm !text-slate-300">
@@ -1340,7 +1340,7 @@ export default function App() {
       style={shellBg()}
       data-fever={feverState.tier > 1 ? feverState.tier : undefined}
     >
-      <BackToMenu />
+      <BackToMenu onBackToTitle={screen !== 'play' || mode !== 'classic' ? () => { setScreen('play'); setMode('classic'); restart(pairCount, 'classic'); } : undefined} />
       <h1 className="mm-title">記憶配對</h1>
       <p className="mm-title-sub">Memory Match</p>
 
@@ -1838,6 +1838,12 @@ export default function App() {
                 : '關卡選單 (Space / Enter / R)'
               : '再玩一局 (Space / Enter / R)'
           }
+          secondaryLabel="回到主選單"
+          onSecondary={() => {
+            setScreen('play');
+            setMode('classic');
+            restart(pairCount, 'classic');
+          }}
         />
       )}
       {overlayOpen && mode !== 'versus' && lost && (
@@ -1859,6 +1865,12 @@ export default function App() {
           ]}
           primaryLabel="再玩一局 (Space / Enter / R)"
           onPrimary={() => restart()}
+          secondaryLabel="回到主選單"
+          onSecondary={() => {
+            setScreen('play');
+            setMode('classic');
+            restart(pairCount, 'classic');
+          }}
         />
       )}
       {versusOutcome && (
@@ -1908,6 +1920,13 @@ export default function App() {
               ? '挑戰下一位 (Space / Enter / R)'
               : '再戰一局 (Space / Enter / R)'
           }
+          secondaryLabel="回到主選單"
+          onSecondary={() => {
+            setVersusOutcome(null);
+            setScreen('play');
+            setMode('classic');
+            restart(pairCount, 'classic');
+          }}
         />
       )}
     </div>

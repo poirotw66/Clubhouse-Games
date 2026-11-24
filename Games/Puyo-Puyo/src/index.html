@@ -7,7 +7,10 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <a class="back-to-menu" href="../../" aria-label="返回總覽">← 返回總覽</a>
+    <nav class="back-to-menu-nav" aria-label="導航選單" style="position:fixed;top:10px;left:10px;z-index:20;display:inline-flex;align-items:center;gap:6px;">
+      <button type="button" id="btn-to-title" class="back-to-menu" aria-label="回到主選單" style="cursor:pointer;border:1px solid rgba(45,212,191,0.5);">⌂ 回到主選單</button>
+      <a class="back-to-menu" href="../../" aria-label="返回總覽">← 返回總覽</a>
+    </nav>
 
     <div class="page">
       <header class="page-header">
@@ -463,7 +466,10 @@
           <div><dt id="result-p2-chain-label">CPU 最大連鎖</dt><dd id="result-p2-chain" class="mono">0</dd></div>
         </dl>
         <p class="career-stats result-career" id="result-career" hidden>對 CPU：0 勝 · 0 敗 · 連勝 0 · 最高連鎖 0</p>
-        <button type="button" id="result-restart" class="primary-button">再玩一局</button>
+        <div class="result-actions" style="display:flex;flex-direction:column;gap:8px;width:100%;margin-top:12px;">
+          <button type="button" id="result-restart" class="primary-button">再玩一局</button>
+          <button type="button" id="result-to-title" class="ghost-button" style="width:100%;">回到主選單</button>
+        </div>
       </div>
     </div>
 

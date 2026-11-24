@@ -1550,7 +1550,7 @@ export default function ToyBoxing() {
 
   return (
     <div className="min-h-screen bg-neutral-950 text-white font-sans selection:bg-blue-500/30 overflow-x-hidden">
-      <BackToMenu />
+      <BackToMenu onBackToTitle={gameState !== 'menu' ? () => { setFightTip(null); setGameState('menu'); } : undefined} />
       {showFirstRun && <FirstRunGuide onClose={() => setShowFirstRun(false)} />}
       <header className="max-w-7xl mx-auto p-4 sm:p-6 flex flex-col gap-4 md:flex-row md:justify-between md:items-center border-b border-white/10">
         <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
@@ -2005,7 +2005,7 @@ export default function ToyBoxing() {
                   setFightTip(null);
                   setGameState('menu');
                 }}
-                secondaryLabel="回選單"
+                secondaryLabel="回到主選單"
               />
             )}
           </AnimatePresence>

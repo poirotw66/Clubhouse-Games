@@ -1156,7 +1156,7 @@ export default function App() {
       className="min-h-screen text-white flex flex-col items-center p-3 sm:p-4 min-w-0 bg-cover bg-center overflow-x-hidden"
       style={shellStyle}
     >
-      <BackToMenu />
+      <BackToMenu onBackToTitle={backToMenu} />
 
       {/* Cockpit Top Navigation Header */}
       <header className="w-full max-w-6xl flex justify-between items-center mb-2.5">
@@ -1505,7 +1505,7 @@ export default function App() {
             replaySame();
           }}
           onSecondary={backToMenu}
-          secondaryLabel="回選單"
+          secondaryLabel="回到主選單"
         />
       )}
 

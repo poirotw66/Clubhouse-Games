@@ -714,7 +714,10 @@
 <link rel="stylesheet" href="experience.css">
 </head>
 <body data-view-mode="3d">
-  <a href="../../" id="backlink"></a>
+  <nav class="back-to-menu-nav" aria-label="導航選單" style="position:fixed;top:0;left:16px;z-index:30;height:48px;display:flex;align-items:center;gap:12px;">
+    <button type="button" id="btnToTitle3d" style="display:none;background:rgba(21,23,26,0.85);border:1px solid #444;border-radius:999px;padding:4px 12px;color:#eaf6ff;font:500 13px 'IBM Plex Sans','PingFang TC',sans-serif;cursor:pointer;">⌂ 回到主選單</button>
+    <a href="../../" id="backlink"></a>
+  </nav>
 <div id="camSelector" class="wf-cam-selector" data-testid="cam-selector" role="group" aria-label="3D 視角選擇">
   <button type="button" class="wf-cam-pill" data-cam="0" aria-pressed="true" title="動態特技追焦 (按 C 切換)">
     <span class="wf-cam-ico" aria-hidden="true">📹</span><span class="wf-cam-txt" data-role="label">動態追焦</span><span class="wf-cam-short" data-role="short">追焦</span>
@@ -2848,6 +2851,8 @@ function resetRun() {
   closeBoard(); closeApiPanel(); closeNamePanel();
   screen = null;
   el.start.hidden = true;
+  const btn = document.getElementById('btnToTitle3d');
+  if (btn) btn.style.display = 'inline-flex';
   el.resultWrap.hidden = true;
   el.hud.hidden = false;
   if (el.stuntCockpit) el.stuntCockpit.hidden = false;
@@ -2862,6 +2867,21 @@ function resetRun() {
   camState.init = false; // snap the camera like the original
   resize();
 }
+
+function returnToStartScreen() {
+  game.playing = false;
+  el.start.hidden = false;
+  el.resultWrap.hidden = true;
+  el.hud.hidden = true;
+  if (el.stuntCockpit) el.stuntCockpit.hidden = true;
+  if (el.flightDirector) el.flightDirector.hidden = true;
+  const btn = document.getElementById('btnToTitle3d');
+  if (btn) btn.style.display = 'none';
+  closeBoard();
+  closeApiPanel();
+  closeNamePanel();
+}
+document.getElementById('btnToTitle3d')?.addEventListener('click', returnToStartScreen);
 if (el.manualToggleBtn && el.manualModal) {
   el.manualToggleBtn.addEventListener('click', e => {
     e.stopPropagation();

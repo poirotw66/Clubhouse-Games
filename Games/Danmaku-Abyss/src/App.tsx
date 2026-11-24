@@ -910,7 +910,7 @@ export default function App(): React.ReactElement {
 
   return (
     <div className="da-play">
-      <BackToMenu />
+      <BackToMenu onBackToTitle={() => setScreen('menu')} />
 
       {/* HUD: score + vitals lead; mode/craft/stage stay secondary so the field stays readable. */}
       <div className="da-hud">
@@ -1008,14 +1008,27 @@ export default function App(): React.ReactElement {
               <div className="da-pause">
                 <p>暫停</p>
                 <p className="mt-1 text-sm text-slate-400">按 P 或 Esc 繼續</p>
-                <button
-                  type="button"
-                  onPointerDown={(event) => event.stopPropagation()}
-                  onClick={() => setPaused(false)}
-                  className="mt-4 rounded-xl border border-cyan-400/60 bg-slate-900 px-6 py-3 text-base font-bold text-cyan-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
-                >
-                  繼續遊戲
-                </button>
+                <div className="mt-4 flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={() => setPaused(false)}
+                    className="rounded-xl border border-cyan-400/60 bg-slate-900 px-6 py-3 text-base font-bold text-cyan-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 touch-manipulation"
+                  >
+                    繼續遊戲
+                  </button>
+                  <button
+                    type="button"
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={() => {
+                      setPaused(false);
+                      setScreen('menu');
+                    }}
+                    className="rounded-xl border border-white/15 bg-slate-800 px-6 py-2.5 text-sm font-bold text-slate-200 hover:bg-slate-700 touch-manipulation"
+                  >
+                    回到主選單
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -1191,7 +1204,7 @@ export default function App(): React.ReactElement {
             ]}
             primaryLabel={activeMode ? '再挑戰 (Space)' : isDailyRun ? '再刷今日 (Space)' : '再潛一次 (Space)'}
             onPrimary={retryCurrent}
-            secondaryLabel="回標題"
+            secondaryLabel="回到主選單"
             onSecondary={() => setScreen('menu')}
           />
           {isDailyRun && (

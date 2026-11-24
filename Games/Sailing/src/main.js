@@ -555,6 +555,8 @@ function startGame(gl, canvas) {
     for (const rival of rivals) rival.reset(course.start, wind);
     camera.snap(boat);
     resultOverlay.hide();
+    const btnToMenu = document.getElementById('btn-to-menu');
+    if (btnToMenu) btnToMenu.style.display = 'inline-flex';
     cockpit.reset();
     hud.countdown.hidden = false;
     hud.countdown.textContent = '3';
@@ -990,7 +992,7 @@ function startGame(gl, canvas) {
           playMode = 'regatta';
           beginRaceSession();
         },
-        secondaryLabel: '回選單',
+        secondaryLabel: '回到主選單',
         onSecondary: () => openMenu(),
         variant: regattaPoints >= 9 ? 'win' : 'neutral',
       });
@@ -1004,7 +1006,7 @@ function startGame(gl, canvas) {
       stats: finishStats,
       primaryLabel: '再航一趟',
       onPrimary: resetRace,
-      secondaryLabel: '回選單',
+      secondaryLabel: '回到主選單',
       onSecondary: () => openMenu(),
       variant: isRecord || place === 1 ? 'win' : 'neutral',
     });
@@ -1013,6 +1015,8 @@ function startGame(gl, canvas) {
   function openMenu() {
     phase = 'menu';
     resultOverlay.hide();
+    const btnToMenu = document.getElementById('btn-to-menu');
+    if (btnToMenu) btnToMenu.style.display = 'none';
     hud.countdown.hidden = true;
     if (hud.raceStandings) hud.raceStandings.hidden = true;
     $('#cockpit')?.classList.add('hidden');
@@ -1319,6 +1323,10 @@ function startGame(gl, canvas) {
     }, 500);
     maybeShowTutorial();
     beginRaceSession();
+  });
+
+  document.getElementById('btn-to-menu')?.addEventListener('click', () => {
+    openMenu();
   });
 
   refreshMenuMeta();

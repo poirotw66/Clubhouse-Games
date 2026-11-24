@@ -128,7 +128,10 @@
 </head>
 <body data-view-mode="2d">
 <canvas id="c"></canvas>
-<a href="../../" style="position:fixed;top:0;left:16px;z-index:30;height:48px;display:flex;align-items:center;color:#b4b4b4;text-decoration:none;font:500 14px 'IBM Plex Sans','PingFang TC',sans-serif;">← 返回總覽</a>
+<nav class="back-to-menu-nav" aria-label="導航選單" style="position:fixed;top:0;left:16px;z-index:30;height:48px;display:flex;align-items:center;gap:12px;">
+  <button type="button" id="btnToTitle" style="display:none;background:rgba(21,23,26,0.85);border:1px solid #444;border-radius:999px;padding:4px 12px;color:#eaf6ff;font:500 13px 'IBM Plex Sans','PingFang TC',sans-serif;cursor:pointer;">⌂ 回到主選單</button>
+  <a href="../../" style="display:flex;align-items:center;color:#b4b4b4;text-decoration:none;font:500 14px 'IBM Plex Sans','PingFang TC',sans-serif;">← 返回總覽</a>
+</nav>
 <div id="viewSwitch" class="wf-view-switch" data-testid="view-mode-switch" role="group" aria-label="顯示模式">
   <button type="button" data-view="2d" data-testid="view-mode-2d" aria-pressed="true">2D</button>
   <button type="button" data-view="3d" data-testid="view-mode-3d" aria-pressed="false">3D</button>
@@ -1284,7 +1287,13 @@ function reset(ready) {
   if (!ready) flightCoach.begin(!botOn);
   state = ready ? ST.READY : ST.RUN;
   stateT = 0;
+  const btnToTitle = document.getElementById('btnToTitle');
+  if (btnToTitle) btnToTitle.style.display = ready ? 'none' : 'inline-flex';
 }
+document.getElementById('btnToTitle')?.addEventListener('click', () => {
+  reset(true);
+  camSnapSafe();
+});
 function startRun() { reset(false); }
 
 function toAir(kind) {

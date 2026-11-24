@@ -678,9 +678,17 @@ export default function App(): React.ReactElement {
     ? opponentById(match.config.ladderOpponentId)
     : null;
 
+  const returnToSetup = () => {
+    clearSavedMatch();
+    setScreen('setup');
+    setMatch(null);
+    setState(null);
+    setReview(null);
+  };
+
   return (
     <div className="min-h-screen flex flex-col items-center px-3 pb-8 pt-14 sm:pt-4">
-      <BackToMenu />
+      <BackToMenu onBackToTitle={returnToSetup} />
 
       <div className="w-full max-w-7xl flex flex-col lg:flex-row items-center lg:items-start justify-center gap-4">
         {/* Left Wing: Tactical Radar Panel (hidden on mobile, sticky on lg+) */}

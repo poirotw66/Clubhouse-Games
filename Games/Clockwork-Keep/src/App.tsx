@@ -960,7 +960,7 @@ export default function App(): ReactElement {
     <div
       className={`min-h-screen bg-[#120c06] text-amber-50 flex flex-col items-center p-3 pb-8 min-w-0 ${shakeClass}`}
     >
-      <BackToMenu />
+      <BackToMenu onBackToTitle={backToSetup} />
 
       <header className="w-full max-w-3xl flex flex-wrap items-center justify-between gap-2 mb-3 mt-1 text-sm">
         <h1 className="text-lg font-bold">
@@ -1306,13 +1306,25 @@ export default function App(): ReactElement {
           <div className="bg-[#1c1409] border border-amber-900/50 rounded-2xl p-6 text-center">
             <h2 className="text-xl font-bold mb-2">已暫停</h2>
             <p className="text-amber-200/70 text-sm mb-4">按 P 或 Esc 繼續</p>
-            <button
-              type="button"
-              onClick={togglePause}
-              className="px-6 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 font-bold"
-            >
-              繼續遊戲
-            </button>
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={togglePause}
+                className="w-full px-6 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 font-bold text-white touch-manipulation"
+              >
+                繼續遊戲
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPaused(false);
+                  backToSetup();
+                }}
+                className="w-full px-6 py-2 rounded-xl border border-amber-500/40 bg-black/40 hover:bg-black/60 font-bold text-amber-200 touch-manipulation"
+              >
+                回到主選單
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1407,7 +1419,7 @@ export default function App(): ReactElement {
           ]}
           primaryLabel={activeMission ? '再挑戰' : isDailyRun ? '再挑戰今日' : '再玩一次'}
           onPrimary={activeMission ? retryMission : isDailyRun ? startDaily : startGame}
-          secondaryLabel="回設定"
+          secondaryLabel="回到主選單"
           onSecondary={backToSetup}
         />
       )}

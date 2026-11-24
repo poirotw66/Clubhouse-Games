@@ -490,7 +490,7 @@ export default function App(): React.ReactElement {
   if (screen === 'achievements') {
     return (
       <div className="ec-title-shell min-h-screen">
-        <BackToMenu />
+        <BackToMenu onBackToTitle={() => setScreen('title')} />
         <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 pb-16 pt-14">
           <header className="mt-3 flex items-baseline justify-between gap-3">
             <div>
@@ -534,7 +534,7 @@ export default function App(): React.ReactElement {
     const progress = weeklyProgressCount(thisWeek);
     return (
       <div className="ec-title-shell min-h-screen">
-        <BackToMenu />
+        <BackToMenu onBackToTitle={() => setScreen('title')} />
         <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 pb-16 pt-14">
           <header className="mt-3 flex items-baseline justify-between gap-3">
             <div>
@@ -768,7 +768,7 @@ export default function App(): React.ReactElement {
 
   return (
     <>
-      <BackToMenu />
+      <BackToMenu onBackToTitle={() => setScreen('title')} />
       <div className="ec-cockpit-shell min-h-screen flex flex-col justify-start px-2 sm:px-4 pb-12 pt-14 w-full max-w-7xl mx-auto">
         {/* Top Header Row */}
         <header className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-violet-500/20 pb-3">
@@ -1212,7 +1212,7 @@ export default function App(): React.ReactElement {
                   blocked: puzzle.variant === 'blocked' ? blockedCount : 0,
                 });
             }}
-            secondaryLabel="回選單"
+            secondaryLabel="回到主選單"
             onSecondary={() => setScreen('title')}
           />
         )}

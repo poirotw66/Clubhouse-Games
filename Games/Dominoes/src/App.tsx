@@ -982,7 +982,7 @@ export default function App() {
         ].join(', '),
       }}
     >
-      <BackToMenu />
+      <BackToMenu onBackToTitle={() => startFreshMatch()} titleLabel="回到主選單" />
       {showFirstRun && <FirstRunGuide onClose={() => setShowFirstRun(false)} />}
       {scoreFlash && (
         <ScoreFlash
@@ -1657,8 +1657,8 @@ export default function App() {
           ]}
           primaryLabel={isDaily ? '再挑戰今日 (Space / Enter / R)' : '再打一場 (Space / Enter / R)'}
           onPrimary={() => startFreshMatch()}
-          secondaryLabel={isDaily ? (shareCopied ? '已複製' : '複製分享結果') : undefined}
-          onSecondary={isDaily ? handleCopyShare : undefined}
+          secondaryLabel={isDaily ? (shareCopied ? '已複製' : '複製分享結果') : '回到主選單'}
+          onSecondary={isDaily ? handleCopyShare : () => startFreshMatch()}
         />
       )}
 

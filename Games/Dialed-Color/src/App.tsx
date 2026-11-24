@@ -533,7 +533,7 @@ export default function App() {
           backgroundPosition: 'center',
         }}
       />
-      <BackToMenu />
+      <BackToMenu onBackToTitle={gameState !== 'landing' ? () => setGameState('landing') : undefined} />
 
       {/* Main Cockpit Stage Container */}
       <div ref={boardRef} className="stage-content w-full max-w-7xl flex flex-col items-center justify-center py-6 sm:py-10">
@@ -1107,6 +1107,11 @@ export default function App() {
           ]}
           primaryLabel={gameMode === 'daily' ? '查看並分享' : '查看色差'}
           onPrimary={() => setShowResultOverlay(false)}
+          secondaryLabel="回到主選單"
+          onSecondary={() => {
+            setShowResultOverlay(false);
+            setGameState('landing');
+          }}
         />
       )}
 

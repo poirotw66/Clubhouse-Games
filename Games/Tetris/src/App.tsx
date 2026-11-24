@@ -1361,7 +1361,7 @@ export default function App() {
         ].join(', '),
       }}
     >
-      <BackToMenu />
+      <BackToMenu onBackToTitle={() => startRun('marathon', difficulty)} titleLabel="回到主選單" />
       <header className="w-full max-w-6xl flex flex-col gap-2 mb-4">
         <div className="flex flex-wrap justify-between items-center gap-2">
           <div className="flex items-center gap-3 flex-wrap">
@@ -1925,7 +1925,7 @@ export default function App() {
                 }
               : isVersus && versusMeta.bo3 && seriesComplete(versusMeta)
                 ? () => startRun('versus', difficulty)
-                : undefined
+                : () => startRun('marathon', difficulty)
           }
           secondaryLabel={
             isDaily
@@ -1934,7 +1934,7 @@ export default function App() {
                 : '複製分享'
               : isVersus && versusMeta.bo3 && seriesComplete(versusMeta)
                 ? '新系列賽'
-                : undefined
+                : '回到主選單'
           }
         />
       )}

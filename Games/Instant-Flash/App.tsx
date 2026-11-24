@@ -273,7 +273,17 @@ export default function App() {
 
   return (
     <div className="w-full min-h-dvh h-screen bg-slate-950 flex flex-col overflow-hidden font-sans text-slate-200 select-none">
-      <BackToMenu />
+      <BackToMenu
+        onBackToTitle={
+          gameState !== GameState.MENU
+            ? () => {
+                setGameState(GameState.MENU);
+                setMenuView('home');
+                setLastStats(null);
+              }
+            : undefined
+        }
+      />
       <div className="fixed inset-0 crt-overlay z-50 pointer-events-none opacity-20" />
 
       {gameState === GameState.MENU && (
@@ -737,7 +747,7 @@ export default function App() {
           ]}
           primaryLabel={`${resultMeta.primary} (Space / Enter / R)`}
           onPrimary={resultPrimary}
-          secondaryLabel="主選單"
+          secondaryLabel="回到主選單"
           onSecondary={() => {
             setGameState(GameState.MENU);
             setMenuView('home');

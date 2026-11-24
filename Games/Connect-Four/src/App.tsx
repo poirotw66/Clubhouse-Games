@@ -929,7 +929,7 @@ export default function App() {
         ].join(', '),
       }}
     >
-      <BackToMenu />
+      <BackToMenu onBackToTitle={screen === 'puzzles' ? () => { setActivePuzzle(null); setScreen('play'); } : () => startNewSeries()} />
       <header className="w-full max-w-lg flex justify-between items-center mb-3">
         <div className="flex items-center gap-2 flex-wrap">
           <h1 className="text-xl font-bold tracking-tight">四子棋</h1>
@@ -2205,6 +2205,15 @@ export default function App() {
                   : '新系列賽 (Space / Enter / R)'
                 : '再玩一局 (Space / Enter / R)'
           }
+          secondaryLabel="回到主選單"
+          onSecondary={() => {
+            if (screen === 'puzzles') {
+              setActivePuzzle(null);
+              setScreen('play');
+            } else {
+              startNewSeries();
+            }
+          }}
         />
       )}
 
