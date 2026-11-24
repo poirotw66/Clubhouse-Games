@@ -28,6 +28,8 @@ const CSS = `
   width: 100%;
   max-width: 24rem;
   padding: 1.5rem;
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
   text-align: center;
   border-radius: 1rem;
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -201,6 +203,31 @@ export function createResultOverlay(parent = document.body) {
 
   let onPrimary = null;
   let onSecondary = null;
+  let returnFocus = null;
+
+  // Keep result actions reachable without sending shortcuts to the game below.
+  root.addEventListener('keydown', (event) => {
+    event.stopPropagation();
+    if (event.key !== 'Tab') return;
+    const actions = [primaryBtn, secondaryBtn].filter(button => !button.hidden && !button.disabled);
+    const first = actions[0];
+    const last = actions.at(-1);
+    if (!first) return;
+    if (event.shiftKey && (document.activeElement === first || !root.contains(document.activeElement))) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && (document.activeElement === last || !root.contains(document.activeElement))) {
+      event.preventDefault();
+      first.focus();
+    }
+  });
+
+  function restoreFocus() {
+    if (root.contains(document.activeElement) && returnFocus?.isConnected) {
+      returnFocus.focus({ preventScroll: true });
+    }
+    returnFocus = null;
+  }
 
   primaryBtn.addEventListener('click', () => {
     onPrimary?.();
@@ -214,6 +241,7 @@ export function createResultOverlay(parent = document.body) {
   return {
     root,
     show(options) {
+      if (root.hidden) returnFocus = document.activeElement;
       const variant = options.variant ?? 'neutral';
       const stats = options.stats ?? [];
 
@@ -271,11 +299,14 @@ export function createResultOverlay(parent = document.body) {
       }
 
       root.hidden = false;
+      primaryBtn.focus({ preventScroll: true });
     },
     hide() {
+      restoreFocus();
       root.hidden = true;
     },
     destroy() {
+      restoreFocus();
       onPrimary = null;
       onSecondary = null;
       root.remove();

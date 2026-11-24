@@ -1027,6 +1027,11 @@ export default function App() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // One physical press performs one action; browser shortcuts keep their native behavior.
+      if (e.defaultPrevented || e.repeat || e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return;
+      const shortcutTarget = e.target instanceof HTMLElement ? e.target : null;
+      if (shortcutTarget?.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])')) return;
+      if ((e.key === ' ' || e.key === 'Enter') && shortcutTarget?.closest('button, a, [role="button"]')) return;
       if (
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLTextAreaElement ||
@@ -1035,7 +1040,13 @@ export default function App() {
         return;
       }
 
-      if (e.repeat) return;
+      if (e.key === 'Escape') {
+        if (isRulesOpen) setIsRulesOpen(false);
+        else if (isStatsOpen) setIsStatsOpen(false);
+        else setSelectedSource(null);
+        return;
+      }
+      if (isRulesOpen || isStatsOpen || isBusy) return;
 
       if (isGameWon || isGameOverNoMoves) {
         if (e.key === ' ' || e.key === 'Enter' || e.key === 'r' || e.key === 'R') {
@@ -1140,6 +1151,8 @@ export default function App() {
   }, [
     gameState,
     selectedSource,
+    isRulesOpen,
+    isStatsOpen,
     isBusy,
     isGameWon,
     handleAutoCollect,

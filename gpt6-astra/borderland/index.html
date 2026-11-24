@@ -692,10 +692,7 @@ function resetRun() {
   shots = [];
   effects = [];
   pickups = [];
-  Object.keys(keys).forEach((k) => delete keys[k]);
-  touchState.move.dx = touchState.move.dy = 0;
-  touchState.look.dx = touchState.look.dy = 0;
-  touchState.fire = false;
+  resetInput();
   const d = rules();
   const w = weapon();
   rebuildGunVisual(selectedWeapon);
@@ -1026,7 +1023,7 @@ function removeEffect(e){
 function pauseGame() {
   if(ui!=="playing") return;
   ui="paused";
-  firing=false;touchState.fire=false;
+  resetInput();
   setTouchChrome(false);
   if(document.pointerLockElement) document.exitPointerLock();
   const d=rules();
@@ -1115,9 +1112,25 @@ document.addEventListener("mousedown",e=>{
 document.addEventListener("mouseup",e=>{
   if(e.button===0){ firing=false; dragLook=false; }
 });
+function resetInput() {
+  Object.keys(keys).forEach(k=>delete keys[k]);
+  firing=spaceHeld=dragLook=false;
+  touchState.fire=touchState.sprint=false;
+  for(const stick of [touchState.move,touchState.look]) {
+    stick.id=null;stick.dx=stick.dy=0;
+  }
+  document.querySelectorAll('#touchBtns .held').forEach(button=>button.classList.remove('held'));
+  for(const id of ['moveKnob','lookKnob']) $(id).style.transform='translate(-50%,-50%)';
+}
 window.addEventListener("blur",()=>{
-  firing=false;touchState.fire=false;
+  resetInput();
   if(ui==="playing") pauseGame();
+});
+document.addEventListener("visibilitychange",()=>{
+  if(document.hidden) {
+    resetInput();
+    if(ui==="playing") pauseGame();
+  }
 });
 window.addEventListener("contextmenu",e=>e.preventDefault());
 window.addEventListener("resize",()=>{
@@ -1146,10 +1159,12 @@ function bindStick(zoneEl, knobEl, stateKey, opts={}) {
     touchState[stateKey].id=null;
     touchState[stateKey].dx=0;
     touchState[stateKey].dy=0;
+    if(stateKey==="move") touchState.sprint=false;
     knobEl.style.transform="translate(-50%,-50%)";
   };
   zoneEl.addEventListener("pointerup", end);
   zoneEl.addEventListener("pointercancel", end);
+  zoneEl.addEventListener("lostpointercapture", end);
 }
 function updateStick(e, zoneEl, knobEl, stateKey, sens, opts) {
   const rect=zoneEl.getBoundingClientRect();

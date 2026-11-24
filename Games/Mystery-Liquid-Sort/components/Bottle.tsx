@@ -100,6 +100,16 @@ export const Bottle: React.FC<BottleProps> = ({
 
   return (
     <div
+      role="button"
+      tabIndex={isCapped || isBlocked || isFlying ? -1 : 0}
+      aria-label={`試管 ${tubeNumber ?? bottle.id}${isCapped ? '，已封存' : isSelected ? '，已選取' : isBlocked ? '，尚未解鎖' : ''}`}
+      aria-pressed={isSelected}
+      onKeyDown={(event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        event.stopPropagation();
+        if (!isCapped && !isBlocked && !isFlying) onClick();
+      }}
       onClick={isCapped || isBlocked ? undefined : onClick}
       className={`
         relative flex flex-col items-center justify-end touch-target

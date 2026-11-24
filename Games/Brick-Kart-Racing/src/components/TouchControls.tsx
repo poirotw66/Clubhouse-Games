@@ -64,31 +64,31 @@ function Pad({
 export function TouchControls({onHold, showItem = true}: Props) {
   return (
     <div className="pointer-events-none absolute inset-0 lg:hidden">
-      <div className="pointer-events-auto absolute bottom-5 left-4 flex gap-4">
+      <div className="pointer-events-auto absolute bottom-2 left-2 flex gap-2 sm:bottom-5 sm:left-4 sm:gap-4">
         <Pad
           label="◀"
           ariaLabel="左轉"
           keyName="left"
           onHold={onHold}
-          className="h-24 w-24 text-3xl"
+          className="h-16 w-16 text-2xl sm:h-24 sm:w-24 sm:text-3xl"
         />
         <Pad
           label="▶"
           ariaLabel="右轉"
           keyName="right"
           onHold={onHold}
-          className="h-24 w-24 text-3xl"
+          className="h-16 w-16 text-2xl sm:h-24 sm:w-24 sm:text-3xl"
         />
       </div>
-      <div className="pointer-events-auto absolute bottom-5 right-4 flex items-end gap-3">
-        <div className="flex flex-col gap-3">
+      <div className="pointer-events-auto absolute bottom-2 right-2 flex items-end gap-2 sm:bottom-5 sm:right-4 sm:gap-3">
+        <div className="flex flex-col gap-2 sm:gap-3">
           {showItem && (
             <Pad
               label="道具"
               ariaLabel="使用道具"
               keyName="item"
               onHold={onHold}
-              className="h-16 w-[4.5rem] text-sm"
+              className="h-12 w-14 text-xs sm:h-16 sm:w-[4.5rem] sm:text-sm"
             />
           )}
           <Pad
@@ -96,23 +96,23 @@ export function TouchControls({onHold, showItem = true}: Props) {
             ariaLabel="煞車"
             keyName="brake"
             onHold={onHold}
-            className="h-16 w-[4.5rem] text-sm"
+            className="h-12 w-14 text-xs sm:h-16 sm:w-[4.5rem] sm:text-sm"
           />
         </div>
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-2 sm:gap-3">
           <Pad
             label="飄移"
             ariaLabel="飄移"
             keyName="drift"
             onHold={onHold}
-            className="h-[4.5rem] w-24 text-base"
+            className="h-14 w-16 text-sm sm:h-[4.5rem] sm:w-24 sm:text-base"
           />
           <Pad
             label="加速"
             ariaLabel="加速"
             keyName="throttle"
             onHold={onHold}
-            className="h-24 w-24 text-lg"
+            className="h-16 w-16 text-base sm:h-24 sm:w-24 sm:text-lg"
           />
         </div>
       </div>
