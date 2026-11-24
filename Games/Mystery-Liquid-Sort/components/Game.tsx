@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { OriginLoreModal } from '@clubhouse/shared/OriginLoreModal';
+import { MYSTERY_LIQUID_SORT_LORE } from '@clubhouse/shared/originLoreData';
 import { GameState, BottleData, GameMode, type QpVariant } from '../types';
 import {
   INITIAL_COINS,
@@ -295,6 +297,7 @@ export default function Game() {
     const [showLeftWingModal, setShowLeftWingModal] = useState(false);
     const [showRightWingModal, setShowRightWingModal] = useState(false);
     const [showKeypadGuide, setShowKeypadGuide] = useState(false);
+    const [showLore, setShowLore] = useState(false);
 
     const packStageName = useMemo(() => {
         if (gameState.mode === 'puzzle_pack') return getPackStage(gameState.level)?.name;
@@ -1324,6 +1327,7 @@ export default function Game() {
                             packStageName={packStageName}
                             coins={gameState.coins}
                             onSettings={() => setShowSettingsModal(true)}
+                            onOpenLore={() => setShowLore(true)}
                             challengeStatus={challengeStatus}
                         />
                     </div>
@@ -1704,6 +1708,13 @@ export default function Game() {
                     }}
                     secondaryLabel="回到主選單"
                     onSecondary={() => navigate('/')}
+                />
+            )}
+
+            {showLore && (
+                <OriginLoreModal
+                    dossier={MYSTERY_LIQUID_SORT_LORE}
+                    onClose={() => setShowLore(false)}
                 />
             )}
         </div>

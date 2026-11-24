@@ -44,9 +44,10 @@ export interface HudSnapshot {
 interface HudProps {
   hud: HudSnapshot;
   seedLabel: string;
+  onOpenLore?: () => void;
 }
 
-export function Hud({ hud, seedLabel }: HudProps) {
+export function Hud({ hud, seedLabel, onOpenLore }: HudProps) {
   const energyPercent = Math.round((hud.energy / hud.maxEnergy) * 100);
   const objective = hud.bossMaxHp > 0
     ? `首領 ${hud.bossHp}/${hud.bossMaxHp}`
@@ -76,6 +77,18 @@ export function Hud({ hud, seedLabel }: HudProps) {
           <span className={`text-[10px] px-1.5 py-0.5 rounded border ${riskBadge.color}`}>
             {riskBadge.text}
           </span>
+          {onOpenLore && (
+            <button
+              type="button"
+              onClick={onOpenLore}
+              className="px-2 py-0.5 rounded-lg border border-emerald-500/40 bg-emerald-950/60 hover:bg-emerald-900 text-[11px] font-bold text-emerald-200 inline-flex items-center gap-1 touch-manipulation min-h-[36px]"
+              aria-label="地牢由來與聖物圖鑑"
+              title="地牢由來與聖物圖鑑"
+            >
+              <span>📜</span>
+              <span>圖鑑</span>
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-3 text-sm">
           <span className="flex items-center gap-1">

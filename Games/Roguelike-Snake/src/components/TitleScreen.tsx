@@ -36,6 +36,7 @@ interface TitleScreenProps {
   onStart: (options: StartOptions) => void;
   onStartChallenge: (challengeId: string) => void;
   onSelectBuild: (buildId: string) => void;
+  onOpenLore?: () => void;
 }
 
 const RULES: Array<[string, string]> = [
@@ -57,6 +58,7 @@ export function TitleScreen({
   onStart,
   onStartChallenge,
   onSelectBuild,
+  onOpenLore,
 }: TitleScreenProps) {
   const [seed, setSeed] = useState('');
   const [showChallenges, setShowChallenges] = useState(false);
@@ -108,6 +110,18 @@ export function TitleScreen({
       <p className="text-slate-400 text-sm mb-6">
         深入 {MAX_FLOOR} 層地窟，一路構築你的蛇。死亡即結束，但每一局都不一樣。
       </p>
+
+      <div className="flex justify-center mb-4">
+        <button
+          type="button"
+          onClick={onOpenLore}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-emerald-400/50 bg-emerald-950/70 hover:bg-emerald-900/80 text-emerald-200 text-xs font-bold transition-all shadow-md touch-manipulation min-h-[44px]"
+          aria-label="地牢由來與聖物圖鑑"
+        >
+          <span>📜</span>
+          <span>地牢由來與聖物圖鑑</span>
+        </button>
+      </div>
 
       <div className="grid gap-2 text-left mb-6">
         {RULES.map(([title, text]) => (

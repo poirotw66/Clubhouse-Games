@@ -221,6 +221,13 @@
 - 核心邏輯：`src/game/engine.ts`、`src/game/level.ts`、`src/game/relics.ts`、`src/game/builds.ts`、`src/game/challenges.ts`、`src/game/daily.ts`、`src/game/achievements.ts`、`src/game/radar.ts`、`src/game/storage.ts`
 - UI 元件：`src/App.tsx`、`src/components/Arena.tsx`、`src/components/TitleScreen.tsx`、`src/components/CockpitLeftWing.tsx`、`src/components/CockpitRightWing.tsx`、`src/components/RelicPicker.tsx`、`src/components/KeyboardHud.tsx`、`src/components/TacticalTicker.tsx`
 
+## 文化源流典故與規則圖解面板（Origin & Lore Dossier）
+
+本專案導入雙分頁「蛇神祭壇暗黑神話與聖物圖鑑」（`OriginLoreModal`）：
+- **分頁一「文化源流 (Cultural Origin & Lore)」**：銜尾蛇神（Ouroboros）深淵地牢暗黑奇幻傳說、突破傳統貪食蛇脆弱宿命的神聖衝刺（Dash）與猛毒脈衝（Venom Pulse）戰鬥哲學。
+- **分頁二「玩法圖解與決策心法 (Rules & Strategy Guide)」**：10 秒地牢生存法則、五大遺物流派聖物導引（疾風衝刺流、鐵壁守護流、毒牙輾殺流、貪金暴食流、深淵苦修流）、首領無敵衝刺貫穿機制，以及櫻井政博 BFS 腹地死角雷達空間預警心法。
+
+
 ## 參考與備註
 
 - 移動與成長規則參考經典 Snake；單局制、遺物三選一、永久死亡等結構參考 Roguelite 常見設計（如 Slay the Spire 的節點推進與 Binding of Isaac 的房間清除）。

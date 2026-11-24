@@ -955,8 +955,8 @@ export default function App() {
             type="button"
             onClick={() => setShowRules(true)}
             className="absolute top-3 right-14 z-20 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-cream/60 hover:text-gold hover:bg-gold/10 transition-colors touch-manipulation"
-            aria-label="遊戲規則"
-            title="遊戲規則"
+            aria-label="由來與規則圖鑑"
+            title="由來與規則圖鑑"
           >
             <HelpCircle size={18} />
           </button>
@@ -1051,14 +1051,24 @@ export default function App() {
               戰績 {stats.wins}勝 {stats.losses}敗
               {stats.winStreak > 0 ? ` · 連勝 ${stats.winStreak}` : ''}
             </p>
-            <button
-              type="button"
-              onClick={() => setShowCodex(true)}
-              className="inline-flex items-center gap-2 text-sm text-gold/80 hover:text-gold px-3 py-2 rounded-lg hover:bg-gold/10 transition-colors touch-manipulation min-h-[44px]"
-            >
-              <BookOpen size={16} />
-              役種圖鑑
-            </button>
+            <div className="flex justify-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setShowCodex(true)}
+                className="inline-flex items-center gap-2 text-sm text-gold/80 hover:text-gold px-3 py-2 rounded-lg hover:bg-gold/10 transition-colors touch-manipulation min-h-[44px]"
+              >
+                <BookOpen size={16} />
+                役種圖鑑
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowRules(true)}
+                className="inline-flex items-center gap-2 text-sm text-gold/80 hover:text-gold px-3 py-2 rounded-lg hover:bg-gold/10 transition-colors touch-manipulation min-h-[44px]"
+              >
+                <HelpCircle size={16} />
+                由來與規則圖鑑
+              </button>
+            </div>
           </div>
 
           <div className="wafu-panel rounded-2xl p-4 sm:p-6 w-full">

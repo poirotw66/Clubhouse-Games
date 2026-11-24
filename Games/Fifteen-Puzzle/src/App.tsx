@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState, type ReactElement, type React
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
+import { OriginLoreModal } from '@clubhouse/shared/OriginLoreModal';
+import { FIFTEEN_PUZZLE_LORE } from '@clubhouse/shared/originLoreData';
 import { haptic, particles, shake } from '@clubhouse/shared/juice';
 import { playLose, playWin } from '@clubhouse/shared/synthAudio';
 import {
@@ -148,6 +150,7 @@ export default function App() {
   const [soundOn, setSoundOn] = useState<boolean>(() => isSoundEnabled());
   const [hapticsOn, setHapticsOn] = useState<boolean>(() => isHapticsEnabled());
   const [mobileHudOpen, setMobileHudOpen] = useState(false);
+  const [showLore, setShowLore] = useState(false);
 
   // Speedometer Telemetry
   const recentSlideTimes = useRef<number[]>([]);
@@ -548,7 +551,7 @@ export default function App() {
   if (screen === 'title') {
     const cfg = dailyConfig(today);
     return (
-      <Shell>
+      <Shell modal={showLore && <OriginLoreModal dossier={FIFTEEN_PUZZLE_LORE} onClose={() => setShowLore(false)} />}>
         <div className="text-center">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-400/30 text-amber-300 text-xs font-semibold uppercase tracking-wider mb-2">
             <span>⚙️ 奢華典藏機械推盤</span>
@@ -561,6 +564,17 @@ export default function App() {
           <p className="text-xs sm:text-sm text-slate-300 text-center max-w-md mt-1">
             立體機械雕刻・曼哈頓熱力光暈・滑動衝刺波與即時時速儀表
           </p>
+          <div className="mt-3 flex justify-center">
+            <button
+              type="button"
+              onClick={() => setShowLore(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border border-amber-400/50 bg-amber-500/15 hover:bg-amber-500/25 text-amber-200 text-xs font-bold transition-all shadow-md touch-manipulation min-h-[44px]"
+              aria-label="由來與決策心法"
+            >
+              <span>📜</span>
+              <span>由來與決策心法</span>
+            </button>
+          </div>
         </div>
 
         {/* Board & Theme Settings */}
@@ -753,7 +767,10 @@ export default function App() {
   const parDelta = moves - s.optimal;
 
   return (
-    <Shell onBackToTitle={() => setScreen('title')}>
+    <Shell
+      onBackToTitle={() => setScreen('title')}
+      modal={showLore && <OriginLoreModal dossier={FIFTEEN_PUZZLE_LORE} onClose={() => setShowLore(false)} />}
+    >
       <div className="w-full flex flex-col items-center gap-3">
         {/* Header Title & Tag */}
         <div className="text-center">
@@ -766,9 +783,21 @@ export default function App() {
             <span>•</span>
             <span className="text-amber-300">{THEME_CONFIGS[theme].name}</span>
           </div>
-          <h1 className="text-xl sm:text-2xl font-extrabold tracking-wide text-white drop-shadow-sm">
-            {s.stageIndex != null ? CAMPAIGN_STAGES[s.stageIndex]?.name : '數字推盤'}
-          </h1>
+          <div className="flex items-center justify-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-extrabold tracking-wide text-white drop-shadow-sm">
+              {s.stageIndex != null ? CAMPAIGN_STAGES[s.stageIndex]?.name : '數字推盤'}
+            </h1>
+            <button
+              type="button"
+              onClick={() => setShowLore(true)}
+              className="px-2.5 py-1 rounded-xl border border-amber-400/40 bg-slate-900/80 hover:bg-slate-800 text-amber-200 text-xs font-semibold inline-flex items-center gap-1 touch-manipulation min-h-[44px]"
+              aria-label="由來與決策心法"
+              title="由來與決策心法"
+            >
+              <span>📜</span>
+              <span>由來與心法</span>
+            </button>
+          </div>
         </div>
 
         {/* Mobile HUD Toggle & Bar (Visible under 1024px) */}
@@ -1267,7 +1296,15 @@ export default function App() {
   );
 }
 
-function Shell({ children, onBackToTitle }: { children: ReactNode; onBackToTitle?: () => void }): ReactElement {
+function Shell({
+  children,
+  onBackToTitle,
+  modal,
+}: {
+  children: ReactNode;
+  onBackToTitle?: () => void;
+  modal?: ReactNode;
+}): ReactElement {
   return (
     <div
       className="min-h-screen flex flex-col items-center justify-center p-4 gap-4"
@@ -1283,6 +1320,7 @@ function Shell({ children, onBackToTitle }: { children: ReactNode; onBackToTitle
     >
       <BackToMenu onBackToTitle={onBackToTitle} />
       {children}
+      {modal}
     </div>
   );
 }

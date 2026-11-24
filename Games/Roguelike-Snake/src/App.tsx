@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { haptic, shake } from '@clubhouse/shared/juice';
+import { OriginLoreModal } from '@clubhouse/shared/OriginLoreModal';
+import { ROGUELIKE_SNAKE_LORE } from '@clubhouse/shared/originLoreData';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { ScoreFlash } from '@clubhouse/shared/ScoreFlash';
 import {
@@ -184,6 +186,7 @@ export default function App() {
   );
   const [shareCopied, setShareCopied] = useState(false);
   const [mobileDossierOpen, setMobileDossierOpen] = useState(false);
+  const [showLore, setShowLore] = useState(false);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -627,7 +630,11 @@ export default function App() {
           onStart={handleTitleStart}
           onStartChallenge={startChallenge}
           onSelectBuild={handleSelectBuild}
+          onOpenLore={() => setShowLore(true)}
         />
+        {showLore && (
+          <OriginLoreModal dossier={ROGUELIKE_SNAKE_LORE} onClose={() => setShowLore(false)} />
+        )}
       </div>
     );
   }
@@ -753,7 +760,7 @@ export default function App() {
             />
           </div>
 
-          <Hud hud={hud} seedLabel={seedLabel} />
+          <Hud hud={hud} seedLabel={seedLabel} onOpenLore={() => setShowLore(true)} />
 
           <div
             className={`relative mt-3 w-full ${floorPulse ? 'snake-floor-pulse' : ''}`}
@@ -1065,6 +1072,10 @@ export default function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {showLore && (
+        <OriginLoreModal dossier={ROGUELIKE_SNAKE_LORE} onClose={() => setShowLore(false)} />
       )}
     </div>
   );

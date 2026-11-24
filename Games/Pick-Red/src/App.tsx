@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
+import { OriginLoreModal } from '@clubhouse/shared/OriginLoreModal';
+import { PICK_RED_LORE } from '@clubhouse/shared/originLoreData';
 import { haptic, particles, shake } from '@clubhouse/shared/juice';
 import {
   playCapture,
@@ -155,6 +157,7 @@ export default function App(): React.ReactElement {
   const [resumeAvailable, setResumeAvailable] = useState(false);
   const [captureBurst, setCaptureBurst] = useState(0);
   const [showWings, setShowWings] = useState(true);
+  const [showLore, setShowLore] = useState(false);
   const [activeStrike, setActiveStrike] = useState<StrikeData | null>(null);
   const [setupTab, setSetupTab] = useState<SetupTab>('play');
   const [ladder, setLadder] = useState<LadderProgress>(EMPTY_LADDER);
@@ -835,9 +838,13 @@ export default function App(): React.ReactElement {
         return;
       }
 
-      // Deselect: Escape
+      // Deselect or close lore modal: Escape
       if (e.key === 'Escape') {
         e.preventDefault();
+        if (showLore) {
+          setShowLore(false);
+          return;
+        }
         setSelected(null);
         setHint(null);
       }
@@ -862,25 +869,31 @@ export default function App(): React.ReactElement {
 
   if (screen === 'setup') {
     return (
-      <Setup
-        config={config}
-        setConfig={setConfig}
-        seedInput={seedInput}
-        setSeedInput={setSeedInput}
-        stats={stats}
-        resumeAvailable={resumeAvailable}
-        setupTab={setupTab}
-        setSetupTab={setSetupTab}
-        ladder={ladder}
-        dailyDate={dailyDate}
-        dailyProgress={dailyProgress}
-        shareCopied={shareCopied}
-        onShareDaily={handleDailyShare}
-        onStart={() => startMatch({ ...config, seedCode: seedInput, ladderOpponentId: null })}
-        onStartDaily={startDaily}
-        onStartLadder={startLadder}
-        onResume={resumeMatch}
-      />
+      <>
+        <Setup
+          config={config}
+          setConfig={setConfig}
+          seedInput={seedInput}
+          setSeedInput={setSeedInput}
+          stats={stats}
+          resumeAvailable={resumeAvailable}
+          setupTab={setupTab}
+          setSetupTab={setSetupTab}
+          ladder={ladder}
+          dailyDate={dailyDate}
+          dailyProgress={dailyProgress}
+          shareCopied={shareCopied}
+          onShareDaily={handleDailyShare}
+          onStart={() => startMatch({ ...config, seedCode: seedInput, ladderOpponentId: null })}
+          onStartDaily={startDaily}
+          onStartLadder={startLadder}
+          onResume={resumeMatch}
+          onOpenLore={() => setShowLore(true)}
+        />
+        {showLore && (
+          <OriginLoreModal dossier={PICK_RED_LORE} onClose={() => setShowLore(false)} />
+        )}
+      </>
     );
   }
 
@@ -923,6 +936,16 @@ export default function App(): React.ReactElement {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowLore(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-emerald-500/40 bg-emerald-950/60 hover:bg-emerald-900/70 text-xs font-bold text-emerald-200 transition-colors touch-manipulation min-h-[44px]"
+              aria-label="由來與規則圖鑑"
+              title="由來與規則圖鑑"
+            >
+              <span>📜</span>
+              <span>由來與規則</span>
+            </button>
             <button
               type="button"
               onClick={() => setShowWings((prev) => !prev)}
@@ -1198,6 +1221,10 @@ export default function App(): React.ReactElement {
           onComplete={() => setActiveStrike(null)}
         />
       )}
+
+      {showLore && (
+        <OriginLoreModal dossier={PICK_RED_LORE} onClose={() => setShowLore(false)} />
+      )}
     </div>
   );
 }
@@ -1397,6 +1424,7 @@ function Setup({
   onStartDaily,
   onStartLadder,
   onResume,
+  onOpenLore,
 }: {
   config: MatchConfig;
   setConfig: React.Dispatch<React.SetStateAction<MatchConfig>>;
@@ -1415,6 +1443,7 @@ function Setup({
   onStartDaily: () => void;
   onStartLadder: (index: number) => void;
   onResume: () => void;
+  onOpenLore: () => void;
 }): React.ReactElement {
   const { rules } = config;
   const patchRules = (patch: Partial<HouseRules>) =>
@@ -1448,6 +1477,17 @@ function Setup({
           <p className="text-emerald-200/60 text-sm mt-1">
             單局・系列賽・每日牌桌 · 湊十撿牌，只有紅牌算分
           </p>
+          <div className="mt-3 flex justify-center">
+            <button
+              type="button"
+              onClick={onOpenLore}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-emerald-400/50 bg-emerald-950/70 hover:bg-emerald-900/80 text-emerald-200 text-xs font-bold transition-all shadow-md touch-manipulation min-h-[44px]"
+              aria-label="文化源流與規則圖鑑"
+            >
+              <span>📜</span>
+              <span>由來與規則圖鑑</span>
+            </button>
+          </div>
         </header>
 
         <div className="flex gap-2" role="tablist" aria-label="選單">
