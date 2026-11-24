@@ -16,9 +16,14 @@ export const TestTubeRack: React.FC<TestTubeRackProps> = ({ children }) => {
         {children}
       </div>
 
-      {/* Wooden / Brass Test Tube Rack Base */}
-      <div className="w-full max-w-md h-3.5 bg-gradient-to-r from-[#2c1d11] via-[#4a3321] to-[#2c1d11] rounded-full border-t border-amber-200/30 shadow-[0_4px_12px_rgba(0,0,0,0.6)] flex items-center justify-around px-4 pointer-events-none -mt-1 z-0">
-        <div className="w-full h-[1px] bg-white/10" />
+      {/* Wooden / Brass Test Tube Rack Base with tactile mahogany texture */}
+      <div
+        className="w-full max-w-md h-4 rounded-full border-t border-amber-200/40 shadow-[0_4px_16px_rgba(0,0,0,0.7)] flex items-center justify-around px-4 pointer-events-none -mt-1 z-0 bg-cover bg-center"
+        style={{
+          backgroundImage: `url(${import.meta.env.BASE_URL ?? '/'}rack-wood.jpg)`,
+        }}
+      >
+        <div className="w-full h-[1px] bg-white/20" />
       </div>
     </div>
   );

@@ -44,13 +44,32 @@ export function GMDossier({ state, className = '' }: Props): React.ReactElement 
           <span className="font-mono text-[11px] font-bold text-slate-400">{club?.name}</span>
         </div>
 
-        <div className="mt-3 flex items-baseline justify-between">
-          <div>
-            <h3 className="text-lg font-black text-slate-100">{state.gmName}</h3>
-            <p className="text-[11px] text-slate-400">
-              生涯戰績 <span className="font-mono font-bold text-slate-200">{totalWins}勝 {totalLosses}敗</span>
-              <span className="ml-1 text-sky-300 font-mono">({winRate.toFixed(1)}%)</span>
-            </p>
+        <div className="mt-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <img
+              src={`${import.meta.env.BASE_URL}staff/gm.jpg`}
+              alt="GM"
+              className="w-11 h-11 rounded-full border border-sky-400/40 object-cover shadow"
+            />
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-black text-slate-100">{state.gmName}</h3>
+                {titles > 0 && (
+                  <span className="flex items-center gap-1 text-xs text-amber-300 font-bold">
+                    <img
+                      src={`${import.meta.env.BASE_URL}trophy.jpg`}
+                      alt="Trophy"
+                      className="w-4 h-4 object-contain inline-block"
+                    />
+                    {titles}冠
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-400">
+                生涯戰績 <span className="font-mono font-bold text-slate-200">{totalWins}勝 {totalLosses}敗</span>
+                <span className="ml-1 text-sky-300 font-mono">({winRate.toFixed(1)}%)</span>
+              </p>
+            </div>
           </div>
           <div className="text-right">
             <span className="text-[10px] text-slate-500 block">即時王朝評級</span>

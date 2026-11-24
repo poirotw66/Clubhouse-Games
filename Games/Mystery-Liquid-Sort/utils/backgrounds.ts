@@ -4,7 +4,7 @@
  */
 
 /** Vite base-aware public asset path (works under GitHub Pages subpaths). */
-function publicAsset(path: string): string {
+export function publicAsset(path: string): string {
     const base = import.meta.env.BASE_URL ?? '/';
     const normalized = path.replace(/^\//, '');
     return `${base}${normalized}`;

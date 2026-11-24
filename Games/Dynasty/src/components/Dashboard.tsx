@@ -45,9 +45,16 @@ export function Dashboard({ state }: { state: GameState }): React.ReactElement {
 
   return (
     <section className="dy-card p-4">
-      <div className="flex items-baseline justify-between gap-2">
-        <h2 className="text-sm font-bold text-slate-100">{team.name}</h2>
-        <p className="text-[11px] text-slate-400">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <img
+            src={`${import.meta.env.BASE_URL}clubs/${team.id}.jpg`}
+            alt={team.name}
+            className="w-7 h-7 rounded-full border border-emerald-500/30 object-cover shadow-sm flex-none"
+          />
+          <h2 className="text-sm font-bold text-slate-100 truncate">{team.name}</h2>
+        </div>
+        <p className="text-[11px] text-slate-400 shrink-0">
           任期 {Math.min(state.seasonIndex + 1, TENURE)}/{TENURE} 年・{state.year}
         </p>
       </div>

@@ -144,10 +144,10 @@ export function TitleScreen({
               <span className="flex items-baseline justify-between gap-2">
                 <span className="flex items-center gap-2 min-w-0">
                   <img
-                    src={`${import.meta.env.BASE_URL}clubs/${club.id}.svg`}
+                    src={`${import.meta.env.BASE_URL}clubs/${club.id}.jpg`}
                     alt={club.name}
                     aria-hidden="true"
-                    className="w-5 h-5 flex-none"
+                    className="w-8 h-8 rounded-lg flex-none border border-emerald-400/30 object-cover shadow-sm"
                   />
                   <span className="text-sm font-bold text-slate-100 truncate">{club.name}</span>
                 </span>

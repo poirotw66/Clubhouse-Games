@@ -108,8 +108,13 @@ export function ChromaWheelDial({
             boxShadow: `0 0 35px hsl(${color.h}, 90%, 50%, 0.35), inset 0 0 15px rgba(0,0,0,0.8)`,
           }}
         >
-          {/* Inner masking ring */}
-          <div className="w-full h-full rounded-full bg-[#120f0d] p-3 flex items-center justify-center border border-white/10">
+          {/* Inner masking ring with tactile glass dial texture */}
+          <div
+            className="w-full h-full rounded-full bg-[#120f0d] p-3 flex items-center justify-center border border-white/10 bg-cover bg-center"
+            style={{
+              backgroundImage: `url(${import.meta.env.BASE_URL}dial-glass.jpg)`,
+            }}
+          >
             {/* Core Swatch */}
             <motion.div
               animate={{

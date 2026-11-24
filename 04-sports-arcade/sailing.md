@@ -105,6 +105,22 @@
 4. **極速重試與零延遲再航（gameplay-ux-009 Rapid Retry）**：
    - 透過 `@clubhouse/shared/resultOverlayDom` 原生監聽鍵盤事件，在結算彈窗出現時支援 <kbd>Space</kbd>、<kbd>Enter</kbd> 或 <kbd>R</kbd> 鍵秒速開啟下一航線或再航一趟。
 
+## 櫻井政博風格視覺美術與美洲盃帆船重繪（Sakurai Art Design & Wave 15 Visual Assets）
+
+本作在第 15 波美術優化中，全面落實櫻井政博航行動態辨識與美洲盃帆船競技賽材質原則：
+
+- **美洲盃沿海錦標賽全景主視覺（skill-gfx-013 & skill-gfx-007）**：繪製 1350×900 錦標賽主視覺（`menu-bg.jpg`），描繪遠方海角燈塔、深邃海平線、Gerstner 白浪滔滔翻湧浪花與破浪前行的雙桅競技快艇。
+- **高階賽事柚木甲板 PBR 貼圖（skill-gfx-004 Luxury Marine Teak Deck）**：繪製 1024×1024 高級遊艇防滑天然柚木甲板材質（`textures/deck.png`），具備深黑防水填縫膠條與天然耐磨木紋光澤。
+- **高頻微焦散海面法線貼圖（skill-gfx-004 Ocean Micro-Caustics & Ripples）**：繪製 1024×1024 高頻海洋微幾何水波擾動與焦散碎浪貼圖（`textures/ripples.png`），大幅提升陽光斜照下的水面波光粼粼質感。
+- **碳纖維防撕裂高科技賽帆貼圖（skill-gfx-001 High-Tech Carbon Ripstop Sail）**：繪製 1024×1024 賽事級碳纖維防撕裂菱格網紋與克維拉（Kevlar）荷載弧線編織紋理貼圖（`textures/sail.png`）。
+- **2048 超寬全景沿海雲層天空穹頂（skill-gfx-001 Atmospheric Panoramic Sky）**：繪製 2048×1024 超廣角全景天空穹頂貼圖（`textures/sky.png`），描繪由深藍穹頂漸變至水天一色的霞光海平線與綿密積雲。
+- **海灣名宿舵手與海灣盃冠軍金盃肖像陣容（skill-gfx-001 Regatta Skipper Roster）**：
+  - 船長（`portraits/player.jpg`，玩家領航舵手、防暴雨深海風衣與黃銅船用羅盤，朱印「航」）
+  - 微風（`portraits/breeze.jpg`，沉著冷靜的戰術佈局舵手、輕便青藍防風背心，朱印「微」）
+  - 橫風手（`portraits/reach.jpg`，強勢搶風的極速好手、亮金競速安全挽具，朱印「疾」）
+  - 烈風（`portraits/gale.jpg`，迎戰狂風暴雨的資深老船長、重裝暗紅暴雨吊帶褲，朱印「烈」）
+  - 海灣盃金盃（`portraits/regatta-cup.jpg`，精雕雙耳鍍金帆船榮譽錦標盃與黑檀木基座，朱印「盃」）
+
 ## 參考來源
 
 - 帆船繞標（triangular / windward-leeward）常見賽制
