@@ -159,6 +159,15 @@
 | **觸控與操作** | 雙模式適配：寬螢幕桌面展開左右雙翼戰術座艙；行動端自適應收合雙翼座艙，保持純粹推幣視野。台面上方觸控橫條：手指觸控滑動或點擊任意橫向位置，投幣漏斗即時平滑跟隨並完成落幣。底部觸控盤面：直覺切換 5 款特殊幣種、暫停／繼續選單、收藏櫃彈窗與重新開始。HUD 搭載雙倍激進推板切換鈕（惡魔之釜高額下注模式），具備餘額 < 20 守衛禁按保護。相關實作請見：[`src/App.tsx`](../Games/Coin-Cascade/src/App.tsx)、[`src/components/GameCanvas.tsx`](../Games/Coin-Cascade/src/components/GameCanvas.tsx)。 |
 | **驗證腳本** | `npm run lint -w coin-cascade`（TypeScript 嚴格型別檢查 0 錯誤）與 `npm run check -w coin-cascade` → [`scripts/self-check.ts`](../Games/Coin-Cascade/scripts/self-check.ts)（1,625 行深度測試，31 項全面斷言）：涵蓋推板物理週期、正弦速度、三角波加速度與各幣種邊緣懸垂臨界值（normal, heavy, ball, magnet, trigger）；側溝損耗（Gutter Loss）vs 出幣獎勵槽（Prize Chute）在三大台面（classic, peg-alley, spring-tide）的 RTP 數值邊界（35%～115% 守衛帶）與防死局保證；幸運輪盤迷你遊戲（Wheel Spin Mini-game）彩池連鎖觸發、乘數疊加（Fever 2× + 潮湧 1.5× + 輪盤 2～10× = 最高 30× MEGA）與潮幣結算轉換；離線閒置代幣補充（Idle Credit Replenishment）上限與單調遞增算術、Asia/Taipei 台北時區每日登入 7 天階梯獎勵與連勝判定；懸垂崩塌雷達（Cliff Danger Radar）與狂熱超頻（Fever Overdrive）狀態機生命週期；惡魔之釜雙倍激進推板（Fiend's Push，2X 投幣消耗、1.35X 推板速度、2X 獎勵得分、側溝沒收、餘額 < 20 安全守衛）與雪崩物理機台震動強度階梯（1.6 ~ 2.4）。 |
 
+## 櫻井政博風格視覺美術與實體機台材質重繪（Sakurai Art Design & Wave 14 Visual Assets）
+
+本作在第 14 波美術優化中，全面落實櫻井政博視覺第一眼辨識與嘉年華實體機台材質原則：
+
+- **霓虹狂歡嘉年華宮殿主視覺（skill-gfx-013 & skill-gfx-007）**：繪製 1350×900 復古街機推幣機主視覺（`title-bg.jpg`），描繪璀璨白熾燈泡陣列滾動字條（「COIN CASCADE」）、金色硬幣傾瀉噴泉、紫粉與青藍交織聚光燈、朱印「潮」與「金」。
+- **航太級拉絲鉻鋼推板貼圖（skill-gfx-004 Brushed Chrome Pusher Texture）**：升級 1024×1024 物理推板金屬材質（`metal.jpg`），具備水平微細拉絲金屬紋理、柱狀高光反射帶、倒角邊緣與沉頭六角防鬆螺栓。
+- **奢華桃花心木實木底座與壓克力光導滑道（skill-gfx-004 Luxury Hardwood Shelf）**：升級 1024×1024 推幣機底板貼圖（`shelf.jpg`），具備深邃紅褐色桃花心木木紋、雷射雕刻金黃刻度導線、邊緣內嵌粉紅／天藍壓克力邊緣光導管與黃銅防撞底條。
+- **高浮雕 3D 金幣紀念勳章貼圖（skill-gfx-001 High-Relief Arcade Medallion）**：升級 512×512 實體街機代幣貼圖（`coin-gold.jpg`），具備 72 齒滾花精密切邊、內環珍珠微珠圈、八角立體切面星芒徽章與中央朱印「幣」，全面提升出幣撞擊與堆疊之光澤感。
+
 ## 實作結構
 
 - 專案根目錄：[`Games/Coin-Cascade/`](../Games/Coin-Cascade/)

@@ -193,6 +193,29 @@
 | **美術設計與櫻井原則（Art & Sakurai Principles）** | 全面貫徹櫻井政博視覺原則：**剪影優先識別（skill-gfx-013 Silhouette-First Readability）**（6 大防禦塔全數採用 1024×1024 獨立高解析度蒸氣龐克美術材質，外廓形體極具差異；敵軍地面圓形代幣 vs 飛行菱形代幣形成本質級形狀區隔）；**光源與立體厚度（skill-gfx-001 Paint the Light）**（各單位具備角色特徵定向邊緣光 Rim Lighting，首領具備動態警戒脈衝光圈）；**功能優先於裝飾（skill-gfx-002 Readability Before Decoration）**（戰場格盤圓角裁切消除方塊生硬感，選取具備雙重高亮琥珀邊框，塔資訊面板呈現高畫質工坊立繪）；**統一風格語意（skill-gfx-007 Unified Stylized Art Direction）**（蒸氣龐克黃銅、暗鐵、鉚釘、冷凝管與齒輪連貫風格）。相關實作請見：[`public/towers/`](../Games/Clockwork-Keep/public/towers/)、[`public/enemies/`](../Games/Clockwork-Keep/public/enemies/)、[`src/components/Battlefield.tsx`](../Games/Clockwork-Keep/src/components/Battlefield.tsx)、[`src/App.tsx`](../Games/Clockwork-Keep/src/App.tsx)。 |
 | **驗證腳本（Check）** | `npm run lint -w clockwork-keep`（TypeScript 零錯誤）與 `npm run check -w clockwork-keep`（合計 6 大純邏輯無頭驗證腳本，測試代碼量達 **1,672 行**，遠超 1,350 行門檻）：[`check-pathing.mjs`](../Games/Clockwork-Keep/src/check-pathing.mjs)（BFS 最短路徑正確性、封死出口驗證不扣金幣、動態蛇形迴廊延展無死角、雙入口地圖防死局封鎖不變量、A* 容許式與一致性啟發式檢驗、飛行單位無視迷宮直行）；[`check-combat.mjs`](../Games/Clockwork-Keep/src/check-combat.mjs)（固定減傷護甲底限、減速取最強不相乘疊加、電磁線圈最多連鎖 3 目標、距離出口最近鎖敵優先序、發條超頻與主發條手動上發條機制）；[`check-economy.mjs`](../Games/Clockwork-Keep/src/check-economy.mjs)（強行加壓波次重疊定價、準備階段開波免費不變量、擊殺金幣獎勵、無盡模式血量複利成長與首領循環、70% 廢料回收底線、磨損廢料遞減折算、防禦塔維修成本與回收決策、各升級階層 DPS/金幣邊際收益、三檔難度生命損失階梯 0/8/13 嚴格遞增雙邊防護）；[`check-missions.mjs`](../Games/Clockwork-Keep/src/check-missions.mjs)（10 則任務限制條件、禁售塔與限塔防護、進度前沿解鎖守衛、次要約束目標驗證、6 大分支成就解鎖判定）；[`check-branches.mjs`](../Games/Clockwork-Keep/src/check-branches.mjs)（6 大塔互斥分支 A/B 戰術屬性差分、分支 B 解鎖條件、4 大進階地圖岩塊拓撲全入口連通、每日挑戰 Asia/Taipei 日期決定性種子）；[`check-torque.mjs`](../Games/Clockwork-Keep/src/check-torque.mjs)（齒輪傳動比計算、角速度轉向傳播與中間惰輪性質、扭矩傳遞機械利益與 5% 摩擦損耗累積衰減、機械功率守恆定理、平面齒輪網 BFS 拓撲傳播、偶數環順暢嚙合 vs 奇數環機械卡死 jam 碰撞偵測、防禦塔扭矩攻速增益計算）。 |
 
+## 櫻井政博風格視覺美術與戰場貼圖重繪（Sakurai Art Design & Wave 14 Visual Assets）
+
+本作在第 14 波美術優化中，全面落實櫻井政博視覺第一眼辨識與蒸氣龐克發條材質原則：
+
+- **維多利亞蒸氣工坊與發條天際線主視覺（skill-gfx-013 & skill-gfx-007）**：繪製 1350×900 蒸氣龐克鐘樓觀測台主視覺（`setup-bg.jpg`），描繪深邃黃昏暮色、高聳哥德式拱窗、黃銅齒輪傳動組、壓力計與蒸氣管道、橡木繪圖桌藍圖與真空管燈光，並附專屬朱印「堡」。
+- **高解析度鉚釘鋼板機械地磚（skill-gfx-004 Mechanical Paver Grid）**：升級 1024×1024 模組化無縫地磚（`board-floor.jpg`），具備 8×8 機械防滑鋼板、內嵌齒輪機構、蒸氣散熱格柵、四角鉚釘與琥珀／青藍導電管線。
+- **六座 1024×1024 獨立高解析度防禦塔圖標（skill-gfx-001 Crystalline Machine Towers）**：
+  - 弩砲機關（`towers/crossbow.jpg`，雙反曲複合鋼弓、張力齒輪盤與黃金飛矢，朱印「弩」）
+  - 絞肉齒輪（`towers/grinder.jpg`，重鍛鋼製齧合雙齒輪與火花飛濺，朱印「齒」）
+  - 極寒霜晶（`towers/frost.jpg`，黃銅冷凝容器、青藍凍結晶體與螺旋冷媒管，朱印「霜」）
+  - 泰斯拉電圈（`towers/coil.jpg`，梯級感應線圈、球型銀質放電極與紫青雷弧，朱印「雷」）
+  - 重裝蒸汽槌（`towers/hammer.jpg`，氣動蒸氣鍛錘、爐火高熱與重型鐵砧，朱印「槌」）
+  - 高爆迫擊砲（`towers/mortar.jpg`，重型膛線青銅迫擊砲、仰角齒輪扇區與彈藥滑槽，朱印「砲」）
+- **八種 512×512 特色發條敵軍圖鑑肖像（skill-gfx-013 Distinct Silhouettes）**：
+  - 發條步兵（`enemies/grunt.jpg`，黃銅圓頂頭盔與背部發條鑰匙，朱印「兵」）
+  - 刺客發條鼠（`enemies/runner.jpg`，流線型青銅外殼與鋒利耳刀，朱印「捷」）
+  - 鐵甲巨像（`enemies/ironclad.jpg`，鉚釘黑鐵裝甲與液壓肩甲，朱印「甲」）
+  - 滑翔飛行器（`enemies/kite.jpg`，翼展帆布撲翼機與機頭螺旋槳，朱印「翼」）
+  - 齒輪甲蟲（`enemies/gearbug.jpg`，六足機械蜘蛛與旋轉齒輪背甲，朱印「蛛」）
+  - 高壓蒸汽爆彈（`enemies/bloater.jpg`，膨脹高壓蒸氣球形鍋爐與危險紅針壓力表，朱印「爆」）
+  - 厚殼陸龜機關（`enemies/shellbug.jpg`，半球重疊防禦鋼甲與鐵釘突刺，朱印「盾」）
+  - 泰坦發條領主（`enemies/boss.jpg`，金冠 automaton 指揮官與發光複眼核心，朱印「王」）
+
 ## 參考與備註
 
 - 築迷宮式塔防（maze / mazing tower defense）為公開的玩法類型，本作規則與數值均為原創設計。

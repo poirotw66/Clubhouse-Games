@@ -144,6 +144,30 @@
 | Touch | 螢幕左右分區觸控引刀與放開拔刀、雙人模式左右同機對決觸控（P1/P2）、行動端頂部戰術速報條與滑入式左右翼戰術抽屜 |
 | Check | `npm run check` → `check-instant-flash.mjs`（`node --experimental-strip-types` 原生導入 TS 模組，驗證 0-6 難度階梯時間窗、左右斬判定、佯攻看破與提前放刀懲罰、九段拔刀段位晉陞、8 位劍豪解鎖、Asia/Taipei 每日種子與連勝） |
 
+## 櫻井政博風格視覺美術與道場劍客重繪（Sakurai Art Design & Wave 14 Visual Assets）
+
+本作在第 14 波美術優化中，全面落實櫻井政博視覺第一眼辨識與浮世繪居合張力原則：
+
+- **黃昏暮色道場與金箔雲紋主視覺（skill-gfx-013 & skill-gfx-007）**：繪製 1350×900 傳統居合武道場主視覺（`dojo-bg.jpg`），描繪穿透障子紙門的夕陽金暉、幽黑竹林剪影、大和繪金箔雲紋、壁龕掛軸「一閃」書法與朱印「劍」，營造凝神聚氣的拔刀對決氛圍。
+- **深色檜木地板與榻榻米邊界（skill-gfx-004 Dojo Timber & Tatami Ground）**：繪製 1350×900 檜木道場地面（`floor.jpg`），具備深邃漆木光澤倒影、木質紋理與深青藍織錦包邊榻榻米緣。
+- **居合劍客與暗影對手武士立繪（skill-gfx-001 Samurai Duelist Sprites）**：
+  - 拔刀劍豪（`player.jpg` & `opponents/player.jpg`，深藍行燈袴、白色旅羽織、手按刀柄之居合待機姿態，朱印「斬」）
+  - 暗影武士（`enemy.jpg`，赤紅煞氣鬥篷與灼熱目光之挑戰者剪影）
+- **八位名冊劍豪 512×512 肖像與 600×900 對決立繪（skill-gfx-013 Duelist Roster）**：
+  - 見習浪人（`opponents/ronin.jpg` & `opponents/ronin-sprite.jpg`，斗笠草履、樸實木刀與沉穩架式，朱印「浪」）
+  - 誘餌影（`opponents/bait.jpg` & `opponents/bait-sprite.jpg`，暗黑夜行忍者、雙重煙幕包與虛實假招，朱印「影」）
+  - 沉著蓄力客（`opponents/delay.jpg` & `opponents/delay-sprite.jpg`，金角兜盔黑鐵胴甲、雙手後撤之長野太刀延遲斬，朱印「蓄」）
+  - 疾風狂刀（`opponents/surge.jpg` & `opponents/surge-sprite.jpg`，翠綠風行羽織、雙持短刀與旋轉風刃氣流，朱印「風」）
+  - 鏡像倒影（`opponents/mirror.jpg` & `opponents/mirror-sprite.jpg`，銀白和服、白髮能面與反射刀光，朱印「鏡」）
+  - 陰陽雙子（`opponents/twin.jpg` & `opponents/twin-sprite.jpg`，紅白雙色對稱武服、雙刀十字連擊，朱印「雙」）
+  - 混亂狂僧（`opponents/chaos.jpg` & `opponents/chaos-sprite.jpg`，狂亂長髮修驗山伏、錫杖寶珠與無序步法，朱印「狂」）
+  - 居合大師（`opponents/master.jpg` & `opponents/master-sprite.jpg`，金絲織錦羽織、白眉劍聖神威金芒刀氣，朱印「極」）
+- **四款高對比飛射暗器貼圖（skill-gfx-001 Ninja Projectiles）**：
+  - 手裏劍（`projectiles/shuriken.jpg`，鍛造四角烏鋼飛鏢、鋒利倒角與中心旋轉空孔）
+  - 苦無（`projectiles/kunai.jpg`，菱形破甲鋼刃、防滑纏繩握把與赤紅流蘇圈）
+  - 火藥炸彈（`projectiles/bomb.jpg`，鑄鐵球形焙烙玉地雷、燃燒引信火花）
+  - 鎖鐮飛刃（`projectiles/sickle.jpg`，新月弧形鐮刀刃、連環鐵鏈軌跡）
+
 ## 實作
 
 - 專案路徑：[Games/Instant-Flash/](../Games/Instant-Flash/)

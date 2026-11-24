@@ -163,6 +163,25 @@
 - **判定**：三回合後 **總分高** 者勝。
 - **平手**：總分相同 → 和局（計入戰績 draws）。
 
+## 櫻井政博風格視覺美術與擂台拳手重繪（Sakurai Art Design & Wave 14 Visual Assets）
+
+本作在第 14 波美術優化中，全面落實櫻井政博視覺第一眼辨識與玩具街機厚重質感原則：
+
+- **錦標賽玩具競技巨蛋天頂主視覺（skill-gfx-013 & skill-gfx-007）**：繪製 1350×900 玩具拳擊錦標賽天際線（`ring-sky.jpg`），描繪深邃夜幕穹頂鋼構桁架、全方位高流明聚光燈束、熱烈歡呼的觀眾席剪影、懸空冠軍計分霓虹燈箱與飄落彩帶彩屑。
+- **高對比專業冠軍擂台畫布地墊（skill-gfx-004 Championship Ring Canvas）**：繪製 1350×900 專業防滑擂台帆布貼圖（`ring-floor.jpg`），具備紅角／藍角對角防撞墊、金黃同心圓與八芒星冠軍徽章、中央朱印「拳」與精確擂台圍繩邊界。
+- **四款玩家可選玩具拳手專屬肖像與全身厚板（skill-gfx-001 Toy Boxer Textures）**：
+  - 藍拳機器人（`portraits/bot.jpg` & `fighters/bot.jpg`，經典鐵皮發條機器人、青藍光感雙眼與彈簧巨拳，朱印「藍」）
+  - 紅絨熊仔（`portraits/bear.jpg` & `fighters/bear.jpg`，縫線紅絲絨泰迪熊、鈕扣雙眼與厚實絨布拳套，朱印「熊」）
+  - 粉風萌兔（`portraits/bunny.jpg` & `fighters/bunny.jpg`，高機動螢光粉紅乙烯膠動作兔、運動護目鏡與雷電天線，朱印「兔」）
+  - 綠暴龍仔（`portraits/dino.jpg` & `fighters/dino.jpg`，厚重綠色紋理膠暴龍、尖齒大嘴與重錘尾巴，朱印「龍」）
+- **六位聯賽 CPU 對手專屬高畫質肖像與全身立繪（skill-gfx-001 League Opponent Roster）**：
+  - 羽絨枕怪（`portraits/opponents/pillow.jpg` & `fighters/opponents/pillow.jpg`，蓬鬆記憶海綿條紋枕、睡眼惺忪與羽毛飛舞，朱印「羽」）
+  - 發條狂徒（`portraits/opponents/rush.jpg` & `fighters/opponents/rush.jpg`，發條敲鈸狂猴、高頻旋轉頂部鑰匙與金屬狂拳，朱印「狂」）
+  - 刺蝟針針（`portraits/opponents/needle.jpg` & `fighters/opponents/needle.jpg`，磁力鋼針刺蝟、防護護目鏡與防穿刺針拳，朱印「針」）
+  - 幻影魔偶（`portraits/opponents/feint.jpg` & `fighters/opponents/feint.jpg`，紫色菱格牽線木偶、詭譎面具與假動作懸線，朱印「影」）
+  - 鐵肚小胖（`portraits/opponents/ironbelly.jpg` & `fighters/opponents/ironbelly.jpg`，鑄鐵存錢筒相撲豬、頂部金幣投槽與重磅鐵拳，朱印「鐵」）
+  - 至尊冠軍王（`portraits/opponents/champ.jpg` & `fighters/opponents/champ.jpg`，電鍍拋光黃金獎盃戰士、紅寶石冠軍腰帶與桂冠光環，朱印「冠」）
+
 ## 參考來源
 
 - Wikipedia: Boxing, Boxing video game
