@@ -166,6 +166,14 @@
 | **觸控與操作（Touch）** | 完整行動端虛擬按鈕支援（左移、右移、軟降連續長按、左轉、右轉、瞬間落下、暫存 Hold）；響應式行動端介面：< 768px 自動將雙翼座艙收折為頂部戰術速報條（Tactical Ticker，展示高度、連擊、Tetris 率、B2B）與抽屜式戰術錦囊，確保雙場地對戰視野清晰；桌面端配備電競級鍵盤操作指南 HUD，並實作快速重試機制（Sakurai gameplay-ux-009 Rapid Retry），遊戲結束或系列賽結算時支援 Space / Enter / KeyR 一鍵即時重新開局。 |
 | **驗證腳本（Check）** | `npm run check -w tetris` → `src/check-tetris.mjs`（無瀏覽器依賴純邏輯驗證，擴充至 >1600 行高密度測試）：涵蓋 SRS 旋轉與踢牆表（JLSTZ 與 I 塊各 8 狀態 5 偏移測試）、T-Spin 3 角法則（Full／Mini／第 4 踢升級判定）、Guideline 計分與 B2B 1.5x 加成不變量、Combo 狂熱階級與垃圾公式、五聲音階（C4～E5）頻率映射、Tetris/T-Spin 凱旋消除判定、快速重試按鍵識別、硬降震動強度階梯不變量（1.25 → 2.2）、相殺與佇列推入、CPU 三檔難度與戰術風格決策、BO3 系列賽進程、Sprint 40 行計時與 Ultra 2 分倒數、PPS/LPM 統計、`clubhouse:tetris-best` 記錄持久化、Cheese 挖掘與每日種子確定性。 |
 
+## 櫻井政博風格視覺美術與方塊貼圖重繪（Sakurai Art Design & Tetromino Assets）
+
+本作在第 13 波美術優化中，全面落實櫻井政博視覺第一眼識別與珠寶切面質感原則：
+
+- **新構成主義賽博天際線主視覺（skill-gfx-013 & skill-gfx-007）**：繪製 1350×900 新構成主義俄羅斯方塊霓虹主視覺（`menu-bg.jpg`），描繪深邃午夜青藍暮色、幾何稜角尖塔建築群剪影、動態下落霓虹方塊光跡與雷射網格地平線，並蓋上經典朱印印章「塊」。
+- **高科技碳纖維矩陣井貼圖（skill-gfx-004 Matrix Well Background）**：升級 1080×1620 碳纖維編織矩陣井底圖（`well-bg.jpg`），具備 10×20 隱約微導線、兩側精確高度刻度（1H～20H）與頂部第 16 行（4H 警戒線）高對比深紅警示線。
+- **八款 512×512 晶鑽寶石切面立體方塊貼圖（skill-gfx-001 Crystalline Block Textures）**：全面升級經典 7 種 Tetromino（I 青碧藍、J 鈷藍、L 琥珀橙、O 陽光金、S 翡翠綠、T 紫水晶、Z 烈焰紅）以及新增垃圾行鋼鐵防禦方塊（G 鈦金灰），每款方塊具備 48px 精緻立體斜面（Bevel）、內嵌八角寶石折射面（Diamond Facet）、白金高光邊框與內置微凹手感槽，鈦金方塊更附帶四角工業鉚釘質感，在視網膜螢幕上呈現極致街機珠寶切面光澤。
+
 ## 參考與備註
 
 - 本規格以現代 Tetris Guideline 為參考：10×20 場地、7 種 Tetromino、SRS 旋轉、Hold／Next 等。  

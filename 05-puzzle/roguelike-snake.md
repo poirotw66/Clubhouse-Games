@@ -202,6 +202,19 @@
 | **觸控與操作（Touch）** | 原生觸控手勢滑動（Swipe 轉向）+ 畫面下方虛擬戰術控制器（十字方向鍵、Space 衝刺鍵、E 猛毒脈衝鍵）+ 響應式佈局適配：窄螢幕頂部整合戰術速報條（整合死角警戒、關卡目標、快發脈衝與戰術情報儀展開彈窗） |
 | **驗證腳本（Check）** | `npm run lint -w roguelike-snake`（TypeScript 零錯誤）與 `npm run check -w roguelike-snake` → `scripts/self-check.ts`（>1200 行深度測試：包含櫻井政博打擊感震動、連續進食音階爬升、低血壓迫判定、Rapid Retry 按鍵映射、Ironsnake 規則嚴格鎖定 HP=1 與回血遺物過濾、4 大身分初始屬性與解鎖鏈驗證、猛毒脈衝與首領戰鬥回合計時、地窟種子地形確定性與果實邊界、遺物組合流派綜效、Asia/Taipei 日期格式化與連勝遞迴、6 關手編挑戰包通關邏輯） |
 
+## 櫻井政博風格地牢美術、首領圖鑑與聖物重鑄（Sakurai Art Design & Relic Bestiary Assets）
+
+本作在第 13 波美術優化中，全面落實櫻井政博視覺清晰度與暗黑奇幻手感原則：
+
+- **遠古蛇神祭壇主視覺（skill-gfx-013 & skill-gfx-007）**：繪製 1350×900 地底蛇神密室全景（`title-bg.jpg`），描繪盤繞蛇龍石柱、地底毒火火炬、多重同心蛇紋召喚法陣與從深淵探出之巨蛇神獸，附帶專屬朱印「蛇」。
+- **長苔石板地磚與黑曜石石砌地牢牆面（skill-gfx-004 Flagstone & Obsidian Textures）**：繪製 1024×1024 苔蘚地牢石磚鋪面（`dungeon-floor.jpg`，具備精雕凹槽石縫與古蛇迴旋符印）與 512×512 黑曜石石砌防禦石牆貼圖（`wall.jpg`，帶有微光發光地脈苔痕）。
+- **四大地牢威脅首領圖鑑高畫質立繪（skill-gfx-001 Enemy Bestiary Portraits）**：繪製 512×512 異種威脅圖鑑肖像，內嵌於右翼戰術座艙威脅監控儀，具備鮮明識別度與專屬朱印：
+  - 腐化核心（`enemies/boss.jpg`，深紅異界眼球與觸手，印章「核」）
+  - 幽光游靈（`enemies/wisp.jpg`，青碧浮游幽火，印章「靈」）
+  - 暗影追獵者（`enemies/stalker.jpg`，紫影暗夜毒牙毒蛇，印章「獵」）
+  - 劇毒噴吐者（`enemies/spitter.jpg`，翠綠脹囊酸蝕毒蛇，印章「毒」）
+- **十八款 512×512 傳奇古代聖物圖標（skill-gfx-001 Sacred Relic Icons）**：全面升級遊戲中 18 款核心聖物（金、苦、囊、血、核、音、牙、幻、餮、生、時、磁、癒、蛻、風、棘、霜、躍），每款聖物配備專屬琉璃金絲外框、主題寶石切面與獨特光暈，大幅強化三選一抽卡時之視覺獲得感與探索回饋。
+
 ## 實作
 
 - 專案路徑：[Games/Roguelike-Snake/](../Games/Roguelike-Snake/)

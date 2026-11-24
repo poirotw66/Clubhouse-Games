@@ -110,6 +110,11 @@ export function BoardWell({
             | undefined;
           if (cell === 'G') {
             bg = TETROMINO_COLOR.G;
+            tileStyle = {
+              backgroundImage: `url(${import.meta.env.BASE_URL}blocks/g.jpg)`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+            };
           } else if (cell || isActive) {
             const type = (cell || active?.type) as TetrominoType;
             bg = TETROMINO_COLOR[type];

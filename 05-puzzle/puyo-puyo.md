@@ -149,6 +149,18 @@
 - 結算：自製 `#result-overlay`（**永久 ～** — 靜態無 React／Tailwind；契約對齊 ResultOverlay，見 `docs/GAME-QUALITY-BAR.md`）。
 - 統計鍵：`clubhouse-puyo-stats`（各難度勝負、任務通關與星級、每日最佳／連勝、場地主題、教室完成、生涯最大連鎖）。
 
+### 櫻井政博風格夢幻舞台、角色肖像與果凍氣泡重繪（Sakurai Art Design & Jelly Puyo Assets）
+
+本作在第 13 波美術優化中，全面落實櫻井政博高識別度與彈性果凍觸感原則：
+
+- **夢幻糖果星空舞台主視覺（skill-gfx-013 & skill-gfx-007）**：繪製 1080×1620 夢幻魔法星空競技場背景（`stage-bg.jpg`），描繪紫粉星雲、彩糖迴旋大理石立柱、漂浮星芒與琉璃穹頂拱門，為方塊消除提供高度沉浸而不過度干擾的底圖。
+- **狂熱狂暴爆裂橫幅（skill-gfx-007 Fever Burst Banner）**：繪製 1376×768 狂熱大爆發橫幅（`banner-fever.jpg`），以放射狀金橙烈陽射線、多重衝擊波環與動感手寫書法字體結合朱印印章「狂」，在觸發 MEGA 連鎖時震撼登場。
+- **三大角色動態肖像立繪（skill-gfx-001 Character Roster Portraits）**：為玩家與 CPU 首領繪製 1024×1024 專屬魔法師高畫質肖像，內嵌於對戰框體頂部頭像區，具備第一眼視覺性格與專屬繁體中文印章：
+  - 見習魔導士 亞米特（`characters/player-amit.jpg`，星光法師帽與明亮雙眸，印章「米」）
+  - 占星魔女 阿露（`characters/cpu-witch.jpg`，星象兜帽與俏皮神情，印章「露」）
+  - 暗黑魔王 巴哈姆（`characters/cpu-dark-lord.jpg`，黑曜魔角與狂暴紅芒，印章「霸」）
+- **六款 512×512 彈潤透亮果凍 Puyo 貼圖（skill-gfx-001 Translucent Jelly Puyo Textures）**：全面升級紅、綠、藍、黃、紫以及垃圾石 Puyo，每顆果凍具備水潤通透漸層、立體橢圓弧面、飽滿高光白氣泡、生動表情眼睛與柔和落底環境陰影，垃圾石更帶有逗趣眩暈蚊香眼，大幅提升盤面下落與連鎖消除時之視覺打擊回饋感。
+
 ## 品質門檻對齊
 
 對照 [`docs/GAME-QUALITY-BAR.md`](../docs/GAME-QUALITY-BAR.md)：
