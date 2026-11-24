@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Play, Zap, X, Trophy, Map, ClipboardList, Heart, Layers, Lock, Check, FlaskConical, Timer, Footprints, BookOpen, Flame, Share2, Sparkles, Shield } from 'lucide-react';
+import { OriginLoreModal } from '@clubhouse/shared/OriginLoreModal';
+import { MYSTERY_LIQUID_SORT_LORE } from '@clubhouse/shared/originLoreData';
 import { Bottle } from './Bottle';
 import { Background } from './Background';
 import { BottleData, Color, type QpVariant } from '../types';
@@ -83,6 +85,7 @@ export const Home: React.FC = () => {
   const [showCosmetics, setShowCosmetics] = useState(false);
   const [qpVariant, setQpVariant] = useState<QpVariant>('normal');
   const [showFirstRun, setShowFirstRun] = useState(() => !hasSeenFirstRunGuide());
+  const [showLore, setShowLore] = useState(false);
   const [shareNote, setShareNote] = useState('');
 
     // --- Missions & Coins State ---
@@ -450,6 +453,25 @@ export const Home: React.FC = () => {
                     <Play className="w-5 h-5 md:w-6 md:h-6 text-white/50 group-active:text-white transition-colors" />
                 </button>
 
+                {/* Lore and Rules Dossier Button */}
+                <button
+                    type="button"
+                    onClick={() => setShowLore(true)}
+                    className="touch-target w-full group relative px-4 md:px-6 py-3.5 md:py-4 bg-gradient-to-r from-purple-900/70 to-indigo-950/80 rounded-xl md:rounded-2xl flex items-center justify-between border border-purple-400/40 shadow-lg active:translate-y-0.5 transition-all touch-active"
+                    aria-label="鍊金由來與規則圖鑑"
+                >
+                    <div className="flex items-center gap-3 md:gap-4">
+                        <div className="bg-purple-500/20 p-2 md:p-2.5 rounded-lg md:rounded-xl">
+                            <BookOpen className="w-5 h-5 text-purple-300" />
+                        </div>
+                        <div className="flex flex-col items-start">
+                            <span className="text-base md:text-lg font-bold tracking-wide text-purple-100">鍊金由來與規則圖鑑</span>
+                            <span className="text-purple-300/80 text-[10px] md:text-xs">赫密斯秘儀・不可逆混色法則與精煉心法</span>
+                        </div>
+                    </div>
+                    <span className="text-xs text-purple-300 font-semibold px-2.5 py-1 rounded-lg bg-purple-500/20">查看 ➔</span>
+                </button>
+
             </div>
 
             {/* Footer */}
@@ -459,6 +481,12 @@ export const Home: React.FC = () => {
         </div>
 
         {/* --- MODALS --- */}
+        {showLore && (
+          <OriginLoreModal
+            dossier={MYSTERY_LIQUID_SORT_LORE}
+            onClose={() => setShowLore(false)}
+          />
+        )}
         
         {/* Daily Missions Modal */}
         <DailyMissions 

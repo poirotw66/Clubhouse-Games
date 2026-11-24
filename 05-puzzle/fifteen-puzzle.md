@@ -134,3 +134,10 @@
 - 專案路徑：[Games/Fifteen-Puzzle/](../Games/Fifteen-Puzzle/)
 - 核心：`src/fifteenLogic.ts`、`src/solver.ts`、`src/daily.ts`、`src/campaign.ts`、`src/storage.ts`、`src/mechanicalAudio.ts`
 - UI：`src/App.tsx`、`src/PuzzleBoard.tsx`、`src/index.css`
+
+## 文化源流典故與規則圖解面板（Origin & Lore Dossier）
+
+本專案導入雙分頁「1870 年代數學狂潮與極致解密心法」（`OriginLoreModal`）：
+- **分頁一「文化源流 (Cultural Origin & Lore)」**：1874 年查普曼發明史、1870 年代末席捲歐美的全球滑塊狂熱，以及山姆·洛伊德（Sam Loyd）1,000 美元 14-15 逆序懸賞世紀騙局與置換群奇偶性定理（Parity Theorem）數學不可解性證明。
+- **分頁二「玩法圖解與決策心法 (Rules & Strategy Guide)」**：10 秒新手速成、經典分層剝洋蔥還原心法（第一列、第一行、次外層、最後 2x2 循環還原）、IDA* 與曼哈頓距離熱力光暈、線性衝突（Linear Conflict）計算，以及櫻井政博連動滑動波、SPS 推盤時速儀與連擊心流原則。
+

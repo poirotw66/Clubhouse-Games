@@ -120,4 +120,12 @@
 ## 實作
 
 - 專案路徑：[Games/Koi-Koi/](../Games/Koi-Koi/)
-- 核心：`src/utils/gameLogic.ts`、`src/utils/botAi.ts`、`src/utils/personalities.ts`、`src/utils/yakuCodex.ts`、`src/utils/stats.ts`、`src/utils/tacticalRadar.ts`；UI：`src/App.tsx`、`src/components/TacticalRadarLeftWing.tsx`、`src/components/TacticalRadarRightWing.tsx`、`src/components/TacticalMobileBrief.tsx`、`src/components/KeyboardHud.tsx`、`src/components/YakuCodexModal.tsx`、`src/components/FirstRunGuide.tsx`
+- 核心：`src/utils/gameLogic.ts`、`src/utils/botAi.ts`、`src/utils/personalities.ts`、`src/utils/yakuCodex.ts`、`src/utils/stats.ts`、`src/utils/tacticalRadar.ts`；UI：`src/App.tsx`、`src/components/TacticalRadarLeftWing.tsx`、`src/components/TacticalRadarRightWing.tsx`、`src/components/TacticalMobileBrief.tsx`、`src/components/KeyboardHud.tsx`、`src/components/YakuCodexModal.tsx`、`src/components/RulesModal.tsx`、`src/components/FirstRunGuide.tsx`
+
+## 文化源流典故與規則圖解面板（Origin & Lore Dossier）
+
+本專案升級規則面板為雙分頁「花札十二月令與役種圖鑑」（`OriginLoreModal`）：
+- **分頁一「文化源流 (Cultural Origin & Lore)」**：安土桃山至江戶時代花札躲避幕府賭禁與和歌風雅之紙牌演變史、「來來 (Koi-Koi)」豪賭狂歡哲學，以及傳奇名役（豬鹿蝶、花見酒、月見酒）風物物語。
+- **分頁二「玩法圖解與決策心法 (Rules & Strategy Guide)」**：完整收錄花札十二月令花卉法典（松、梅、櫻、藤、菖蒲、牡丹、萩、芒、菊、紅葉、柳、桐 48 張完整對照）、光/種/短/粕四大位階點數表、主要役種分值，以及櫻井政博博弈天秤「見好就收 vs 來來搏倍率」之風險與期望值決策心法。
+- **手感與賽制設定集成**：保留局況勝分目標與 Juice 特效震動偏好設定分頁。
+

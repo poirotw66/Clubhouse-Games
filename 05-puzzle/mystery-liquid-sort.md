@@ -172,7 +172,14 @@ Home「機制挑戰」入口；6 關新手感機制：
   - 暖橙精油（`reagents/reagent-orange.jpg`，柑橘暖陽日珥精煉油，朱印「橙」）
 - **高解析主題背景全套重製（skill-gfx-007 Thematic Atmosphere Backdrops）**：全套升級重繪 9 組 1350×900 高畫質主題環境背景（鍊金實驗室、霓虹電玩城、深海水族館、夢幻糖果屋、夜景天台、台灣夜市、台北街景、老街巷弄、青翠竹林）。
 
+## 文化源流典故與規則圖解面板（Origin & Lore Dossier）
+
+本專案導入雙分頁「赫密斯鍊金工坊秘錄與試劑精煉圖鑑」（`OriginLoreModal`）：
+- **分頁一「文化源流 (Cultural Origin & Lore)」**：赫密斯秘儀中世紀鍊金術「分而純化（Solve et Coagula）」傳說、試管中的宇宙秩序與空間調度哲學。
+- **分頁二「玩法圖解與決策心法 (Rules & Strategy Guide)」**：10 秒試劑精煉入門、鍊金不可逆混色反應法則（紅+黃=橙、藍+黃=綠、紅+藍=紫）、隱藏層與封印試管破解策略，以及櫻井政博幽靈預覽層（Ghost Projection）與空管槓桿價值心法。
+
 ## 參考來源
 
 - 本專案實作：`Games/Mystery-Liquid-Sort/`
 - 同類型液體排序益智遊戲與 Clubhouse Games 收錄
+

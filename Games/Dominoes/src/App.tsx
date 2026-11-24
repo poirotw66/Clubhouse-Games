@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
+import { OriginLoreModal } from '@clubhouse/shared/OriginLoreModal';
+import { DOMINOES_LORE } from '@clubhouse/shared/originLoreData';
 import { haptic, particles, shake } from '@clubhouse/shared/juice';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { ScoreFlash } from '@clubhouse/shared/ScoreFlash';
@@ -1075,9 +1077,9 @@ export default function App() {
           <button
             type="button"
             onClick={() => setShowRules(true)}
-            className="min-h-[44px] min-w-[44px] p-2 rounded-lg hover:bg-white/10 transition-colors touch-manipulation inline-flex items-center justify-center"
-            title="規則"
-            aria-label="規則"
+            className="min-h-[44px] min-w-[44px] p-2 rounded-lg hover:bg-white/10 transition-colors touch-manipulation inline-flex items-center justify-center text-amber-300 hover:text-amber-200"
+            title="由來與規則圖鑑"
+            aria-label="由來與規則圖鑑"
           >
             <BookOpen className="w-5 h-5" />
           </button>
@@ -1188,6 +1190,15 @@ export default function App() {
           label="每日"
           accent="violet"
         />
+        <button
+          type="button"
+          onClick={() => setShowRules(true)}
+          className="min-h-[44px] px-3.5 py-1.5 rounded-xl border border-amber-400/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-200 text-xs font-bold touch-manipulation transition-colors inline-flex items-center gap-1.5 shadow-sm"
+          title="由來與規則圖鑑"
+        >
+          <BookOpen className="w-4 h-4 text-amber-400" />
+          <span>由來與規則圖鑑</span>
+        </button>
       </div>
 
       {!isDaily && (
@@ -1663,74 +1674,31 @@ export default function App() {
       )}
 
       {showRules && (
-        <div
-          className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-10"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="dominoes-rules-title"
-        >
-          <div className="bg-slate-800 rounded-xl max-w-md max-h-[85vh] overflow-y-auto p-6 text-left">
-            <h2 id="dominoes-rules-title" className="text-lg font-bold mb-3">
-              規則說明（{RULE_LABELS[ruleVariant]}）
-            </h2>
-            <ul className="text-sm text-slate-200 space-y-2 list-disc pl-4">
-              <li>
-                雙六組 28 張牌
-                {isPartners
-                  ? '，四人各 5 張，其餘為牌堆；對家為搭檔，團隊計分。'
-                  : '，每人 7 張，其餘為牌堆。'}
-              </li>
-              <li>輪流出牌：選一張手牌與開放端點點數相同的一邊相接。</li>
-              {isPartners && (
-                <li>
-                  搭檔模式：你與對家 CPU 為一隊，兩側為對手；搭檔會避免堵你需要的點數。
-                </li>
-              )}
-              {isDaily && (
-                <li>
-                  每日挑戰：以台北日期固定發牌，困難 AI，目標 {DAILY_MATCH_TARGET}{' '}
-                  分；可記錄最佳分與連續天數並複製分享。
-                </li>
-              )}
-              {ruleVariant === 'fives' ? (
-                <>
-                  <li>
-                    五倍數（All Fives）：出牌後若所有開放端點點數和為 5
-                    的倍數，立即得該和為分。雙張在端點時計兩倍；第一張雙張為轉軸，四邊可接。
-                  </li>
-                  <li>
-                    一手結束：出完方隊伍得對手手牌點數和（四捨五入到
-                    5）；阻塞時點數較少隊伍得分。
-                  </li>
-                  <li>整場先累積到 {match.target} 分者勝。</li>
-                </>
-              ) : (
-                <>
-                  <li>
-                    {ruleVariant === 'draw'
-                      ? '摸牌制：無法出牌時從牌堆抽牌，直到能出或牌堆剩 2 張；之後才能跳過。'
-                      : '封鎖制：無法出牌時直接跳過（不摸牌）；全員都無法出牌即阻塞結算。'}
-                  </li>
-                  <li>
-                    出完者隊伍得對手手牌點數和；阻塞時點數較少隊伍得分。整場先達{' '}
-                    {match.target} 分勝。
-                  </li>
-                </>
-              )}
-            </ul>
-            <p className="mt-3 text-xs text-slate-400">{RULE_BLURBS[ruleVariant]}</p>
-            <div className="mt-4">
-              <JuiceSettingsPanel />
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowRules(false)}
-              className="mt-4 w-full py-2 rounded-lg bg-blue-600 hover:bg-blue-500 font-medium touch-manipulation min-h-[44px]"
-            >
-              關閉
-            </button>
-          </div>
-        </div>
+        <OriginLoreModal
+          dossier={DOMINOES_LORE}
+          onClose={() => setShowRules(false)}
+          extraTab={{
+            id: 'settings',
+            label: '局況與手感設定',
+            content: (
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-slate-800 bg-slate-900/75 p-4 sm:p-5">
+                  <h3 className="text-base font-bold text-amber-300 mb-2">當前賽制與規則</h3>
+                  <p className="text-sm text-slate-300">
+                    模式：{RULE_LABELS[ruleVariant]} · 目標總分：{match.target} 分
+                  </p>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {RULE_BLURBS[ruleVariant]}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-slate-800 bg-slate-900/75 p-4 sm:p-5">
+                  <h3 className="text-base font-bold text-amber-300 mb-2">手感反饋與特效偏好</h3>
+                  <JuiceSettingsPanel />
+                </div>
+              </div>
+            ),
+          }}
+        />
       )}
 
       {showShortcuts && (

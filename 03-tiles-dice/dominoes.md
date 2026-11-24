@@ -132,3 +132,11 @@
 | **回饋（Feedback）** | 原生 Web Audio 聲學物理合成引擎（`dominoAcoustics.ts`）：骨牌陶瓷微敲擊碰撞聲（Bone Clatter，雙陶瓷共振頻段與 20ms 微反彈物理微敲擊）、實木重扣轟鳴脆響（Table Slam，出雙張與局末絕殺出牌時觸發重低音衝擊波）、牌堆洗牌聲（Boneyard Shuffle，多骨牌桌布翻滾滑動微噪聲）、五倍數純律琶音和弦鐘鳴（All-Fives Arpeggios，依 5/10/15/20/25+ 得分階層動態演奏五聲音階水晶鐘琴琶音）；奢華骨牌工藝視覺（三種高精材質：典藏象牙 Imperial Ivory、皇家黑曜 Royal Obsidian、古董胡桃 Antique Walnut；黃銅防磨中孔轉軸鉚釘 Brass Spinner Rivet，激活時具備專屬光芒與浮雕感；正統橫向雙張排版 Transverse Doubles，水平鏈垂直橫置、垂直臂水平橫置）；局末結算視窗呈現手牌扣分、對手手牌點數吸收、系列賽總比分比對、連勝晉級提示與下一局按鈕。詳見 [`dominoAcoustics.ts`](../Games/Dominoes/src/utils/dominoAcoustics.ts)、[`DominoTile.tsx`](../Games/Dominoes/src/components/DominoTile.tsx) 與 [`App.tsx`](../Games/Dominoes/src/App.tsx)。 |
 | **觸控與操作（Touch）** | 行動端專屬戰術膠囊抽屜（`MobileCockpitDrawer.tsx`），專為直屏與窄螢幕設計，一鍵滑動展開左右翼情資雷達與對手超幾何戰情檔案；直覺雙模觸控，支援點擊選牌後點選目標開放端點，亦支援將骨牌直接拖曳至桌面上對應端點，具備行動端大尺寸點擊熱區；桌面支援完整實體鍵盤快捷鍵（方向鍵／AD 切換手牌、1-4／LRUD 選端點、Space／Enter 確認出牌、P／D 抽牌跳過、C 切換材質、S 切換音效、H 提示、Z／U 悔棋、? 快捷鍵指南面板）。詳見 [`MobileCockpitDrawer.tsx`](../Games/Dominoes/src/components/MobileCockpitDrawer.tsx) 與 [`KeyboardShortcutsModal.tsx`](../Games/Dominoes/src/components/KeyboardShortcutsModal.tsx)。 |
 | **驗證腳本（Check）** | `npm run check -w dominoes` → 執行 Vitest 完整測試套件（90 項單元與進階整合測試，測試代碼總行數達 1,691 行，遠超 1,050 行品質門檻）：全方位覆蓋五倍數跨牌端點計分演算法、橫向雙張 2 倍點數權重與轉軸四臂分支解鎖機制、轉軸鉚釘提升（`promoteDoubleToSpinner`）鏈條逆向重組、牌堆抽牌池消耗邊界守恆（`BONEYARD_LEAVE = 2`）與局末對手手牌吸收計分、封鎖制和局判定（`allBlocked`）與平手裁決不變式、超幾何機率分布公式與鴿巢原理必持牌判定、AI 斷門誘餌與出牌防禦、多局系列賽（100／150／200 分）計分累加與加賽終止條件；`npm run lint -w dominoes` 執行 TypeScript 嚴格型別檢查（`tsc --noEmit`，0 errors）。詳見 [`dominoesAdvanced.test.ts`](../Games/Dominoes/src/__tests__/dominoesAdvanced.test.ts)、[`dominoesLogic.test.ts`](../Games/Dominoes/src/utils/dominoesLogic.test.ts) 與 [`intelligence.test.ts`](../Games/Dominoes/src/utils/intelligence.test.ts)。 |
+
+## 文化源流典故與規則圖解面板（Origin & Lore Dossier）
+
+本專案導入雙分頁「宣和骨牌至歐陸博弈傳奇圖鑑」（`OriginLoreModal`）：
+- **分頁一「文化源流 (Cultural Origin & Lore)」**：從宋代宣和牌牙牌式樣到 18 世紀威尼斯與歐陸傳播史、Domino 黑色兜帽修士外觀命名典故。
+- **分頁二「玩法圖解與決策心法 (Rules & Strategy Guide)」**：10 秒新手速成、五倍數（All Fives）端點計分機制、雙張橫向兩倍計分、首張雙張轉軸（Spinner）四向分支規則、封鎖制阻塞斷門壓制與超幾何算牌戰術，以及櫻井政博留門防守 vs 貪分進攻決策心法。
+- **局況與手感設定集成**：整合即時模式目標與 Web Audio 音效材質偏好設定。
+

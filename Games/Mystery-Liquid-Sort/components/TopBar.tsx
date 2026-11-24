@@ -1,5 +1,5 @@
 import React from 'react';
-import { Settings, Heart } from 'lucide-react';
+import { Settings, Heart, BookOpen } from 'lucide-react';
 import { GameMode } from '../types';
 import { qpDifficultyLabel } from '../constants';
 
@@ -11,6 +11,7 @@ interface TopBarProps {
   packStageName?: string;
   coins: number;
   onSettings: () => void;
+  onOpenLore?: () => void;
   /** Optional QP challenge countdown / move budget line. */
   challengeStatus?: string;
 }
@@ -45,6 +46,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   packStageName,
   coins,
   onSettings,
+  onOpenLore,
   challengeStatus,
 }) => {
   return (
@@ -68,6 +70,16 @@ export const TopBar: React.FC<TopBarProps> = ({
 
       {/* Right: Settings + Coins - Unified Card Design */}
       <div className="flex items-center gap-2 flex-shrink-0">
+        {onOpenLore && (
+          <button
+            onClick={onOpenLore}
+            className="touch-target w-10 h-10 md:w-11 md:h-11 rounded-xl bg-white/10 backdrop-blur-xl flex items-center justify-center text-purple-200 hover:text-white active:bg-white/20 transition-all border border-white/20 shadow-lg touch-active"
+            aria-label="由來與圖鑑"
+            title="由來與圖鑑"
+          >
+            <BookOpen size={18} className="md:w-5 md:h-5 text-purple-300" />
+          </button>
+        )}
         {onSettings && (
           <button
             onClick={onSettings}
