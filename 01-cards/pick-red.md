@@ -238,3 +238,20 @@
 | **觸控與操作（Touch）** | 手牌與底牌全手勢觸控直覺響應，具備清晰吃牌高亮與多重目標選擇彈窗；窄螢幕與行動裝置自動適配為頂部「行動端戰術速報條（`TacticalMobileTicker`）」，點擊流暢展開半屏抽屜式 Drawer 檢視動態心電儀與大分雷達，完全不遮擋打牌主視角 | [`Games/Pick-Red/src/components/TacticalMobileTicker.tsx`](../Games/Pick-Red/src/components/TacticalMobileTicker.tsx)<br>[`Games/Pick-Red/src/components/CardView.tsx`](../Games/Pick-Red/src/components/CardView.tsx)<br>[`Games/Pick-Red/src/App.tsx`](../Games/Pick-Red/src/App.tsx) |
 | **美術設計與櫻井原則（Art & Sakurai Principles）** | 全面貫徹櫻井政博視覺原則：**剪影優先識別（skill-gfx-013 Silhouette-First Readability）**（牌桌全面導入高解析度角色立繪大頭貼，菜鳥阿明、浪子小美、守財奴阿財、追A手阿珍、紅點魔王與玩家主角，具備動態出牌光環與回合提示環）；**花色與牌面清晰度（skill-gfx-002 Readability Before Decoration）**（花色圖示全數升級 384×384 高對比高銳利度材質，牌底與牌背全面支援高 DPI Retina 螢幕）；**對手天梯選人介面（skill-gfx-007 Unified Stylized Art Direction）**（承接 Clubhouse 牌桌動漫格鬥選人格調，具備解鎖狀態、通關勾選徽章與戰術風格標籤）。相關實作請見：[`Games/Pick-Red/public/avatars/`](../Games/Pick-Red/public/avatars/)、[`Games/Pick-Red/src/App.tsx`](../Games/Pick-Red/src/App.tsx)。 |
 | **驗證腳本（Check）** | `npm run check -w pick-red` → `scripts/self-check.ts`（>1,350 行嚴密檢驗）：涵蓋 52 張牌點數守恆（210 分與黑 A 280 分）、湊十配對完整真值表與互斥性、發牌平衡（2/3/4 人局）、座位優勢實測、難度與個性可辨性、過紅五連擊偵測與籌碼結算、AI 吃牌／丟牌最佳化、戰情雷達與勝負動能心電試算 | [`Games/Pick-Red/scripts/self-check.ts`](../Games/Pick-Red/scripts/self-check.ts) |
+
+## 櫻井政博風格視覺美術重繪（Sakurai Art Design & Wave 16 Visual Assets）
+
+本作在第 16 波美術優化中，全面落實櫻井政博視覺第一眼辨識與傳統台灣茶閣典雅美學原則：
+
+- **台灣雅聚茶閣主視覺（skill-gfx-013 & skill-gfx-007）**：繪製 1350×900 典雅傳統茶閣牌莊（`title-bg.jpg`），描繪溫潤紫檀木花窗格、大紅絲綢宮燈、青花瓷茶盞、烏龍茶霧繚繞與「台灣雅聚 · 撿紅點」宣紙行書橫軸。
+- **祥雲暗紋青玉絨布牌桌（skill-gfx-002 Imperial Jade Parlor Felt）**：升級為 1350×900 青碧羊毛絨布（`felt.jpg`），具備吉祥如意暗紋與古樸燙金邊框。
+- **朱漆描金雙鶴祥雲牌背（skill-gfx-001 Auspicious Crane Card Back）**：繪製 1024×1536 傳統紅漆金箔牌背（`card-back.jpg`），融合喜慶大紅底色、祥雲迴紋與中央朱印「紅點」。
+- **米白手工棉紙牌面（skill-gfx-002 Cream Linen Face-Plate）**：升級為 512×768 典雅柔和棉紙紋理（`face-plate.jpg`）。
+- **高對比立體切面撲克花色圖示（skill-gfx-002 384×384 Poker Suits）**：全數升級為 384×384 高清材質（`suits/spades.jpg`、`suits/hearts.jpg`、`suits/diamonds.jpg`、`suits/clubs.jpg`）。
+- **五大湊十合一絕殺專屬勳章（skill-gfx-001 Stunt & Strike Badges）**：
+  - 天王絕殺合十（`badges/badge-red-ace.jpg`，512×512，朱紅烈焰皇冠金盾、紅A天王，朱印「天王」）
+  - 過紅五合十（`badges/badge-big-five.jpg`，512×512，日曜金輝八角勳章、紅五核心，朱印「紅五」）
+  - 金鑰開天合十（`badges/badge-golden-nine.jpg`，512×512，燦爛金鑰之門、紅九大牌，朱印「金鑰」）
+  - 湊十合一神技（`badges/badge-match-ten.jpg`，512×512，碧玉雙環合十徽飾，朱印「合十」）
+  - 以黑換紅奇策（`badges/badge-tool-conversion.jpg`，512×512，黑金流轉轉化太極盾，朱印「以黑」）
+- **六位個性風格茶閣對手頭像（skill-gfx-013 Character Avatars）**：升級為 512×512 專屬頭像（`avatars/avatar-*.jpg`），整合於牌桌對陣與具名天梯。

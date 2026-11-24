@@ -117,13 +117,20 @@ export function SummaryScreen({
           />
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/35 to-transparent" />
           <div className="absolute bottom-3 left-4 right-4 flex items-end justify-between">
-            <div>
-              <span className="rounded bg-amber-500/90 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-slate-950 shadow">
-                HALL OF FAME · 光榮引退
-              </span>
-              <p className="mt-1 text-base font-black text-amber-200 drop-shadow sm:text-lg">
-                {summary.verdict}
-              </p>
+            <div className="flex items-center gap-3">
+              <img
+                src={`${import.meta.env.BASE_URL}trophy-gold.jpg`}
+                alt="殿堂金盃"
+                className="w-11 h-11 rounded-lg border border-amber-400/60 shadow-lg object-cover sm:w-13 sm:h-13"
+              />
+              <div>
+                <span className="rounded bg-amber-500/90 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-slate-950 shadow">
+                  HALL OF FAME · 光榮引退
+                </span>
+                <p className="mt-1 text-base font-black text-amber-200 drop-shadow sm:text-lg">
+                  {summary.verdict}
+                </p>
+              </div>
             </div>
             <div className="text-right">
               <span className="text-[10px] uppercase tracking-wider text-slate-400">殿堂總積分</span>

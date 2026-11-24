@@ -330,6 +330,24 @@
 3. **打擊感偏好面板（Juice Settings Integration）**：
    - 標題首頁整合 [`JuiceSettingsPanel compact`](../Games/Baseball-Life/src/components/TitleScreen.tsx)，讓玩家自由設定螢幕微震、彩帶紙花特效與觸覺回饋強弱。
 
+## 櫻井政博風格視覺美術重繪（Sakurai Art Design & Wave 16 Visual Assets）
+
+本作在第 16 波美術優化中，全面落實櫻井政博視覺第一眼辨識與職業球團厚重質感原則：
+
+- **大巨蛋冠軍殿堂主視覺（skill-gfx-013 & skill-gfx-007）**：繪製 1350×900 台北／東京巨蛋級總冠軍大教堂夜間全景背景（`title-bg.jpg`），描繪萬人看台投光燈柱、紅土內野鑽石、鮮明界外白線與球場立體光錐。
+- **四大傳奇生涯篇章實境敘事插畫（skill-gfx-004 Narrative Chapter Scenery）**：
+  - 高校黑土青春球場（`chapter-highschool.jpg`，1350×900，甲子園經典黑土內野、木造球員休息區與盛夏積雨雲）
+  - 中職年度選秀大會舞台（`chapter-draft.jpg`，1350×900，第一指名舞台、高對比媒體探照燈與戰略選秀面板）
+  - 職棒總冠軍決戰大巨蛋（`chapter-pro-stadium.jpg`，1350×900，高空鋼構穹頂、環場電子跑馬燈、翡翠人工草皮）
+  - 名人堂光榮引退紀念殿堂（`chapter-hall-of-fame.jpg`，1350×900，古典大理石羅馬柱、青銅榮譽紀念碑、溫暖投光）
+- **四大指導教練流派專屬印璽盾徽（skill-gfx-001 Coach Style Crests）**：
+  - 嚴師風格（`coaches/coach-strict.jpg`，512×512，鐵血紀律深紅鋼盾、交錯球棒與金屬桂冠，朱印「嚴」）
+  - 慈父風格（`coaches/coach-nurture.jpg`，512×512，身心守護翡翠溫暖光環、育苗守護盾，朱印「慈」）
+  - 戰術風格（`coaches/coach-tactician.jpg`，512×512，智略神算天藍六角稜鏡、戰術板球路軌跡，朱印「策」）
+  - 力量風格（`coaches/coach-power.jpg`，512×512，豪打重砲烈焰琥珀菱形金盾、重訓槓鈴與火球，朱印「力」）
+- **台灣大賽總冠軍金盃徽飾（skill-gfx-001 Taiwan Series 24K Golden Trophy）**：
+  - 繪製 512×512 24K 拋光鍍金總冠軍金盃（`trophy-gold.jpg`），具備高浮雕雙耳桂冠紋飾與朱印「金盃」，整合於名人堂引退英雄卡與生涯結算。
+
 ## 備註
 
 - **首局引導**：首次進入標題頁顯示三步上手疊層（`clubhouse:baseball-life:howto-seen`）；關閉後可從「操作教學」再開。CTA 為「知道了」，避免與「開始新的棒球人生」衝突。

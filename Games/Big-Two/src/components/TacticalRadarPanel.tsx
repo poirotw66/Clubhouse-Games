@@ -52,7 +52,11 @@ export function TacticalRadarPanel({
       <section className="rounded-xl border border-amber-400/35 bg-gradient-to-r from-amber-500/15 via-slate-900/40 to-amber-500/5 p-2.5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5 font-bold text-amber-200">
-            <span className="text-base text-amber-300">♠</span>
+            <img
+              src={`${import.meta.env.BASE_URL}suits/spades.jpg`}
+              alt="黑桃"
+              className="w-4 h-4 rounded object-cover shadow-sm"
+            />
             <span>黑桃 2 至尊動態</span>
           </div>
           {spadesTwoStatus.status === 'inHand' && (
@@ -103,10 +107,12 @@ export function TacticalRadarPanel({
                         : 'border-indigo-400/30 bg-slate-800/40 text-indigo-200'
                 }`}
               >
-                <span className={`text-base font-bold leading-none ${isRed ? 'text-rose-400' : ''}`}>
-                  {SUIT_SYMBOL[d.suit]}
-                </span>
-                <span className="text-[10px] font-bold mt-1">2</span>
+                <img
+                  src={`${import.meta.env.BASE_URL}suits/${d.suit}.jpg`}
+                  alt={SUIT_SYMBOL[d.suit]}
+                  className="w-4 h-4 rounded object-cover shadow-sm mb-0.5"
+                />
+                <span className="text-[10px] font-bold mt-0.5">2</span>
                 <span className="text-[9px] mt-0.5 scale-90">
                   {d.status === 'inHand'
                     ? '你'

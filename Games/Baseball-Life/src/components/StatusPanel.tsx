@@ -194,7 +194,12 @@ export function StatusPanel({ state, highlightKeys = [] }: StatusPanelProps): Re
             {chapterById(state.chapterId) ? `　${chapterById(state.chapterId)!.title}` : ''}
           </p>
           {state.coach && (
-            <div className="grid grid-cols-[1fr_2.5rem] items-center gap-2 text-[11px]">
+            <div className="grid grid-cols-[auto_1fr_2.5rem] items-center gap-2 text-[11px]">
+              <img
+                src={`${import.meta.env.BASE_URL}coaches/coach-${state.coach.style}.jpg`}
+                alt={coachStyleInfo(state.coach.style).label}
+                className="w-7 h-7 rounded-full border border-sky-400/40 object-cover shadow"
+              />
               <p className="text-slate-300">
                 教練 {state.coach.name}
                 <span className="ml-1 text-slate-500">
@@ -202,7 +207,7 @@ export function StatusPanel({ state, highlightKeys = [] }: StatusPanelProps): Re
                 </span>
               </p>
               <p className="text-right font-mono text-sky-300">{state.coach.bond}</p>
-              <div className="col-span-2">
+              <div className="col-span-3">
                 <Bar value={state.coach.bond} />
               </div>
             </div>

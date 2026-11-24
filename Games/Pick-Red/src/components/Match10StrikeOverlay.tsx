@@ -67,19 +67,24 @@ export function Match10StrikeOverlay({ strike, onComplete }: Props): React.React
   // Determine title badge
   let badgeTitle = '✨ 湊十合一';
   let badgeColor = 'from-amber-400 via-amber-300 to-yellow-500 text-slate-950 border-amber-300';
+  let badgeImage = 'badge-match-ten.jpg';
 
   if (isAce || points >= 20) {
     badgeTitle = '👑 天王絕殺合十';
     badgeColor = 'from-rose-500 via-amber-300 to-rose-600 text-slate-950 border-amber-200';
+    badgeImage = 'badge-red-ace.jpg';
   } else if (isRedFive) {
     badgeTitle = '⚡ 過紅五合十';
     badgeColor = 'from-red-500 via-orange-400 to-amber-300 text-slate-950 border-orange-200';
+    badgeImage = 'badge-big-five.jpg';
   } else if (combo >= 2) {
     badgeTitle = `🔥 ${combo} 連撿絕殺`;
     badgeColor = 'from-orange-500 via-amber-400 to-yellow-400 text-slate-950 border-amber-300';
+    badgeImage = 'badge-golden-nine.jpg';
   } else if (isToolConversion) {
     badgeTitle = '🎯 以黑換紅';
     badgeColor = 'from-emerald-400 via-teal-300 to-sky-400 text-slate-950 border-emerald-200';
+    badgeImage = 'badge-tool-conversion.jpg';
   }
 
   return (
@@ -101,6 +106,11 @@ export function Match10StrikeOverlay({ strike, onComplete }: Props): React.React
                 : 'scale-90 opacity-0 translate-y-2'
           }`}
         >
+          <img
+            src={`${import.meta.env.BASE_URL}badges/${badgeImage}`}
+            alt={badgeTitle}
+            className="w-12 h-12 rounded-full border-2 border-amber-300/80 shadow-lg object-cover mb-0.5"
+          />
           <span
             className={`px-4 py-1 rounded-full text-xs sm:text-sm font-black tracking-wider uppercase bg-gradient-to-r shadow-xl border-2 ${badgeColor}`}
           >

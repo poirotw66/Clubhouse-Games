@@ -165,6 +165,20 @@
 | Touch | 完整觸控駕駛介面（畫面底部大型防誤觸控制按鈕：吸附／左滾／右滾／推進）、頂端戰術速報條與視角膠囊切換列、行動端緊湊 ADI 姿態小圓球與可收折飛行教練面板 |
 | Check | `npm run check` → 循序執行 6 大核心測試套件（`scripts/check-logic.mjs`、`scripts/stunt-club.test.mjs`、`scripts/vehicle-garage.test.mjs`、`scripts/vehicle-mesh.test.mjs`、`scripts/leaderboard.test.mjs`、`scripts/flight-coach.test.mjs`），全方位涵蓋 2D/3D 物理雙模擬、多車款氣動平衡不變量、1420m 跑道邊界碰撞與緩衝區、每 50m 里程標誌牌檢測、輪胎接地自旋阻尼保護（`spinDamp = 0.35`）、License 03 精準著陸目標區計算與俱樂部合約結算 |
 
+## 櫻井政博風格視覺美術重繪（Sakurai Art Design & Wave 16 Visual Assets）
+
+本作在第 16 波美術優化中，全面落實櫻井政博視覺第一眼辨識與賽博極限特技座艙原則：
+
+- **極限賽博特技競技場主視覺（skill-gfx-013 & skill-gfx-007 Hero Banner）**：繪製 1350×900 賽博極限特技競技場橫幅（`assets/hero-banner.jpg`、`assets/hero-banner.webp`、`assets/stunt-club-hero.webp`），描繪 165° 反翹弧牆頂點倒掛騰空、青藍離子噴氣火焰、霓虹立體投光與萬人看台光束。
+- **全周無縫 360° 賽博穹頂天幕（skill-gfx-004 Panoramic Sky Dome）**：繪製 2048×1024 超廣角賽博夜空天幕（`assets/sky-backdrop.jpg`、`assets/sky-backdrop.webp`），描繪深邃群星、極光霓虹色帶與遠方賽博巨塔天際線。
+- **高抓地 PBR 瀝青賽道紋理（skill-gfx-002 High-Grip PBR Asphalt）**：升級為 1024×1024 顆粒細骨料瀝青與輪胎微磨痕材質（`assets/track-asphalt.jpg`、`assets/track-asphalt.webp`），兩側配置青綠與洋紅雷射導光引導線。
+- **航太級 2×2 斜紋碳纖維材質（skill-gfx-002 Carbon Fiber Weave）**：繪製 1024×1024 高反差斜紋編織碳纖維材質（`assets/carbon-fiber.jpg`、`assets/carbon-fiber.webp`），具備金屬各向異性反光光澤。
+- **航空基地幾何微光地表網格（skill-gfx-002 Aerospace Ground Grid）**：繪製 1024×1024 賽博地表幾何微光地基網格（`assets/ground-grid.jpg`、`assets/ground-grid.webp`）。
+- **超音速航太特技金翼金盾勳章（skill-gfx-001 Supersonic Stunt Badge & Medal）**：
+  - 特技金盾勳章（`assets/stunt-badge.png`、`assets/stunt-badge.webp`，512×512，超音速立體展翼金盾、青藍等離子核心，朱印「特技」）
+  - 特技俱樂部榮譽獎章（`assets/club-medal.webp`，512×512，雙層金葉桂冠、朱印「榮譽」）
+- **五大客製車型專屬概念展台插畫（skill-gfx-001 Vehicle Concept Artworks）**：為五款客製車體繪製 1280×853 專屬展台概念圖（`assets/roadster-concept.webp`、`assets/sparrow-concept.webp`、`assets/atlas-concept.webp`、`assets/nova-concept.webp`、`assets/mars-royale-concept.webp`）。
+
 ## 說明
 
 - 反翹段的倒掛直線曲率為 0，離心力幫不上忙——**吸附是該段唯一的支撐**，空氣耗盡即剝離。

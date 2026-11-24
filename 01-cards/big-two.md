@@ -188,6 +188,17 @@ Pass 之後這一輪就不能再出，要等下一輪重新領出。
 - 附邏輯自我測試，涵蓋牌型判定、大小關係為 **全序**、系列賽、個性、提示、記牌、戰情雷達與計分家規。
 - UI：`src/App.tsx`、`src/components/`；核心：`src/game/`。
 
+## 櫻井政博風格視覺美術重繪（Sakurai Art Design & Wave 16 Visual Assets）
+
+本作在第 16 波美術優化中，全面貫徹櫻井政博視覺第一眼辨識與高級牌廳實體打擊感原則：
+
+- **尊榮夜總會牌廳主視覺（skill-gfx-013 & skill-gfx-007）**：升級為 1350×900 尊榮大老二高階牌廳（`title-bg.jpg`），繪製胡桃木壁板、琥珀吊燈、光學綠呢牌桌、高額籌碼堆與黑桃至尊爭鋒牌桌氛圍。
+- **高質感羊毛絨面牌桌（skill-gfx-002 Luxury Gaming Felt）**：升級為 1350×900 祖母綠手工絨布紋理（`felt.jpg`），配置雙圈燙金飾邊與細緻呢絨纖維。
+- **皇家幾何斷線燙金牌背（skill-gfx-001 Royal Guilloche Card Back）**：升級為 1024×1536 雙向對稱古典斷線幾何牌背（`card-back.jpg`），午夜靛藍底色搭配 24K 燙金邊框與中央黑桃封印。
+- **象牙白微織棉布牌面（skill-gfx-002 Fine Ivory Linen Face-Plate）**：升級為 512×768 頂級防偽紋理牌面（`face-plate.jpg`），具備細密紙張纖維與金屬防偽細線。
+- **高對比立體切面撲克花色圖示（skill-gfx-002 384×384 Poker Suits）**：全套撲克花色升級為 384×384 高清材質（`suits/spades.jpg`、`suits/hearts.jpg`、`suits/diamonds.jpg`、`suits/clubs.jpg`），具備斜面立體切光、陰影投射與極致高反差邊緣，無縫整合於手牌與戰情情資雷達。
+- **六大街機動漫風對手角色肖像（skill-gfx-013 Character Portraits）**：全數升級為 512×512 高清角色立繪（玩家主角、菜鳥阿明、拆牌阿美、囤貨阿強、記牌阿珍、牌桌魔王），注入個性化專屬邊緣光與高辨識度朱印標籤。
+
 ## 櫻井政博風格美術設計強化（Sakurai Art Design Upgrades）
 
 本作在首波美術強化中，全面落實櫻井政博（Masahiro Sakurai）美術視覺原則：
