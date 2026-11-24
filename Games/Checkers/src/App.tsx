@@ -786,7 +786,15 @@ export default function App() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      // Preserve browser shortcuts and native form/button keyboard controls.
+      if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing || e.defaultPrevented) return;
+      const target = e.target as HTMLElement | null;
+      if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
+      if ((e.key === 'Enter' || e.key === ' ') && target?.closest('button, a, [role="button"]')) return;
+      if (showRules) {
+        if (e.key === 'Escape') setShowRules(false);
+        return;
+      }
       const key = e.key;
 
       if (key === 'h' || key === 'H') {
@@ -859,6 +867,7 @@ export default function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
+    showRules,
     focusedSquare,
     selected,
     size,

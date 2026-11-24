@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 const buttonStyle: React.CSSProperties = {
   minWidth: 44,
@@ -71,6 +71,37 @@ export function TouchButton({
   title,
 }: TouchButtonProps): React.ReactElement {
   const [pressed, setPressed] = useState(false);
+  const active = useRef(false);
+  const releaseCallback = useRef(onRelease);
+  releaseCallback.current = onRelease;
+
+  const release = () => {
+    setPressed(false);
+    if (!active.current) return;
+    active.current = false;
+    releaseCallback.current?.();
+  };
+
+  useEffect(() => {
+    const clear = () => {
+      setPressed(false);
+      if (!active.current) return;
+      active.current = false;
+      releaseCallback.current?.();
+    };
+    const visibility = () => { if (document.hidden) clear(); };
+    window.addEventListener('blur', clear);
+    document.addEventListener('visibilitychange', visibility);
+    return () => {
+      window.removeEventListener('blur', clear);
+      document.removeEventListener('visibilitychange', visibility);
+      clear();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (disabled) release();
+  }, [disabled]);
 
   const style: React.CSSProperties = className
     ? {
@@ -91,10 +122,6 @@ export function TouchButton({
     setPressed(true);
   };
   const setUp = () => setPressed(false);
-  const release = () => {
-    setUp();
-    if (!disabled) onRelease?.();
-  };
 
   if (onClick && !onPress) {
     return (
@@ -127,14 +154,30 @@ export function TouchButton({
       className={className}
       style={style}
       onPointerDown={(e) => {
-        if (disabled) return;
+        if (disabled || active.current || e.button !== 0) return;
         e.preventDefault();
+        e.currentTarget.setPointerCapture(e.pointerId);
+        active.current = true;
         setDown();
         onPress?.();
       }}
       onPointerUp={release}
-      onPointerLeave={release}
       onPointerCancel={release}
+      onLostPointerCapture={release}
+      onBlur={release}
+      onKeyDown={(e) => {
+        if ((e.key !== ' ' && e.key !== 'Enter') || e.ctrlKey || e.metaKey || e.altKey) return;
+        e.preventDefault();
+        if (disabled || active.current || e.repeat) return;
+        active.current = true;
+        setDown();
+        onPress?.();
+      }}
+      onKeyUp={(e) => {
+        if (e.key !== ' ' && e.key !== 'Enter') return;
+        e.preventDefault();
+        release();
+      }}
     >
       {label}
     </button>

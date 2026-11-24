@@ -42,6 +42,8 @@ async function openEasyBoard(page, isMobile) {
 }
 
 async function waitBoardUnlocked(page) {
+  // A second flip schedules resolution; enabled cards alone do not mean it has finished.
+  await expect(page.locator('[data-mm-grid="1"] .mm-card.is-flipped:not(.is-matched)')).toHaveCount(0);
   // After a resolve, no unmatched card should stay disabled from locks.
   await expect
     .poll(async () =>
@@ -72,7 +74,7 @@ async function matchViaHint(page, isMobile) {
   await activate(cards.nth(idxs[0]), isMobile);
   await activate(cards.nth(idxs[1]), isMobile);
   // ScoreFlash (not the HUD "連擊 N" line)
-  await expect(page.getByText(/配對 \+|連擊！/)).toBeVisible({ timeout: 2_000 });
+  await expect(page.locator('.animate-score-pop').filter({ hasText: /配對 \+|突觸共振|狂熱超頻/ })).toBeVisible({ timeout: 2_000 });
   await waitBoardUnlocked(page);
 }
 
@@ -84,18 +86,18 @@ async function forceMiss(page, isMobile) {
   for (let attempt = 0; attempt < 8; attempt++) {
     await waitBoardUnlocked(page);
     const down = page.locator(
-      '[data-mm-grid="1"] .mm-card:not(.is-matched)[aria-label="背面牌"]',
+      '[data-mm-grid="1"] .mm-card:not(.is-matched)[aria-label$="，背面牌"]',
     );
     const n = await down.count();
     if (n < 2) return false;
 
     await activate(down.nth(0), isMobile);
     const down2 = page.locator(
-      '[data-mm-grid="1"] .mm-card:not(.is-matched)[aria-label="背面牌"]',
+      '[data-mm-grid="1"] .mm-card:not(.is-matched)[aria-label$="，背面牌"]',
     );
     await activate(down2.nth(Math.min(1, (await down2.count()) - 1)), isMobile);
 
-    const flash = page.getByText(/配對 \+|連擊！|未中/);
+    const flash = page.locator('.animate-score-pop').filter({ hasText: /配對 \+|突觸共振|狂熱超頻|未中/ });
     await expect(flash).toBeVisible({ timeout: 2_000 });
     const text = (await flash.textContent()) || '';
     if (text.includes('未中')) {
@@ -205,7 +207,7 @@ test('memory-match: flip tap, match sparkle, miss soft-shake, clear confetti', a
   // Flip → tap haptic
   const beforeFlip = await page.evaluate(() => window.__vibrateCalls.length);
   await activate(
-    page.locator('[data-mm-grid="1"] .mm-card[aria-label="背面牌"]').first(),
+    page.locator('[data-mm-grid="1"] .mm-card[aria-label$="，背面牌"]').first(),
     isMobile,
   );
   await expect
@@ -216,7 +218,7 @@ test('memory-match: flip tap, match sparkle, miss soft-shake, clear confetti', a
   const stillOpen = page.locator('[data-mm-grid="1"] .mm-card.is-flipped:not(.is-matched)');
   if ((await stillOpen.count()) === 1) {
     await activate(
-      page.locator('[data-mm-grid="1"] .mm-card:not(.is-matched)[aria-label="背面牌"]').first(),
+      page.locator('[data-mm-grid="1"] .mm-card:not(.is-matched)[aria-label$="，背面牌"]').first(),
       isMobile,
     );
     await waitBoardUnlocked(page);
@@ -239,7 +241,7 @@ test('memory-match: flip tap, match sparkle, miss soft-shake, clear confetti', a
 
   // Combo match (second consecutive) → combo haptic + sparkle
   await matchViaHint(page, isMobile);
-  await expect(page.getByText(/連擊！/)).toBeVisible();
+  await expect(page.locator('.animate-score-pop').filter({ hasText: /突觸共振/ })).toBeVisible();
 
   // Clear remaining pairs via hint, then confetti + grid shake
   await page.evaluate(() => {
@@ -247,7 +249,7 @@ test('memory-match: flip tap, match sparkle, miss soft-shake, clear confetti', a
   });
   for (let i = 0; i < 8; i++) {
     const left = await page
-      .locator('[data-mm-grid="1"] .mm-card:not(.is-matched)[aria-label="背面牌"]')
+      .locator('[data-mm-grid="1"] .mm-card:not(.is-matched)[aria-label$="，背面牌"]')
       .count();
     if (left === 0) break;
     await matchViaHint(page, isMobile);
@@ -278,10 +280,10 @@ test('memory-match: juice respects reduced-motion and haptics off', async ({ pag
   });
   await openEasyBoard(page, isMobile);
 
-  const down = page.locator('[data-mm-grid="1"] .mm-card[aria-label="背面牌"]');
+  const down = page.locator('[data-mm-grid="1"] .mm-card[aria-label$="，背面牌"]');
   await activate(down.nth(0), isMobile);
   await activate(
-    page.locator('[data-mm-grid="1"] .mm-card:not(.is-matched)[aria-label="背面牌"]').first(),
+    page.locator('[data-mm-grid="1"] .mm-card:not(.is-matched)[aria-label$="，背面牌"]').first(),
     isMobile,
   );
   await waitBoardUnlocked(page);

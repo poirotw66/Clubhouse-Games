@@ -6,6 +6,7 @@
  * Visual contract matches ResultOverlay.tsx cinematic mist-neon chrome.
  */
 
+import { focusResultOverlay } from './resultOverlayFocus.ts';
 import { resultOverlayChromeCss } from './resultOverlayChrome.ts';
 import {
   celebrateResultOverlay,
@@ -154,6 +155,7 @@ export function createResultOverlay(parent: HTMLElement = document.body): Result
   let onPrimary: (() => void) | null = null;
   let onSecondary: (() => void) | null = null;
   let countHandles: CountUpHandle[] = [];
+  let releaseFocus: (() => void) | undefined;
 
   const handleKey = (e: KeyboardEvent): void => {
     if (root.hidden || !onPrimary) return;
@@ -258,7 +260,9 @@ export function createResultOverlay(parent: HTMLElement = document.body): Result
         onSecondary = null;
       }
 
+      const wasHidden = root.hidden;
       root.hidden = false;
+      if (wasHidden) releaseFocus = focusResultOverlay(root);
       for (const wave of shockwaves) {
         wave.style.animation = 'none';
         void wave.offsetWidth;
@@ -270,12 +274,16 @@ export function createResultOverlay(parent: HTMLElement = document.body): Result
       celebrateResultOverlay({ variant, emphasis, cardEl });
     },
     hide(): void {
+      releaseFocus?.();
+      releaseFocus = undefined;
       for (const handle of countHandles) handle.cancel();
       countHandles = [];
       root.hidden = true;
     },
     destroy(): void {
       window.removeEventListener('keydown', handleKey);
+      releaseFocus?.();
+      releaseFocus = undefined;
       for (const handle of countHandles) handle.cancel();
       countHandles = [];
       onPrimary = null;

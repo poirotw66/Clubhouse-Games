@@ -56,6 +56,12 @@ test('result overlay mist-neon chrome + juice particles on connect-four end', as
   const result = page.getByRole('dialog');
   await expect(result).toBeVisible();
   await expect(result).toHaveAttribute('data-result-overlay', '1');
+  const replay = result.getByRole('button', { name: '再玩一局' });
+  await expect(replay).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  expect(await result.evaluate(el => el.contains(document.activeElement))).toBe(true);
+  await page.keyboard.press('Tab');
+  await expect(replay).toBeFocused();
   // Two-player ends use the neutral variant; celebrateResultOverlay still sparks via juice.
   await expect(result).toHaveAttribute('data-variant', /^(win|lose|neutral)$/);
   await expect(result).toHaveAttribute('data-emphasis', /^(standard|record)$/);

@@ -918,15 +918,11 @@ export default function App() {
         return;
       }
 
+      // Preserve browser shortcuts and native form/button keyboard controls.
+      if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing || e.defaultPrevented) return;
       const target = e.target as HTMLElement | null;
-      if (
-        target &&
-        (target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA' ||
-          target.isContentEditable)
-      ) {
-        return;
-      }
+      if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
+      if ((e.key === 'Enter' || e.key === ' ') && target?.closest('button, a, [role="button"]')) return;
 
       if (e.key === '?' || e.key === '/') {
         e.preventDefault();

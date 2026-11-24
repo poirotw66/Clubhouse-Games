@@ -448,8 +448,8 @@ export default function App() {
   // Keyboard navigation & controls
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement && e.target.type === 'text') return;
-      if (e.target instanceof HTMLTextAreaElement) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.target instanceof HTMLElement && e.target.closest('input, textarea, select, button, [contenteditable="true"]')) return;
 
       if (gameState === 'results' && showResultOverlay) {
         if (e.key === ' ' || e.key === 'Enter' || e.key === 'r' || e.key === 'R') {

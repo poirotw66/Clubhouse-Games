@@ -74,6 +74,16 @@ export const PlayingCard: React.FC<PlayingCardProps> = ({
               }
         }
         onClick={onClick}
+        role={onClick ? 'button' : undefined}
+        tabIndex={onClick ? 0 : undefined}
+        aria-label={placeholder ? `空牌位 ${placeholder}` : '空牌位'}
+        onKeyDown={(e) => {
+          if (onClick && (e.key === 'Enter' || e.key === ' ')) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!e.repeat) e.currentTarget.click();
+          }
+        }}
         onDragOver={onDragOver}
         onDrop={onDrop}
       >
@@ -124,13 +134,24 @@ export const PlayingCard: React.FC<PlayingCardProps> = ({
       }}
       transition={{ type: "spring", stiffness: 340, damping: 26 }}
       onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      aria-label={`${{ spades: '黑桃', hearts: '紅心', diamonds: '方塊', clubs: '梅花' }[card.suit]} ${rankStr}`}
+      aria-pressed={onClick ? Boolean(isSelected) : undefined}
+      onKeyDown={(e) => {
+        if (onClick && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (!e.repeat) e.currentTarget.click();
+        }
+      }}
       onDoubleClick={onDoubleClick}
       draggable={draggable}
       onDragStart={onDragStart as unknown as React.ComponentProps<typeof motion.div>['onDragStart']}
       onDragOver={onDragOver}
       onDrop={onDrop}
       className={cn(
-        "fc-card-face relative w-full aspect-[2/3] rounded-xl shadow-[0_3px_10px_rgba(0,0,0,0.18)] border border-stone-200/90 flex flex-col select-none cursor-pointer overflow-hidden bg-cover bg-center touch-manipulation transition-[box-shadow,border-color] duration-200",
+        "focus-visible:outline focus-visible:outline-4 focus-visible:outline-sky-300 fc-card-face relative w-full aspect-[2/3] rounded-xl shadow-[0_3px_10px_rgba(0,0,0,0.18)] border border-stone-200/90 flex flex-col select-none cursor-pointer overflow-hidden bg-cover bg-center touch-manipulation transition-[box-shadow,border-color] duration-200",
         isRed ? "text-rose-600" : "text-stone-900",
         isSelectable && "hover:-translate-y-2 hover:shadow-[0_8px_20px_rgba(0,0,0,0.22)]",
         isSelected && cn("z-50", themeRing),
