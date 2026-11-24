@@ -554,6 +554,19 @@ export function resultOverlayChromeCss(p: string): string {
   border-color: rgba(165, 243, 252, 0.55) !important;
   background: rgba(51, 65, 85, 0.9);
 }
+.${p}__tertiary {
+  color: #94a3b8;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.25) !important;
+  text-decoration: none;
+  font-size: 0.95rem;
+}
+.${p}__tertiary:hover,
+.${p}__tertiary:focus-visible {
+  color: #f1f5f9;
+  border-color: rgba(148, 163, 184, 0.5) !important;
+  background: rgba(30, 41, 59, 0.7);
+}
 
 @keyframes ${p}-rays { to { transform: rotate(360deg); } }
 @keyframes ${p}-shock {

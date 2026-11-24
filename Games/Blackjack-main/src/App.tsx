@@ -1421,7 +1421,7 @@ export default function App() {
         ].join(', '),
       }}
     >
-      <BackToMenu />
+      <BackToMenu onBackToTitle={() => setShowModes(true)} titleLabel="遊戲選單" />
       {/* Dealer Hole Card Suspense Beat Vignette Focus */}
       <div
         className={`pointer-events-none absolute inset-0 z-30 transition-all duration-200 ease-out ${
@@ -2087,6 +2087,8 @@ export default function App() {
           onPrimary={() => {
             resetRoundToBetting();
           }}
+          secondaryLabel="遊戲選單"
+          onSecondary={() => setShowModes(true)}
         />
       )}
 

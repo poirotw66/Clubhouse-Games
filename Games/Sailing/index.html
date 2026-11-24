@@ -10,9 +10,14 @@
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
-    <a class="back-to-menu" href="../../" aria-label="返回總覽">
-      <span aria-hidden="true">←</span><span class="back-to-menu-label">返回總覽</span>
-    </a>
+    <nav class="back-to-menu-nav" aria-label="導航選單" style="position:fixed;top:12px;left:12px;z-index:60;display:inline-flex;align-items:center;gap:6px;">
+      <button type="button" id="btn-to-menu" class="back-to-menu" aria-label="回到主選單" style="display:none;cursor:pointer;position:static;">
+        <span aria-hidden="true">⌂</span><span class="back-to-menu-label">回到主選單</span>
+      </button>
+      <a class="back-to-menu" href="../../" aria-label="返回總覽" style="position:static;">
+        <span aria-hidden="true">←</span><span class="back-to-menu-label">返回總覽</span>
+      </a>
+    </nav>
 
     <canvas id="gl" aria-label="帆船遊戲畫面"></canvas>
 

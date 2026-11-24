@@ -329,7 +329,7 @@ export default function App(): ReactElement {
         swipeStart.current = null;
       }}
     >
-      <BackToMenu />
+      <BackToMenu onBackToTitle={screen !== 'menu' ? () => setScreen('menu') : undefined} />
 
       {showCanvas && (
         <GameCanvas
@@ -494,9 +494,19 @@ export default function App(): ReactElement {
             <div className="mb-4 text-left">
               <JuiceSettingsPanel compact />
             </div>
-            <button type="button" className="cta" onClick={() => setScreen('playing')}>
-              繼續疾馳
-            </button>
+            <div className="flex flex-col gap-2 w-full mt-2">
+              <button type="button" className="cta" onClick={() => setScreen('playing')}>
+                繼續疾馳
+              </button>
+              <button
+                type="button"
+                className="btn-ghost"
+                style={{ minHeight: '44px', width: '100%', borderRadius: '0.75rem', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.4)', color: '#cbd5e1', fontWeight: 700 }}
+                onClick={() => setScreen('menu')}
+              >
+                回到主選單
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -545,7 +555,7 @@ export default function App(): ReactElement {
           ]}
           primaryLabel="再試一次 (Space / Enter / R)"
           onPrimary={startRun}
-          secondaryLabel="車庫"
+          secondaryLabel="回到車庫 (主選單)"
           onSecondary={() => {
             setScreen('menu');
             setPanel('meta');

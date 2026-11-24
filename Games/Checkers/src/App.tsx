@@ -1002,7 +1002,7 @@ export default function App() {
         ].join(', '),
       }}
     >
-      <BackToMenu />
+      <BackToMenu onBackToTitle={resetGame} />
 
       <div className="ck-cockpit-shell">
         {/* Left Wing: Tactical Radar & Telemetry */}

@@ -2029,7 +2029,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-2 sm:p-4 pb-[max(1rem,env(safe-area-inset-bottom))] bg-zinc-950 overflow-x-hidden w-full">
-      <BackToMenu />
+      <BackToMenu onBackToTitle={gameState.mode === 'playing' ? handleReset : undefined} />
       {showFirstRun && <FirstRunGuide onClose={() => setShowFirstRun(false)} />}
       <div className="w-full max-w-[1440px] flex flex-col items-center gap-3">
         {/* Cockpit Status Header */}
@@ -2605,7 +2605,7 @@ export default function App() {
                 onPrimary={handleRematch}
                 primaryLabel={gameState.playMode === 'season' ? '回戰績表 (Space / Enter / R)' : '再玩一局 (Space / Enter / R)'}
                 onSecondary={handleReset}
-                secondaryLabel="回選單"
+                secondaryLabel="回到主選單"
               />
             )}
           </AnimatePresence>

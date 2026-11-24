@@ -24,12 +24,15 @@ interface ResultOverlayProps {
   stats?: ResultStat[];
   primaryLabel?: string;
   onPrimary: () => void;
-  /** Optional second action (e.g. 回選單). Shown only when `onSecondary` is set. */
+  /** Optional second action (e.g. 回到主選單). Shown only when `onSecondary` is set. */
   secondaryLabel?: string;
   onSecondary?: () => void;
   variant?: 'win' | 'lose' | 'neutral';
   /** Optional; auto-detected from badge/title when omitted (紀錄 / 破紀錄 …). */
   emphasis?: ResultOverlayEmphasis;
+  /** Optional third action link to Clubhouse hub. */
+  hubHref?: string;
+  hubLabel?: string;
 }
 
 const BTN_BASE =
@@ -101,10 +104,12 @@ export function ResultOverlay({
   stats = [],
   primaryLabel = '再玩一局',
   onPrimary,
-  secondaryLabel = '回選單',
+  secondaryLabel = '回到主選單',
   onSecondary,
   variant = 'neutral',
   emphasis: emphasisProp,
+  hubHref,
+  hubLabel = '返回總覽',
 }: ResultOverlayProps): React.ReactElement {
   const cardRef = useRef<HTMLDivElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -180,6 +185,16 @@ export function ResultOverlay({
               >
                 {secondaryLabel}
               </button>
+            )}
+            {hubHref && (
+              <a
+                href={hubHref}
+                className={`${BTN_BASE} result-overlay__tertiary`}
+                aria-label={hubLabel}
+              >
+                <span aria-hidden="true">←</span>
+                <span>{hubLabel}</span>
+              </a>
             )}
           </div>
         </div>

@@ -2332,6 +2332,14 @@
   }
   document.getElementById('btn-restart').addEventListener('click', resetMatch);
   document.getElementById('result-restart').addEventListener('click', advanceTutorialOrReset);
+  document.getElementById('result-to-title')?.addEventListener('click', function () {
+    ui.resultOverlay.hidden = true;
+    resetMatch();
+  });
+  document.getElementById('btn-to-title')?.addEventListener('click', function () {
+    ui.resultOverlay.hidden = true;
+    resetMatch();
+  });
   ui.colorSelect.addEventListener('change', resetMatch);
   ui.difficultySelect.addEventListener('change', function () {
     persistPrefs();

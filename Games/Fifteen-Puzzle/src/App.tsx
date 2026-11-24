@@ -691,7 +691,7 @@ export default function App() {
 
   if (screen === 'campaign') {
     return (
-      <Shell>
+      <Shell onBackToTitle={() => setScreen('title')}>
         <h1 className="text-2xl font-bold">闖關階梯</h1>
         <p className="text-sm text-slate-300">依序通關解鎖・步數或限時挑戰</p>
         <ul className="w-full max-w-md flex flex-col gap-2">
@@ -753,7 +753,7 @@ export default function App() {
   const parDelta = moves - s.optimal;
 
   return (
-    <Shell>
+    <Shell onBackToTitle={() => setScreen('title')}>
       <div className="w-full flex flex-col items-center gap-3">
         {/* Header Title & Tag */}
         <div className="text-center">
@@ -1240,7 +1240,7 @@ export default function App() {
             }
             restartSame();
           }}
-          secondaryLabel="回選單"
+          secondaryLabel="回到主選單"
           onSecondary={() => setScreen('title')}
         />
       )}
@@ -1259,7 +1259,7 @@ export default function App() {
           ]}
           primaryLabel="再玩一局 (Space / Enter / R)"
           onPrimary={restartSame}
-          secondaryLabel="回選單"
+          secondaryLabel="回到主選單"
           onSecondary={() => setScreen('title')}
         />
       )}
@@ -1267,7 +1267,7 @@ export default function App() {
   );
 }
 
-function Shell({ children }: { children: ReactNode }): ReactElement {
+function Shell({ children, onBackToTitle }: { children: ReactNode; onBackToTitle?: () => void }): ReactElement {
   return (
     <div
       className="min-h-screen flex flex-col items-center justify-center p-4 gap-4"
@@ -1281,7 +1281,7 @@ function Shell({ children }: { children: ReactNode }): ReactElement {
         backgroundPosition: 'center',
       }}
     >
-      <BackToMenu />
+      <BackToMenu onBackToTitle={onBackToTitle} />
       {children}
     </div>
   );

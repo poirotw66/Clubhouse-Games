@@ -385,9 +385,18 @@ function App() {
     setShareNote(ok ? '已複製分享文字' : '複製失敗，請手動選取');
   };
 
+  const returnToMenu = () => {
+    setShowMenu(true);
+    setIsMatchOver(false);
+    setStatsTick((n) => n + 1);
+    if (iframeRef.current?.contentWindow) {
+      iframeRef.current.contentWindow.postMessage({ type: 'PAUSE_GAME', payload: true }, '*');
+    }
+  };
+
   return (
     <div style={styles.container}>
-      <BackToMenu />
+      <BackToMenu onBackToTitle={!showMenu ? returnToMenu : undefined} />
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Teko:wght@500;700&family=Noto+Sans+TC:wght@400;700&display=swap');
         @keyframes fadeIn { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }

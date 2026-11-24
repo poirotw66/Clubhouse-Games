@@ -899,7 +899,14 @@ export default function App(): React.ReactElement {
 
   return (
     <div className="min-h-screen flex flex-col items-center px-2 sm:px-4 pb-8 pt-14 sm:pt-4">
-      <BackToMenu />
+      <BackToMenu
+        onBackToTitle={() => {
+          clearSavedMatch();
+          setScreen('setup');
+          setMatch(null);
+          setState(null);
+        }}
+      />
 
       <div className="w-full max-w-7xl flex flex-col items-center">
         {/* 茶閣頂部標題列 */}

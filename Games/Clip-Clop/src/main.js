@@ -1910,10 +1910,14 @@ function startRun(practice,daily){
   goBanner.classList.add('hidden');
   countNumEl.textContent='3';
   countNumEl.classList.remove('hidden');
+  const btnToTitle = $('btnToTitle');
+  if (btnToTitle) btnToTitle.style.display = 'inline-flex';
 }
 
 function toTitle(){
   G.state='title';
+  const btnToTitle = $('btnToTitle');
+  if (btnToTitle) btnToTitle.style.display = 'none';
   G.x=0; G.vx=0; G.vy=0; G.y=CFG.bodyY; G.pitch=0; G.roll=0; G.yaw=0; G.z=0;
   G.fallPose=null; G.elapsed=0; G.replay=null;
   G.daily=false; MOD.drag=1; MOD.fric=1; MOD.slope=0;
@@ -2474,6 +2478,9 @@ retryBtn.addEventListener('click',()=>{
   else if(DUEL.on)duelStart();
   else startRun(false);
 });
+
+$('btnToTitle')?.addEventListener('click', () => { toTitle(); });
+$('resultToTitleBtn')?.addEventListener('click', () => { toTitle(); });
 
 // AI opponent level chips + duel entry on the title card
 let aiSel='';

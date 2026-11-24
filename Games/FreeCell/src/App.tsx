@@ -1150,7 +1150,7 @@ export default function App() {
       className={`min-h-screen p-2 pt-14 sm:p-4 sm:pt-16 md:p-8 md:pt-14 font-sans select-none overflow-x-hidden bg-cover bg-center transition-colors duration-300 ${activeTheme.bgClass}`}
       style={activeTheme.feltStyle}
     >
-      <BackToMenu />
+      <BackToMenu onBackToTitle={startNewGame} titleLabel="回到主選單" />
       <div className="max-w-[1720px] mx-auto relative">
         {flash && (
           <div className="absolute left-1/2 top-20 -translate-x-1/2 z-30 w-40 h-20">
@@ -1470,6 +1470,8 @@ export default function App() {
             ]}
             primaryLabel="新遊戲 (Space / Enter / R)"
             onPrimary={startNewGame}
+            secondaryLabel="回到主選單"
+            onSecondary={startNewGame}
           />
         )}
 
@@ -1489,6 +1491,8 @@ export default function App() {
             ]}
             primaryLabel="新遊戲 (Space / Enter / R)"
             onPrimary={startNewGame}
+            secondaryLabel="回到主選單"
+            onSecondary={startNewGame}
           />
         )}
 

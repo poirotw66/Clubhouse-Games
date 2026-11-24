@@ -1198,7 +1198,7 @@ export default function App() {
         ].join(', '),
       }}
     >
-      <BackToMenu />
+      <BackToMenu onBackToTitle={startNewGame} titleLabel="回到主選單" />
       <div className="max-w-[1540px] mx-auto relative">
         {flash && (
           <div className="absolute left-1/2 top-24 -translate-x-1/2 z-30 w-40 h-20">
@@ -1720,7 +1720,7 @@ export default function App() {
           ]}
           primaryLabel="重新洗牌 (Space / Enter / R)"
           onPrimary={reshuffleBoard}
-          secondaryLabel="新局"
+          secondaryLabel="回到主選單"
           onSecondary={startNewGame}
         />
       )}

@@ -1656,6 +1656,8 @@ export default function Game() {
                           : '再來一局') + ' (Space / Enter / R)'
                     }
                     onPrimary={handleNextLevel}
+                    secondaryLabel="回到主選單"
+                    onSecondary={() => navigate('/')}
                 />
             )}
 
@@ -1700,6 +1702,8 @@ export default function Game() {
                         startLevel(gameState.level);
                       }
                     }}
+                    secondaryLabel="回到主選單"
+                    onSecondary={() => navigate('/')}
                 />
             )}
         </div>

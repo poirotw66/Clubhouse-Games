@@ -310,7 +310,7 @@ export default function App(): React.ReactElement {
 
   return (
     <>
-      <BackToMenu />
+      <BackToMenu onBackToTitle={screen !== 'title' ? () => setScreen('title') : undefined} />
       {showFirstRun && <FirstRunGuide onClose={() => setShowFirstRun(false)} />}
       {screen === 'title' && (
         <TitleScreen

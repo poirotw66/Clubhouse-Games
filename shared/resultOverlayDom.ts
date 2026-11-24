@@ -132,7 +132,7 @@ export function createResultOverlay(parent: HTMLElement = document.body): Result
             <span class="${ROOT_CLASS}__btn-shine" aria-hidden="true"></span>
             再玩一局
           </button>
-          <button type="button" class="${ROOT_CLASS}__btn ${ROOT_CLASS}__secondary" data-part="secondary" hidden>回選單</button>
+          <button type="button" class="${ROOT_CLASS}__btn ${ROOT_CLASS}__secondary" data-part="secondary" hidden>回到主選單</button>
         </div>
       </div>
     </div>
@@ -252,7 +252,7 @@ export function createResultOverlay(parent: HTMLElement = document.body): Result
       onPrimary = options.onPrimary;
 
       if (options.onSecondary) {
-        secondaryBtn.textContent = options.secondaryLabel ?? '回選單';
+        secondaryBtn.textContent = options.secondaryLabel ?? '回到主選單';
         secondaryBtn.hidden = false;
         onSecondary = options.onSecondary;
       } else {

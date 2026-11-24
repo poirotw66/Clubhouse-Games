@@ -1026,7 +1026,7 @@ export default function App(): React.ReactElement {
 
   return (
     <div className="cc-play h-screen w-screen flex flex-col">
-      <BackToMenu />
+      <BackToMenu onBackToTitle={() => setScreen('menu')} />
 
       <div className="cc-hud shrink-0 px-3 pt-14 pb-2 flex items-center justify-between text-xs sm:text-sm text-amber-50 flex-wrap gap-1">
         <div className="flex gap-2 flex-wrap">
@@ -1378,14 +1378,27 @@ export default function App(): React.ReactElement {
               <div className="cc-pause-card text-center">
                 <p className="cc-display cc-glow-title mb-1 text-2xl text-amber-200">暫停</p>
                 <p className="text-sm font-semibold text-amber-100/75">按 P 或 Esc 繼續</p>
-                <button
-                  type="button"
-                  onPointerDown={(event) => event.stopPropagation()}
-                  onClick={() => setPaused(false)}
-                  className="mt-4 rounded-xl border border-cyan-400/60 bg-slate-900 px-6 py-3 text-base font-bold text-cyan-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
-                >
-                  繼續遊戲
-                </button>
+                <div className="mt-4 flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={() => setPaused(false)}
+                    className="rounded-xl border border-cyan-400/60 bg-slate-900 px-6 py-3 text-base font-bold text-cyan-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 touch-manipulation"
+                  >
+                    繼續遊戲
+                  </button>
+                  <button
+                    type="button"
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={() => {
+                      setPaused(false);
+                      setScreen('menu');
+                    }}
+                    className="rounded-xl border border-amber-500/40 bg-black/40 px-6 py-2.5 text-sm font-bold text-amber-200 hover:bg-black/60 touch-manipulation"
+                  >
+                    回到主選單
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -1636,7 +1649,7 @@ export default function App(): React.ReactElement {
           ]}
           primaryLabel={activeMode ? '再挑戰' : isDaily ? '再刷今日' : '再投一輪'}
           onPrimary={retryCurrent}
-          secondaryLabel="回選單"
+          secondaryLabel="回到主選單"
           onSecondary={() => setScreen('menu')}
         />
       )}
