@@ -597,9 +597,24 @@ const POINTS = [
 ];
 // courses: A 宙返り = the original wall; B 長空 = taller/longer (more airtime, more rolls)
 const COURSES = [
-  { name: '宙返り', nameEn: 'Loop', arcDeg: 165, arcR: 10.5, straight: 8.8 },
-  { name: '長空', nameEn: 'Long Sky', arcDeg: 172, arcR: 11.5, straight: 14 },
+  { name: '宙返り', nameEn: 'Loop', arcDeg: 165, arcR: 10.5, straight: 8.8, wind: 0 },
+  { name: '長空', nameEn: 'Long Sky', arcDeg: 172, arcR: 11.5, straight: 14, wind: 0 },
+  { name: '疾風跳躍', nameEn: 'Gale Leap', arcDeg: 158, arcR: 9.6, straight: 12.0, wind: -2.0 },
+  { name: '超重力巨塔', nameEn: 'Hyper Spire', arcDeg: 175, arcR: 12.5, straight: 16.5, wind: 1.5 },
 ];
+
+const AERIAL_RINGS = [
+  { id: 'ring-1', x: -18, y: 22, r: 3.5, pts: 30 },
+  { id: 'ring-2', x: -44, y: 19, r: 3.5, pts: 40 },
+  { id: 'ring-3', x: -70, y: 12, r: 3.5, pts: 50 },
+];
+
+const TARGET_PAD = {
+  xMin: -135,
+  xMax: -105,
+  sweetMin: -125,
+  sweetMax: -115,
+};
 const SAMPLE = 0.05;
 
 // ---------- track ----------
@@ -719,8 +734,8 @@ const car = {
 const inp = { drive: false, stick: false, left: false, right: false, brake:false };
 const stats = { rolls: 0, rollPts: 0, soft: 0, level: 0, stuntPts: 0, comboMult: 1, hasSkimmed: false, hasInverted: false, hasSwitchedDir: false, total: 0, fall: 0, tilt: 0, dist: 0, reason: '', win: false };
 let best = 0, rankOn = false, rankHi = -1, boardView = [];
-function bestKey() { return vehicleRecordKey('wallflip2.best.' + (courseIdx === 0 ? 'A' : 'B')); }
-function boardKey() { return vehicleRecordKey('wallflip2.board.' + (courseIdx === 0 ? 'A' : 'B')); }
+function bestKey() { return vehicleRecordKey('wallflip2.best.' + (['A', 'B', 'C', 'D'][courseIdx] || ('C' + courseIdx))); }
+function boardKey() { return vehicleRecordKey('wallflip2.board.' + (['A', 'B', 'C', 'D'][courseIdx] || ('C' + courseIdx))); }
 function loadBest() {
   best = 0;
   try { best = +localStorage.getItem(bestKey()) || 0; } catch (e) {}
@@ -1309,6 +1324,7 @@ function toAir(kind) {
   car.spinTotal = 0; car.rollsAccum = 0; car.spinRight = 0; car.spinLeft = 0;
   car.hasSwitchedDir = false;
   car.comboMult = 1.0; car.hasSkimmed = false; car.skimTime = 0; car.hasInverted = false; car.invertTime = 0;
+  car.collectedRings = []; car.ringsCount = 0; car.ringBonus = 0;
   car.phase = over ? 'inverted' : 'upright';
   launchX = car.x;
   car.peeled = kind === 'detach'; car.lifted = kind === 'lift'; car.launched = kind === 'launch';
@@ -1468,6 +1484,24 @@ function stepAir(dt) {
   if (Z) car.air = Math.max(0, car.air - AIR_JET * Z * dt);
   const rx = -sin(car.phi), ry = cos(car.phi); // roof direction
   const manualThrust = control.verticalThrust === undefined ? THRUST * Z : 0;
+  if (typeof COURSES !== 'undefined' && COURSES[courseIdx] && COURSES[courseIdx].wind) {
+    car.vx += COURSES[courseIdx].wind * dt;
+  }
+  if (typeof AERIAL_RINGS !== 'undefined') {
+    for (const ring of AERIAL_RINGS) {
+      if ((car.collectedRings || []).includes(ring.id)) continue;
+      const dx = car.x - ring.x, dy = car.y - ring.y;
+      if (Math.hypot(dx, dy) <= ring.r) {
+        if (!car.collectedRings) car.collectedRings = [];
+        car.collectedRings.push(ring.id);
+        car.ringsCount = (car.ringsCount || 0) + 1;
+        car.ringBonus = (car.ringBonus || 0) + ring.pts;
+        pop(ring.x, ring.y + 1.2, `+${ring.pts} RING!`, '#ffd166');
+        try { sfx.stuntWhoosh(car.comboMult || 1); } catch (e) {}
+        shakeT = 0.2; shakeA = 0.2;
+      }
+    }
+  }
   car.vx += rx * manualThrust * dt;
   car.vy += ((control.verticalThrust ?? ry * manualThrust) - G * AIR_G) * dt;
   const damp = (jL !== jR) ? SPIN_DAMP : ROLL_DAMP;
@@ -1540,6 +1574,7 @@ function stepAir(dt) {
   if (car.hasSkimmed) mult += 0.5;
   if (car.hasInverted) mult += 0.4;
   if (car.hasSwitchedDir) mult += 0.3;
+  if (car.ringsCount > 0) mult += car.ringsCount * 0.3;
   car.comboMult = mult;
   if (!car.clear) {
     const S = closestOnTrack(car.x, car.y);
@@ -1597,7 +1632,15 @@ function stepAir(dt) {
   stats.hasInverted = !!car.hasInverted;
   stats.hasSwitchedDir = !!car.hasSwitchedDir;
   stats.stuntPts = stuntBase > 0 ? Math.round(stuntBase * stats.comboMult) : 0;
-  stats.total = Math.round(stats.rollPts + stats.soft + stats.level + stats.stuntPts);
+  const pad = typeof TARGET_PAD !== 'undefined' ? TARGET_PAD : null;
+  const inTargetZone = !!pad && car.x <= pad.xMax && car.x >= pad.xMin;
+  const inSweetSpot = inTargetZone && car.x <= pad.sweetMax && car.x >= pad.sweetMin;
+  stats.targetZone = inTargetZone;
+  stats.sweetSpot = inSweetSpot;
+  stats.rings = car.ringsCount || 0;
+  stats.ringPts = car.ringBonus || 0;
+  stats.targetPts = inTargetZone ? (inSweetSpot ? 40 : 20) : 0;
+  stats.total = Math.round(stats.rollPts + stats.soft + stats.level + stats.stuntPts + stats.ringPts + stats.targetPts);
   stats.win = true;
   stats.time = car.time;
   stats.newTimeRecord = false;
@@ -1909,6 +1952,60 @@ function drawRoad(t) {
     const p = trackAt(u);
     ctx.fillStyle = i % 2 ? '#e8edf4' : '#11151c';
     ctx.fillRect(p.x - 0.25, p.y - 0.25, 0.5, 0.5);
+  }
+}
+function drawTargetPad(t) {
+  worldTransform();
+  const pad = TARGET_PAD;
+  ctx.save();
+  ctx.fillStyle = 'rgba(26, 59, 92, 0.35)';
+  ctx.fillRect(pad.xMin, 0, pad.xMax - pad.xMin, 0.12);
+  ctx.strokeStyle = 'rgba(78, 205, 196, 0.8)';
+  ctx.lineWidth = 0.12;
+  for (let x = pad.xMin + 3; x < pad.xMax; x += 5) {
+    ctx.beginPath();
+    ctx.moveTo(x - 1.2, 0.9);
+    ctx.lineTo(x, 0.1);
+    ctx.lineTo(x + 1.2, 0.9);
+    ctx.stroke();
+  }
+  const pulse = 0.8 + 0.2 * Math.sin(t * 4);
+  ctx.fillStyle = `rgba(255, 209, 102, ${0.4 * pulse})`;
+  ctx.fillRect(pad.sweetMin, 0, pad.sweetMax - pad.sweetMin, 0.18);
+  ctx.strokeStyle = '#ffd166';
+  ctx.lineWidth = 0.2;
+  ctx.strokeRect(pad.sweetMin, 0, pad.sweetMax - pad.sweetMin, 0.18);
+  ctx.fillStyle = '#ffd166';
+  ctx.font = 'bold 0.8px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('★ TARGET ZONE ★', (pad.sweetMin + pad.sweetMax) / 2, 2.2);
+  ctx.restore();
+}
+function drawAerialRings(t) {
+  worldTransform();
+  for (const ring of AERIAL_RINGS) {
+    const collected = (car.collectedRings || []).includes(ring.id);
+    const pulse = 1 + 0.06 * Math.sin(t * 5 + ring.x);
+    const r = ring.r * pulse;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(ring.x, ring.y, r, 0, TAU);
+    ctx.lineWidth = collected ? 0.12 : 0.28;
+    ctx.strokeStyle = collected ? 'rgba(78, 205, 196, 0.35)' : 'rgba(255, 209, 102, 0.95)';
+    ctx.stroke();
+    if (!collected) {
+      ctx.beginPath();
+      ctx.arc(ring.x, ring.y, r + 0.35, 0, TAU);
+      ctx.lineWidth = 0.08;
+      ctx.strokeStyle = 'rgba(255, 107, 107, 0.7)';
+      ctx.stroke();
+      ctx.fillStyle = '#ffd166';
+      ctx.font = 'bold 0.9px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`+${ring.pts}`, ring.x, ring.y);
+    }
+    ctx.restore();
   }
 }
 function drawSkids() {
@@ -2606,6 +2703,8 @@ function render(t) {
   if (shakeT > 0) { cam.x += shakeA * shakeT * Math.sin(t * 63); cam.y += shakeA * shakeT * Math.sin(t * 71); }
   drawScenery();
   drawRoad(t);
+  drawTargetPad(t);
+  drawAerialRings(t);
   drawSkids();
   drawGhost();
   drawShadow();

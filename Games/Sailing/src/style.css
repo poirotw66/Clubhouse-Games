@@ -968,8 +968,21 @@ body {
 .wind-rose[hidden],
 .trim-panel[hidden],
 .cp-guide[hidden],
-.guide-tip[hidden] {
+.guide-tip[hidden],
+.vmg-card[hidden],
+.tactical-playbook-card[hidden],
+#btn-telemetry[hidden] {
   display: none !important;
+}
+
+body.easy-mode .vmg-card[hidden],
+body.easy-mode .tactical-playbook-card[hidden] {
+  display: none !important;
+}
+
+.btn-telemetry-toggle {
+  font-size: 0.8rem;
+  padding: 0.35rem 0.65rem;
 }
 
 .rose-ring {

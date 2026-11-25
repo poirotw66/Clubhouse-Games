@@ -22,10 +22,8 @@ const MIN_TRIM = (6 * Math.PI) / 180;
 const TURN_RATE = 1.7;
 const TURN_RATE_ARCADE = 2.85;
 const MAX_HEEL = (28 * Math.PI) / 180;
-// Arcade cruise / boost — raised so the bay race doesn't crawl.
-const ARCADE_CRUISE = 9.0;
-const ARCADE_BOOST = 17.5;
-const ARCADE_MAX = 20.5;
+// Gentle minimum steerage floor (m/s) in Easy Mode when out of irons or tacking.
+export const STEERAGE_FLOOR = 2.5;
 const POWER = 0.038;          // sail force scale (hard mode a bit quicker too)
 const DRAG_FWD = 0.034;       // hull resistance (quadratic)
 const DRAG_LAT = 0.9;         // keel resistance to leeway
@@ -243,9 +241,9 @@ export function stepSailing(boat, wind, input, dt, time, waveAmp, assist = false
 
   // --- sail forces ----------------------------------------------------------
   const alpha = beta - boat.trim;         // angle of attack on the sail
-  // Easy mode almost removes the dead zone — slightly-off still pulls hard.
-  const noGoLo = assist ? (8 * Math.PI) / 180 : NO_GO;
-  const noGoHi = assist ? (30 * Math.PI) / 180 : NO_GO_SOFT;
+  // Wind-driven propulsion: entering no-go zone slows the boat down naturally.
+  const noGoLo = NO_GO;
+  const noGoHi = NO_GO_SOFT;
   const noGo = smoothstep(noGoLo, noGoHi, beta);
 
   let cl = 0;
@@ -263,12 +261,15 @@ export function stepSailing(boat, wind, input, dt, time, waveAmp, assist = false
   }
 
   const heelFactor = Math.cos(boat.heel);
-  const q = POWER * (assist ? 1.35 : 1.15) * apparentSpeed * apparentSpeed;
+  // Easy mode boost when holding course / accelerating with wind
+  const boosting = Boolean(assist && input.holdCourse);
+  const boostMult = boosting ? 1.5 : 1.0;
+  const q = POWER * (assist ? 1.35 : 1.15) * boostMult * apparentSpeed * apparentSpeed;
   let drive = q * (cl * Math.sin(beta) - cd * Math.cos(beta)) * heelFactor;
   const side = q * (cl * Math.cos(beta) + cd * Math.sin(beta)) * heelFactor * Math.sign(cross || 1);
 
   // --- hull -----------------------------------------------------------------
-  const dragScale = assist ? 0.78 : 1;
+  const dragScale = assist ? (boosting ? 0.62 : 0.78) : 1;
   const resist = (DRAG_FWD * boat.surge * Math.abs(boat.surge)
     + 0.18 * boat.surge
     + 0.022 * Math.pow(Math.max(0, Math.abs(boat.surge) - (assist ? 14.5 : 6.8)), 3)
@@ -280,17 +281,18 @@ export function stepSailing(boat, wind, input, dt, time, waveAmp, assist = false
   boat.sway += (side - lateralResist - boat.surge * boat.yawRate) * dt;
   boat.surge = Math.max(boat.surge, -1.2);
 
-  // Arcade easy: motor boat you STEER. Wind still gives a bonus on a reach,
-  // but pointing into the wind never kills you — it only slows the motor.
+  // Easy mode: authentic wind-driven propulsion with a gentle steerage floor (~2.5 m/s)
+  // when out of irons or actively tacking, so beginners maintain steerage way
+  // without a flat motor override. In irons, the boat decelerates naturally.
   if (assist) {
-    const boosting = Boolean(input.holdCourse);
-    // Soft wind flavour only — apparent-wind shift must not throttle the motor
-    // back to a crawl once the boat is already moving.
-    const windBonus = clamp((beta - (8 * Math.PI) / 180) / ((100 * Math.PI) / 180), 0.9, 1.12);
-    const target = (boosting ? ARCADE_BOOST : ARCADE_CRUISE) * windBonus;
-    boat.surge += (target - boat.surge) * (boosting ? 3.6 : 2.4) * dt;
-    boat.sway *= Math.exp(-2.6 * dt);
-    boat.surge = Math.min(boat.surge, ARCADE_MAX);
+    const inIrons = beta < NO_GO;
+    const isTacking = Math.abs(boat.yawRate) > 0.12 || Math.abs(input.rudder || 0) > 0.25;
+    if (!inIrons || isTacking) {
+      if (boat.surge < STEERAGE_FLOOR) {
+        boat.surge += (STEERAGE_FLOOR - boat.surge) * damp(6.0, dt);
+      }
+    }
+    boat.sway *= Math.exp(-2.2 * dt);
   }
 
   // --- steering -------------------------------------------------------------

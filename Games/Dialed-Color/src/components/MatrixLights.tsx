@@ -3,13 +3,15 @@ import { motion, AnimatePresence } from 'motion/react';
 import { RotateCcw, Lightbulb, Zap, Award, Sparkles } from 'lucide-react';
 import { playMove, playWin, playGoal } from '@clubhouse/shared/synthAudio';
 import { solveGf2LightsOut } from '../utils/gf2Solver';
+import { recordMatrixClear } from '../storage.mjs';
 
 interface MatrixLightsProps {
   onBack?: () => void;
   accentHue?: number;
+  onVictory?: (stats: { moves: number; size: number }) => void;
 }
 
-export function MatrixLights({ onBack, accentHue = 180 }: MatrixLightsProps) {
+export function MatrixLights({ onBack, accentHue = 180, onVictory }: MatrixLightsProps) {
   const [gridSize, setGridSize] = useState<3 | 4>(3);
   const [movesCount, setMovesCount] = useState(0);
   const [showHint, setShowHint] = useState(false);
@@ -87,6 +89,10 @@ export function MatrixLights({ onBack, accentHue = 180 }: MatrixLightsProps) {
     if (allOff) {
       setIsVictory(true);
       playGoal();
+      recordMatrixClear();
+      if (onVictory) {
+        onVictory({ moves: movesCount + 1, size: gridSize });
+      }
       window.setTimeout(() => playWin(), 400);
     }
   };
@@ -288,6 +294,13 @@ export function MatrixLights({ onBack, accentHue = 180 }: MatrixLightsProps) {
               耗費步數：<span className="text-cyan-300 font-bold">{movesCount}</span> ·
               矩陣圖騰：<span className="text-fuchsia-300">{solution.symmetry.totemName}</span>
             </p>
+            <div className="p-2.5 rounded-xl bg-cyan-900/60 border border-cyan-400/30 text-xs text-cyan-200 font-mono space-y-1">
+              <div className="font-semibold text-amber-300 flex items-center justify-center gap-1">
+                <Award size={14} />
+                <span>榮獲「光譜大師 (Chromatic Master)」認證！</span>
+              </div>
+              <p className="text-white/80 text-[11px]">解鎖獎勵：每局調色窺視次數 +1，調色盤共振強化！</p>
+            </div>
             <button
               type="button"
               onClick={resetBoard}

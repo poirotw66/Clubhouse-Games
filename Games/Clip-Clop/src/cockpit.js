@@ -216,17 +216,17 @@ export class CockpitManager {
               <!-- Track profile elevation line -->
               <path id="radarElevation" d="M 10 38 Q 45 32 80 35 T 150 36" class="radar-track-line" />
               <!-- Hurdle pins -->
-              <g class="radar-hurdle" transform="translate(52, 28)">
+              <g class="radar-hurdle" transform="translate(72, 28)">
                 <line x1="0" y1="0" x2="0" y2="12" class="hurdle-pin" />
                 <rect x="-3" y="-3" width="6" height="4" class="hurdle-flag" />
                 <text x="-4" y="-5" class="hurdle-text">H1</text>
               </g>
-              <g class="radar-hurdle" transform="translate(93, 27)">
+              <g class="radar-hurdle" transform="translate(100, 27)">
                 <line x1="0" y1="0" x2="0" y2="12" class="hurdle-pin" />
                 <rect x="-3" y="-3" width="6" height="4" class="hurdle-flag" />
                 <text x="-4" y="-5" class="hurdle-text">H2</text>
               </g>
-              <g class="radar-hurdle" transform="translate(133, 29)">
+              <g class="radar-hurdle" transform="translate(128, 29)">
                 <line x1="0" y1="0" x2="0" y2="12" class="hurdle-pin" />
                 <rect x="-3" y="-3" width="6" height="4" class="hurdle-flag" />
                 <text x="-4" y="-5" class="hurdle-text">H3</text>
@@ -244,7 +244,7 @@ export class CockpitManager {
             </svg>
             <div class="radar-legend">
               <span>0m</span>
-              <span id="nextHurdleHint" class="radar-next-hint">下一欄：15m</span>
+              <span id="nextHurdleHint" class="radar-next-hint">下一欄：22m</span>
               <span>50m</span>
             </div>
           </div>
@@ -737,7 +737,7 @@ export class CockpitManager {
         if (this._lastRhythmGrade !== 'perfect') {
           this.elRhythmMarker.className = 'rhythm-cursor perfect-hit';
           if (this.elRhythmLabel) {
-            this.elRhythmLabel.textContent = '★ PERFECT! 按 SPACE 起跳！';
+            this.elRhythmLabel.textContent = this.tr('rhythm_perfect');
             this.elRhythmLabel.style.color = '#f59e0b';
           }
           this._lastRhythmGrade = 'perfect';
@@ -746,13 +746,13 @@ export class CockpitManager {
         if (this._lastRhythmGrade !== 'great') {
           this.elRhythmMarker.className = 'rhythm-cursor great-hit';
           if (this.elRhythmLabel) {
-            this.elRhythmLabel.textContent = '起跳視窗！按 SPACE 躍過！';
+            this.elRhythmLabel.textContent = this.tr('rhythm_great');
             this.elRhythmLabel.style.color = '#10b981';
           }
           this._lastRhythmGrade = 'great';
         }
       } else {
-        const label = `距障礙 ${approach.dist.toFixed(1)}m — 準備起跳`;
+        const label = this.tr('rhythm_prep_hurdle', { dist: approach.dist.toFixed(1) });
         if (this._lastRhythmGrade !== 'approach' || this._lastRhythmDistLabel !== label) {
           this.elRhythmMarker.className = 'rhythm-cursor';
           if (this.elRhythmLabel) {
@@ -776,7 +776,7 @@ export class CockpitManager {
         this.elRhythmMarker.className = 'rhythm-cursor';
         this._lastRhythmMarkerLeft = targetLeft;
       }
-      const text = isPairA ? '對角 A 組 (Q+P) 推進' : '對角 B 組 (W+O) 推進';
+      const text = isPairA ? this.tr('rhythm_pair_a') : this.tr('rhythm_pair_b');
       if (this.elRhythmLabel && this._lastRhythmLabelText !== text) {
         this.elRhythmLabel.textContent = text;
         this.elRhythmLabel.style.color = '#fff6e8';
@@ -836,8 +836,8 @@ export class CockpitManager {
     if (this.elNextHurdleHint && steeplechase) {
       const next = steeplechase.getNextHurdle(game.x);
       const text = next
-        ? `下一欄：${next.x}m (剩 ${(next.x - game.x).toFixed(1)}m)`
-        : '終點直線衝刺！';
+        ? this.tr('radar_next_hurdle', { dist: next.x, rem: (next.x - game.x).toFixed(1) })
+        : this.tr('radar_final_sprint');
       if (text !== this._lastHurdleHintText) {
         this.elNextHurdleHint.textContent = text;
         this._lastHurdleHintText = text;
@@ -855,17 +855,17 @@ export class CockpitManager {
       const diffDist = game.x - aiState.S.x;
       const refSpeed = Math.max(1.5, game.vx);
       deltaSec = diffDist / refSpeed;
-      rivalName = aiState.level === 'legend' ? '傳奇' : aiState.level === 'race' ? '賽馬' : '小馬';
+      rivalName = this.tr('ai_' + aiState.level);
     } else if (ghostState && ghostState.t != null && game.elapsed > 0) {
       const diffDist = game.x - (ghostState.x || 0);
       const refSpeed = Math.max(1.5, game.vx);
       deltaSec = diffDist / refSpeed;
-      rivalName = '幽靈';
+      rivalName = this.tr('radar_ghost');
     } else {
       const benchmarkX = (game.elapsed / 32.0) * 50.0;
       const diffDist = game.x - benchmarkX;
       deltaSec = diffDist / 1.56;
-      rivalName = '標竿';
+      rivalName = this.tr('radar_benchmark');
     }
 
     if (deltaSec != null) {
@@ -874,12 +874,12 @@ export class CockpitManager {
       const key = `${isLead ? '+' : '-'}${absVal}_${rivalName}`;
       if (key !== this._lastDeltaStr) {
         if (isLead) {
-          this.elDeltaBadge.textContent = `領先 ${rivalName}`;
+          this.elDeltaBadge.textContent = this.tr('delta_lead_target', { rival: rivalName });
           this.elDeltaBadge.className = 'delta-badge lead';
           this.elDeltaValue.textContent = `+${absVal}s`;
           this.elDeltaValue.style.color = '#10b981';
         } else {
-          this.elDeltaBadge.textContent = `落後 ${rivalName}`;
+          this.elDeltaBadge.textContent = this.tr('delta_lag_target', { rival: rivalName });
           this.elDeltaBadge.className = 'delta-badge lag';
           this.elDeltaValue.textContent = `-${absVal}s`;
           this.elDeltaValue.style.color = '#f59e0b';
@@ -892,13 +892,13 @@ export class CockpitManager {
   updateWeatherTelemetry(weatherMod) {
     if (this.elWindText) {
       const drag = weatherMod.drag || 1.0;
-      let text = '微風 1.0x';
+      let text = this.tr('wind_breeze');
       let color = '#fff6e8';
       if (drag < 0.9) {
-        text = `順風 +${Math.round((1 - drag) * 100)}%`;
+        text = this.tr('wind_tailwind', { val: Math.round((1 - drag) * 100) });
         color = '#10b981';
       } else if (drag > 1.1) {
-        text = `逆風 -${Math.round((drag - 1) * 100)}%`;
+        text = this.tr('wind_headwind', { val: Math.round((drag - 1) * 100) });
         color = '#ef4444';
       }
       if (text !== this._lastWindStr) {
@@ -910,10 +910,10 @@ export class CockpitManager {
 
     if (this.elGripText) {
       const fric = weatherMod.fric || 1.0;
-      let text = `抓地 ${Math.round(fric * 100)}%`;
+      let text = this.tr('grip_status', { val: Math.round(fric * 100) });
       let color = '#10b981';
       if (fric < 0.95) {
-        text = `濕滑 ${Math.round(fric * 100)}%`;
+        text = this.tr('grip_slick_status', { val: Math.round(fric * 100) });
         color = '#f59e0b';
       }
       if (text !== this._lastGripStr) {
@@ -924,7 +924,7 @@ export class CockpitManager {
     }
 
     if (this.elCdText) {
-      const text = this.aeroActive ? 'Cd 0.60x ⚡ 壓身' : 'Cd 1.00x 標準';
+      const text = this.aeroActive ? this.tr('cd_aero_text') : this.tr('cd_standard_text');
       const cls = this.aeroActive ? 'cd-badge active' : 'cd-badge';
       if (text !== this._lastCdStr) {
         this.elCdText.textContent = text;
@@ -943,19 +943,17 @@ export class CockpitManager {
     let tip = '';
 
     if (game.fallPose) {
-      tip = '馬匹倒地！冷靜等待身體躺平落地後，按 [R] 或 [Space] 迅速起身！';
+      tip = this.tr('tip_fall');
     } else if (approach && approach.active && approach.dist < 5.0) {
-      tip = '前方障礙高欄！注意倒數視窗，按 [Space] 完美起跳騰空！';
+      tip = this.tr('tip_hurdle');
     } else if (Math.abs(game.roll) > 0.24) {
-      const dir = game.roll > 0 ? '右' : '左';
-      const key = game.roll > 0 ? '←' : '→';
-      tip = `馬背向${dir}傾斜！按 [${key}] 調整重心防側翻！`;
+      tip = this.tr(game.roll > 0 ? 'tip_lean_r' : 'tip_lean_l');
     } else if (this.stamina < 20) {
-      tip = '體力告急！鬆開 Shift 壓身，依循對角步態穩步回充耐力！';
+      tip = this.tr('tip_stamina');
     } else if (speedKmh > 7.0) {
-      tip = '直線大道！按住 [Shift] 壓身破風，突破極速爭奪傳奇！';
+      tip = this.tr('tip_sprint');
     } else {
-      tip = '以 Q+P 與 W+O 對角節奏輪替踢地，維持最高推進力！';
+      tip = this.tr('tip_default');
     }
 
     if (tip !== this.currentTipKey) {

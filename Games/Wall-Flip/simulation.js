@@ -69,6 +69,28 @@ const ROAD_W = 4.6;
 const TRACK_DEF = [[165, 10.5], ['straight', 4.4 * 2]];
 const SAMPLE = .05;
 
+// ---------- courses, aerial rings and target landing pad ----------
+const COURSES = Object.freeze([
+  Object.freeze({ name: '宙返り', nameEn: 'Loop', arcDeg: 165, arcR: 10.5, straight: 8.8, wind: 0 }),
+  Object.freeze({ name: '長空', nameEn: 'Long Sky', arcDeg: 172, arcR: 11.5, straight: 14, wind: 0 }),
+  Object.freeze({ name: '疾風跳躍', nameEn: 'Gale Leap', arcDeg: 158, arcR: 9.6, straight: 12.0, wind: -2.0 }),
+  Object.freeze({ name: '超重力巨塔', nameEn: 'Hyper Spire', arcDeg: 175, arcR: 12.5, straight: 16.5, wind: 1.5 }),
+]);
+
+const AERIAL_RINGS = Object.freeze([
+  Object.freeze({ id: 'ring-1', x: -18, y: 22, z: 0, r: 3.5, pts: 30 }),
+  Object.freeze({ id: 'ring-2', x: -44, y: 19, z: 0, r: 3.5, pts: 40 }),
+  Object.freeze({ id: 'ring-3', x: -70, y: 12, z: 0, r: 3.5, pts: 50 }),
+]);
+
+const TARGET_PAD = Object.freeze({
+  xMin: -135,
+  xMax: -105,
+  sweetMin: -125,
+  sweetMax: -115,
+  zMax: 2.3,
+});
+
 // ---------- track (exact port of the builder) ----------
 const track = (() => {
   const pts = [{ s: 0, x: 0, y: 0, phi: 0, k: 0 }];
@@ -162,6 +184,7 @@ function createSim(hooks = {}, consts = null) {
     spinTotal: 0, rollsAccum: 0, spinRight: 0, spinLeft: 0,
     hasSwitchedDir: false, phase: 'upright',
     comboMult: 1.0, hasSkimmed: false, skimTime: 0, hasInverted: false, invertTime: 0,
+    collectedRings: [], ringsCount: 0, ringBonus: 0,
   };
   const snap = () => { const q = bodyPose(s.u); s.x = q.x; s.y = q.y; s.th = q.th; };
   const toAir = kind => {
@@ -178,6 +201,7 @@ function createSim(hooks = {}, consts = null) {
     s.spinTotal = 0; s.rollsAccum = 0; s.spinRight = 0; s.spinLeft = 0;
     s.hasSwitchedDir = false;
     s.comboMult = 1.0; s.hasSkimmed = false; s.skimTime = 0; s.hasInverted = false; s.invertTime = 0;
+    s.collectedRings = []; s.ringsCount = 0; s.ringBonus = 0;
     s.phase = over ? 'inverted' : 'upright';
     s.launched = kind === 'launch'; s.peeled = kind === 'detach'; s.lifted = kind === 'lift';
     s.clear = false;
@@ -242,6 +266,20 @@ function createSim(hooks = {}, consts = null) {
     s.vy += ((control.verticalThrust ?? roof[1] * manualThrust) - G0 * I.AIR_G) * dt;
     s.vz += roof[2] * manualThrust * dt;
     s.vz *= 1 - Math.min(1, dt * 2.8);
+    if (I.wind) s.vx += I.wind * dt;
+    const rings = I.RINGS || AERIAL_RINGS;
+    for (const ring of rings) {
+      if (s.collectedRings.includes(ring.id)) continue;
+      const dx = s.x - ring.x;
+      const dy = s.y - ring.y;
+      const dz = (s.z || 0) - (ring.z || 0);
+      if (Math.hypot(dx, dy, dz) <= ring.r) {
+        s.collectedRings.push(ring.id);
+        s.ringsCount = (s.ringsCount || 0) + 1;
+        s.ringBonus = (s.ringBonus || 0) + ring.pts;
+        hooks.onRingPass?.(ring, s.ringsCount);
+      }
+    }
     const damp = jL !== jR ? I.SPIN_DAMP : I.ROLL_DAMP;
     s.rw += (control.rollAccel ?? (((jL ? 1 : 0) - (jR ? 1 : 0)) * I.ANG - s.rw * damp)) * dt;
     const dRoll = s.rw * dt;
@@ -293,6 +331,7 @@ function createSim(hooks = {}, consts = null) {
     if (s.hasSkimmed) mult += 0.5;
     if (s.hasInverted) mult += 0.4;
     if (s.hasSwitchedDir) mult += 0.3;
+    if (s.ringsCount > 0) mult += s.ringsCount * 0.3;
     s.comboMult = mult;
     if (Math.abs(s.x) > I.WORLD_X) { s.x = Math.sign(s.x) * I.WORLD_X; s.vx = 0; }
     if (Math.abs(s.z) > 18) { s.z = Math.sign(s.z) * 18; s.vz = 0; }
@@ -335,10 +374,17 @@ function createSim(hooks = {}, consts = null) {
     const spinDamp = Math.abs(s.rw) <= (I.LAND_SPIN ?? BASE.LAND_SPIN) ? 0.35 : 1.0;
     const fall = -(s.vy + s.rw * spinTerm * spinDamp);
     const completedRolls = Math.max(rollsCount(s.roll, s.roll0), s.rollsAccum || 0);
+    const pad = I.TARGET_PAD || TARGET_PAD;
+    const inTargetZone = s.x <= pad.xMax && s.x >= pad.xMin && Math.abs(s.z || 0) <= (pad.zMax || 4);
+    const inSweetSpot = inTargetZone && s.x <= pad.sweetMax && s.x >= pad.sweetMin && Math.abs(s.z || 0) <= 1.8;
     s.land = {
       x: s.x, z: s.z, fall, tilt, spin: Math.abs(s.rw), rolls: completedRolls, vx: s.vx,
       hasSkimmed: !!s.hasSkimmed, hasInverted: !!s.hasInverted, hasSwitchedDir: !!s.hasSwitchedDir,
       comboMult: s.comboMult || 1,
+      rings: s.ringsCount || 0,
+      ringBonus: s.ringBonus || 0,
+      targetZone: inTargetZone,
+      sweetSpot: inSweetSpot,
     };
     if (low.pt[3] !== 'wheel' || tilt > I.LAND_TILT) { doCrash('tilt', low.w[0], 0); return; }
     if (fall > I.LAND_SPEED || Math.abs(s.rw) > I.LAND_SPIN) { doCrash('hard', low.w[0], 0); return; }
@@ -419,9 +465,16 @@ function scoreOf(land) {
   const stuntBase = (land.hasSkimmed ? 25 : 0) + (land.hasInverted ? 20 : 0) + (land.hasSwitchedDir ? 20 : 0);
   const comboMult = land.comboMult ?? 1;
   const stunt = stuntBase > 0 ? Math.round(stuntBase * comboMult) : 0;
-  return { roll, soft, level, stunt, total: Math.round(roll + soft + level + stunt) };
+  const ringBonus = land.ringBonus ?? ((land.rings || 0) * 30);
+  const targetBonus = land.targetZone ? (land.sweetSpot ? 40 : 20) : 0;
+  const total = Math.round(roll + soft + level + stunt + ringBonus + targetBonus);
+  return { roll, soft, level, stunt, rings: ringBonus, target: targetBonus, total };
 }
 
 
-globalThis.WallFlipSimulation = Object.freeze({ TAU, BASE, CAR, ROAD_W, TRACK_DEF, track, trackAt, bodyPose, localToWorld, closestOnTrack, rollsCount, createSim, scoreOf, tsin, tcos, tatan, atan2p });
+globalThis.WallFlipSimulation = Object.freeze({
+  TAU, BASE, CAR, ROAD_W, TRACK_DEF, track, trackAt, bodyPose, localToWorld,
+  closestOnTrack, rollsCount, createSim, scoreOf, tsin, tcos, tatan, atan2p,
+  COURSES, AERIAL_RINGS, TARGET_PAD
+});
 })();

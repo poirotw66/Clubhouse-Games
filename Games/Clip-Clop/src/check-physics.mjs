@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { CFG, MOD, dailyInfo, makeHorseState, makeLegStates, simHorse } from './physics.js';
+import { CFG, MOD, dailyInfo, makeHorseState, makeLegStates, simHorse, PHYSICS_TIERS, setPhysicsTier } from './physics.js';
 
 const idle = [false, false, false, false, false];
 const step = (state, legs, input = idle) => simHorse(state, legs, input, CFG.STEP);
@@ -58,5 +58,54 @@ for (let day = 1; day <= 31; day++) {
   assert.ok(Math.abs(info.slope) <= 0.28);
   assert.ok(['day', 'dusk', 'rain'].includes(info.weather));
 }
-assert.deepEqual(MOD, { drag: 1, fric: 1, slope: 0 });
-console.log('check-physics: ok (rest, gait, falls, recovery and daily modifiers)');
+assert.deepEqual(MOD, { drag: 1, fric: 1, slope: 0, aeroActive: false });
+
+// Physics tiers & diagonal trot balance test (BAL2 = 30 vs BAL2 = 6)
+{
+  assert.equal(PHYSICS_TIERS.arcade.bal2, 30);
+  assert.equal(PHYSICS_TIERS.classic.bal2, 6);
+
+  setPhysicsTier('classic');
+  assert.equal(CFG.BAL2, 6);
+  assert.equal(CFG.tier, 'classic');
+
+  // Measure two-hoof diagonal trot stability under BAL2 = 6 (Classic)
+  const stateClassic = makeHorseState(), legsClassic = makeLegStates();
+  for (let i = 0; i < 140; i++) {
+    simHorse(stateClassic, legsClassic, [true, false, false, true, false], CFG.STEP);
+  }
+  const rollClassic = Math.abs(stateClassic.roll);
+
+  setPhysicsTier('arcade');
+  assert.equal(CFG.BAL2, 30);
+  assert.equal(CFG.tier, 'arcade');
+
+  // Measure two-hoof diagonal trot stability under BAL2 = 30 (Arcade)
+  const stateArcade = makeHorseState(), legsArcade = makeLegStates();
+  for (let i = 0; i < 140; i++) {
+    simHorse(stateArcade, legsArcade, [true, false, false, true, false], CFG.STEP);
+  }
+  const rollArcade = Math.abs(stateArcade.roll);
+
+  // Arcade BAL2=30 restores balance tightly, whereas Classic BAL2=6 allows large roll tilt
+  assert.ok(rollArcade < rollClassic * 0.45, `Expected rollArcade (${rollArcade}) < 0.45 * rollClassic (${rollClassic})`);
+  assert.ok(rollArcade < 0.2, `Arcade roll should stay well bounded, got ${rollArcade}`);
+}
+
+// Aerodynamic drag reduction with MOD.aeroActive
+{
+  const stateA = makeHorseState(), legsA = makeLegStates();
+  stateA.vx = 8.0;
+  MOD.aeroActive = false;
+  simHorse(stateA, legsA, idle, CFG.STEP);
+
+  const stateB = makeHorseState(), legsB = makeLegStates();
+  stateB.vx = 8.0;
+  MOD.aeroActive = true;
+  simHorse(stateB, legsB, idle, CFG.STEP);
+
+  assert.ok(stateB.vx > stateA.vx, `Aero active should experience less drag: ${stateB.vx} vs ${stateA.vx}`);
+  MOD.aeroActive = false;
+}
+
+console.log('check-physics: ok (rest, gait, falls, recovery, daily modifiers, tiers BAL2 30 vs 6, aero drag)');

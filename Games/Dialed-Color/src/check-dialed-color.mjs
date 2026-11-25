@@ -2,6 +2,7 @@ import {
   calculateScore,
   distanceComponents,
   hueDelta,
+  perceptualHueWeight,
   scoreEmoji,
   scoreBandLabel,
   scoreToAccuracy,
@@ -11,7 +12,9 @@ import {
 } from './score.mjs';
 import {
   mixColors,
+  mixColorsWeighted,
   complementaryOf,
+  splitComplementaryOf,
   analogousOf,
   survivalParams,
   buildTargets,
@@ -24,7 +27,12 @@ import {
   rgbToHsl,
   ASCENT_SHOW_MS,
   ASCENT_PASS,
+  COLOR_THEORY_ROUNDS,
 } from './colors.mjs';
+import {
+  loadMatrixProgress,
+  recordMatrixClear,
+} from './storage.mjs';
 import {
   dateKey,
   dailyBaseSeed,
@@ -387,17 +395,29 @@ const blitz = buildTargets('blitz', rand);
 assert(blitz.targets.length >= 20, `blitz pool size should be >= 20, got ${blitz.targets.length}`);
 
 const mixPack = buildTargets('mix', mulberry32(42));
-assert(mixPack.mixPairs?.length === 1, 'mix has pair');
-assert(mixPack.targets.length === 1, 'mix has one target');
-assert(mixPack.refs?.length === 2, 'mix has two references');
+assert(mixPack.targets.length === COLOR_THEORY_ROUNDS, 'mix mode has multi-round targets');
+assert(mixPack.mixPairs?.length === COLOR_THEORY_ROUNDS, 'mix mode has mix pairs per round');
+assert(mixPack.refs?.length === COLOR_THEORY_ROUNDS * 2, 'mix mode has refs per round');
+assert(mixPack.prompts?.length === COLOR_THEORY_ROUNDS, 'mix mode has progressive prompts');
+assert(mixPack.prompts[0].includes('50/50'), 'round 1 balanced mix');
+assert(mixPack.prompts[1].includes('70/30'), 'round 2 weighted mix');
+assert(mixPack.prompts[2].includes('30/70'), 'round 3 inverted mix');
 
 const complementPack = buildTargets('complement', mulberry32(99));
-assert(complementPack.targets.length === 1, 'complement mode has one target');
-assert(complementPack.prompts?.length === 1, 'complement mode prompt text');
+assert(complementPack.targets.length === COLOR_THEORY_ROUNDS, 'complement mode has multi-round targets');
+assert(complementPack.refs?.length === COLOR_THEORY_ROUNDS, 'complement mode has refs per round');
+assert(complementPack.prompts?.length === COLOR_THEORY_ROUNDS, 'complement mode has progressive prompts');
+assert(complementPack.prompts[0].includes('+180°'), 'round 1 complementary');
+assert(complementPack.prompts[1].includes('+150°'), 'round 2 split-complementary A');
+assert(complementPack.prompts[2].includes('+210°'), 'round 3 split-complementary B');
 
 const analogousPack = buildTargets('analogous', mulberry32(99));
-assert(analogousPack.targets.length === 1, 'analogous mode has one target');
-assert(analogousPack.prompts?.length === 1, 'analogous mode prompt text');
+assert(analogousPack.targets.length === COLOR_THEORY_ROUNDS, 'analogous mode has multi-round targets');
+assert(analogousPack.refs?.length === COLOR_THEORY_ROUNDS, 'analogous mode has refs per round');
+assert(analogousPack.prompts?.length === COLOR_THEORY_ROUNDS, 'analogous mode has progressive prompts');
+assert(analogousPack.prompts[0].includes('+30°'), 'round 1 near analogous');
+assert(analogousPack.prompts[1].includes('-30°'), 'round 2 inverted analogous');
+assert(analogousPack.prompts[2].includes('+45°'), 'round 3 extended analogous');
 
 const ascentPack = buildTargets('ascent', mulberry32(123));
 assert(ascentPack.targets.length === 5, 'ascent mode 5 targets');
@@ -531,5 +551,83 @@ assert(share.includes('🟩🟨🟧⬛🟩'), `share grid expected emojis, got: 
 assert(share.includes('連勝 3 天'), 'share includes streak count');
 assert(share.includes('674 分'), 'share includes average score');
 assert(share.includes('準確度 67%'), 'share includes accuracy percentage');
+
+// ============================================================================
+// 9. Perceptual Hue Weighting Calibration (Low S & Extreme L Swatches)
+// ============================================================================
+
+// Near-gray swatches (S <= 2%): 180° hue difference is imperceptible, score must be >= 950
+const nearGrayTarget = { h: 0, s: 2, l: 50 };
+const nearGrayGuess = { h: 180, s: 2, l: 50 };
+const nearGrayScore = calculateScore(nearGrayTarget, nearGrayGuess);
+assert(nearGrayScore >= 950, `near-gray 180° hue diff should not suffer penalty, got ${nearGrayScore}`);
+const nearGrayWeight = perceptualHueWeight(nearGrayTarget, nearGrayGuess);
+assert(nearGrayWeight <= 0.1, `near-gray hue weight should be <= 0.1, got ${nearGrayWeight}`);
+
+// Pure gray (S = 0%): hue weight is exactly 0, identical gray colors score 999 regardless of hue
+const pureGray1 = { h: 0, s: 0, l: 50 };
+const pureGray2 = { h: 180, s: 0, l: 50 };
+assert(calculateScore(pureGray1, pureGray2) === 999, 'pure gray swatches must score 999');
+
+// Near-black swatches (L <= 1%): 180° hue difference is imperceptible, score must be >= 950
+const nearBlackTarget = { h: 0, s: 80, l: 1 };
+const nearBlackGuess = { h: 180, s: 80, l: 1 };
+const nearBlackScore = calculateScore(nearBlackTarget, nearBlackGuess);
+assert(nearBlackScore >= 950, `near-black 180° hue diff should not suffer penalty, got ${nearBlackScore}`);
+const nearBlackWeight = perceptualHueWeight(nearBlackTarget, nearBlackGuess);
+assert(nearBlackWeight <= 0.1, `near-black hue weight should be <= 0.1, got ${nearBlackWeight}`);
+
+// Pure black (L = 0%): hue weight is exactly 0, both pure black swatches score 999
+const pureBlack1 = { h: 0, s: 50, l: 0 };
+const pureBlack2 = { h: 180, s: 50, l: 0 };
+assert(calculateScore(pureBlack1, pureBlack2) === 999, 'pure black swatches must score 999');
+
+// Near-white swatches (L >= 99%): 180° hue difference is imperceptible, score must be >= 950
+const nearWhiteTarget = { h: 0, s: 80, l: 99 };
+const nearWhiteGuess = { h: 180, s: 80, l: 99 };
+const nearWhiteScore = calculateScore(nearWhiteTarget, nearWhiteGuess);
+assert(nearWhiteScore >= 950, `near-white 180° hue diff should not suffer penalty, got ${nearWhiteScore}`);
+const nearWhiteWeight = perceptualHueWeight(nearWhiteTarget, nearWhiteGuess);
+assert(nearWhiteWeight <= 0.1, `near-white hue weight should be <= 0.1, got ${nearWhiteWeight}`);
+
+// Vivid saturated mid-tones (S=50, L=50): hue weight must remain full 1.0
+const vividTarget = { h: 0, s: 50, l: 50 };
+const vividGuess = { h: 180, s: 50, l: 50 };
+assert(perceptualHueWeight(vividTarget, vividGuess) === 1.0, 'vivid colors hue weight is 1.0');
+
+// ============================================================================
+// 10. MatrixLights Reward Hook & Storage Progression
+// ============================================================================
+
+// Mock localStorage if running in pure node environment
+if (typeof globalThis.localStorage === 'undefined') {
+  const store = new Map();
+  globalThis.localStorage = {
+    getItem: (k) => store.get(k) ?? null,
+    setItem: (k, v) => store.set(k, String(v)),
+    removeItem: (k) => store.delete(k),
+    clear: () => store.clear(),
+  };
+}
+
+const initialProgress = loadMatrixProgress();
+assert(typeof initialProgress.cleared === 'boolean', 'matrix progress has cleared flag');
+assert(typeof initialProgress.clearCount === 'number', 'matrix progress has clearCount');
+
+const updatedProgress = recordMatrixClear();
+assert(updatedProgress.cleared === true, 'cleared flag is true after recordMatrixClear');
+assert(updatedProgress.clearCount >= 1, 'clearCount incremented');
+assert(updatedProgress.chromaticMaster === true, 'chromaticMaster unlocked');
+assert(updatedProgress.bonusPeeks >= 1, 'bonusPeeks granted');
+
+// Multi-round mix color weighting tests
+const red = { h: 0, s: 100, l: 50 };
+const green = { h: 120, s: 100, l: 50 };
+const weighted70 = mixColorsWeighted(red, green, 0.7);
+const weighted30 = mixColorsWeighted(red, green, 0.3);
+assert(weighted70.h < weighted30.h, '70% red mix is closer to red than 30% red mix');
+
+const splitComp = splitComplementaryOf(red, 150);
+assert(splitComp.h === 150, 'split complementary offset 150');
 
 console.log('check-dialed-color: ok');

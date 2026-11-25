@@ -14,6 +14,7 @@ import {
   parseBattleCode,
   rivalPoseFrom,
   formatLeaderboardPayload,
+  simulateWarmupGait,
 } from './paddock.js';
 
 // 1. Tournament 3-leg mechanics
@@ -238,4 +239,20 @@ import {
   assert.throws(() => formatLeaderboardPayload({ name: 'A', finishTime: 20, falls: 0, code: 'CC1.x', mode: 'daily', day: null }), /Valid day format YYYY-MM-DD/);
 }
 
-console.log('check-paddock: ok (tournament 3-leg mechanics, duel rules, ghost/battle-code serialization, Supabase leaderboard formatting)');
+// 5. 20m flat warmup straightaway real-physics gait evaluation
+{
+  const simArcade = simulateWarmupGait(1400, 'arcade');
+  assert.equal(simArcade.fallPose, null);
+  assert.ok(simArcade.stable);
+  assert.ok(simArcade.distance > 2.0);
+  assert.ok(simArcade.steps > 0);
+
+  const simClassic = simulateWarmupGait(1400, 'classic');
+  assert.equal(simClassic.fallPose, null);
+  assert.ok(simClassic.distance > 2.0);
+
+  // Reset back to arcade default
+  simulateWarmupGait(1, 'arcade');
+}
+
+console.log('check-paddock: ok (tournament 3-leg mechanics, duel rules, ghost/battle-code serialization, Supabase leaderboard formatting, warmup gait simulation)');

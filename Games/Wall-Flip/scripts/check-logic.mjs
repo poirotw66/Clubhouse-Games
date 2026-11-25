@@ -217,6 +217,49 @@ assert.equal(two.rollsCount(Math.PI * 2, 0), 1);
   assert.equal(api2d.stats.total, expected.total);
 }
 
+// Aerial bonus rings: flying through rings rewards combo multiplier and bonus points in both 2D and 3D simulation.
+{
+  const { AERIAL_RINGS, TARGET_PAD } = three;
+  assert.ok(Array.isArray(AERIAL_RINGS) && AERIAL_RINGS.length >= 3, 'At least 3 aerial rings defined');
+  const sim = createSim();
+  const ring1 = AERIAL_RINGS[0];
+  Object.assign(sim.state, {
+    mode: 'air',
+    x: ring1.x - 0.5, y: ring1.y, z: 0,
+    vx: -20, vy: 0, vz: 0,
+    roll: 0, pitch: 0, yaw: 0, rw: 0,
+    air: 80, clear: true,
+  });
+  sim.step(BASE.STEP, idle);
+  assert.equal(sim.state.ringsCount, 1, 'Sim collects ring when intersecting boundary');
+  assert.equal(sim.state.ringBonus, ring1.pts);
+  assert.ok(sim.state.comboMult > 1.0, 'Ring collection increases combo multiplier');
+
+  // Precision target landing pad: sweet spot touchdown awards target bonus.
+  Object.assign(sim.state, {
+    x: (TARGET_PAD.sweetMin + TARGET_PAD.sweetMax) / 2,
+    y: 0.65, z: 0,
+    vx: -5, vy: -1.0, vz: 0,
+    roll: 0, pitch: 0, rw: 0,
+  });
+  sim.step(BASE.STEP, idle);
+  assert.equal(sim.state.mode, 'landed');
+  assert.equal(sim.state.land.targetZone, true, 'Touchdown inside target pad detected');
+  assert.equal(sim.state.land.sweetSpot, true, 'Touchdown inside sweet spot detected');
+  const scored = scoreOf(sim.state.land);
+  assert.equal(scored.rings, ring1.pts);
+  assert.equal(scored.target, 40);
+  assert.equal(scored.total, Math.round(scored.roll + scored.soft + scored.level + scored.stunt + scored.rings + scored.target));
+}
+
+// Course variants: at least 4 courses exist with distinct parameters and wind modifiers.
+{
+  const { COURSES } = three;
+  assert.ok(Array.isArray(COURSES) && COURSES.length >= 4, 'COURSES has at least 4 courses');
+  assert.ok(COURSES.some(c => c.wind < 0), 'Contains headwind course variant');
+  assert.ok(COURSES.some(c => c.wind > 0), 'Contains tailwind course variant');
+}
+
 console.log('check-logic: ok (2D courses, 3D simulation, resources and landing scores)');
 
 // Escape must close the display-switch dialog even when its button has focus.

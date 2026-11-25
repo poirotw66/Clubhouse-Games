@@ -5,6 +5,7 @@ import {
   FACE_TINT,
   PAIR_OPTIONS,
   THEME_OPTIONS,
+  DEDUCTION_CLUES,
   allMatched,
   analyzeMemoryState,
   bestStorageSlot,
@@ -122,6 +123,40 @@ assert.equal(buildDeck(24, 'night', () => 0.5).length, 24, 'oversize pairCount c
 const special = buildDeck(6, 'classic', () => 0.2, { specialInsight: true });
 assert.equal(special.filter((c) => c.kind === 'insight').length, 2, 'insight pair is exactly one face×2');
 
+const tacticalDeck = buildDeck(6, 'classic', () => 0.25, { specialTactical: true });
+assert.equal(tacticalDeck.filter((c) => c.kind === 'insight').length, 2, 'tactical deck has insight pair');
+assert.equal(tacticalDeck.filter((c) => c.kind === 'scan').length, 2, 'tactical deck has scan pair');
+assert.equal(tacticalDeck.filter((c) => c.kind === 'shield').length, 2, 'tactical deck has shield pair');
+
+const deductionDeck = buildDeck(6, 'classic', () => 0.35, { deductionMode: true });
+assert.equal(deductionDeck.length, 12);
+assert.equal(deductionDeck.filter((c) => c.isClueCard).length, 6, 'exactly half are clue cards');
+assert.equal(deductionDeck.filter((c) => !c.isClueCard).length, 6, 'exactly half are answer cards');
+for (const c of deductionDeck) {
+  assert.ok(c.backHint, 'all deduction cards must have backHint');
+  assert.ok(c.clueCategory, 'all deduction cards must have clueCategory');
+  if (c.isClueCard) {
+    assert.ok(c.clue, 'clue card has clue equation/expression');
+    assert.ok(c.backHint.includes('算式'), 'clue card backHint marks 算式');
+  } else {
+    assert.ok(c.answer, 'answer card has answer value');
+    assert.ok(c.backHint.includes('數值'), 'answer card backHint marks 數值');
+  }
+}
+const faceMap = new Map();
+for (let i = 0; i < deductionDeck.length; i++) {
+  const f = deductionDeck[i].face;
+  if (!faceMap.has(f)) faceMap.set(f, []);
+  faceMap.get(f).push(i);
+}
+for (const [face, [idx1, idx2]] of faceMap.entries()) {
+  assert.ok(isMatchGroup(deductionDeck, [idx1, idx2]), `pair ${face} matches`);
+  const c1 = deductionDeck[idx1];
+  const c2 = deductionDeck[idx2];
+  assert.notEqual(c1.isClueCard, c2.isClueCard, 'pair has 1 clue and 1 answer card');
+  assert.equal(c1.clueCategory, c2.clueCategory, 'pair shares same deduction category');
+}
+
 const bombDeck = buildDeck(6, 'classic', () => 0.3, { bombPair: true });
 assert.equal(bombDeck.filter((c) => c.kind === 'bomb').length, 2, 'bomb pair is exactly one face×2');
 
@@ -161,6 +196,9 @@ assert.equal(bestStorageSlot('classic', 'orchard', 12), 'orchard-12');
 assert.equal(bestStorageSlot('sprint', 'jewel', 12), 'sprint-jewel-12');
 assert.equal(bestStorageSlot('versus', 'classic', 12, { cpuDifficulty: 'hard' }), 'versus-hard-classic-12');
 assert.equal(bestStorageSlot('special', 'night', 12), 'special-night-12');
+assert.equal(bestStorageSlot('deduction', 'classic', 12), 'deduction-classic-12');
+assert.equal(bestStorageSlot('deduction', 'night', 12, { metric: 'time' }), 'time-deduction-night-12');
+assert.equal(bestStorageSlot('deduction', 'classic', 12, { metric: 'score' }), 'score-deduction-classic-12');
 assert.equal(bestStorageSlot('daily', 'classic', 12), '12', 'daily maps to classic free-play slot shape');
 assert.equal(bestStorageSlot('campaign', 'classic', 12), '12');
 

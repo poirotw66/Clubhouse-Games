@@ -111,6 +111,86 @@ function buildGateBeamMesh(gl, program) {
   return createMesh(gl, program, new Float32Array(data), new Uint32Array(indices), SOLID_ATTRIBUTES);
 }
 
+/**
+ * Builds a water-level rounding circle ribbon with directional chevrons
+ * at unit radius, scaled at runtime by gate.radius.
+ */
+function buildRoundingRingMesh(gl, program) {
+  const data = [];
+  const indices = [];
+  let vcount = 0;
+
+  const push = (p, n, uv, c) => {
+    data.push(p[0], p[1], p[2], n[0], n[1], n[2], uv[0], uv[1], c[0], c[1], c[2]);
+    return vcount++;
+  };
+
+  const segs = 64;
+  const w = 0.045; // ribbon half-width in normalized radius
+  const RING_COLOR = [0.2, 0.9, 0.8];
+  const CHEVRON_COLOR = [0.45, 1.0, 0.9];
+
+  // 1. Water-level ribbon ring
+  const ringStart = vcount;
+  for (let i = 0; i <= segs; i++) {
+    const a = (i / segs) * Math.PI * 2;
+    const cosA = Math.cos(a);
+    const sinA = Math.sin(a);
+    const rIn = 1.0 - w;
+    const rOut = 1.0 + w;
+    push([cosA * rIn, 0, sinA * rIn], [0, 1, 0], [i / segs, 0], RING_COLOR);
+    push([cosA * rOut, 0, sinA * rOut], [0, 1, 0], [i / segs, 1], RING_COLOR);
+  }
+  for (let i = 0; i < segs; i++) {
+    const b = ringStart + i * 2;
+    indices.push(b, b + 1, b + 2, b + 1, b + 3, b + 2);
+  }
+
+  // 2. Directional chevrons around perimeter (port rounding: counterclockwise)
+  const chevronCount = 8;
+  const cLen = 0.13;
+  const cSpan = 0.07;
+  for (let k = 0; k < chevronCount; k++) {
+    const theta = (k / chevronCount) * Math.PI * 2;
+    const px = Math.sin(theta);
+    const pz = Math.cos(theta);
+    const tx = Math.cos(theta);
+    const tz = -Math.sin(theta);
+    const rx = Math.sin(theta);
+    const rz = Math.cos(theta);
+
+    const tip = [px + tx * cLen, 0.005, pz + tz * cLen];
+    const outerWing = [px - tx * (cLen * 0.45) + rx * cSpan, 0.005, pz - tz * (cLen * 0.45) + rz * cSpan];
+    const innerWing = [px - tx * (cLen * 0.45) - rx * cSpan, 0.005, pz - tz * (cLen * 0.45) - rz * cSpan];
+    const notch = [px - tx * (cLen * 0.08), 0.005, pz - tz * (cLen * 0.08)];
+
+    const iTip = push(tip, [0, 1, 0], [0.5, 1], CHEVRON_COLOR);
+    const iOuter = push(outerWing, [0, 1, 0], [1, 0], CHEVRON_COLOR);
+    const iInner = push(innerWing, [0, 1, 0], [0, 0], CHEVRON_COLOR);
+    const iNotch = push(notch, [0, 1, 0], [0.5, 0.3], CHEVRON_COLOR);
+
+    indices.push(iTip, iOuter, iNotch);
+    indices.push(iTip, iNotch, iInner);
+  }
+
+  return createMesh(gl, program, new Float32Array(data), new Uint32Array(indices), SOLID_ATTRIBUTES);
+}
+
+/**
+ * Returns rounding ring geometry details for checking radius and port-rounding direction.
+ */
+export function getRoundingRingGeometry(gate) {
+  const radius = gate.radius ?? 10;
+  const leaveTo = gate.leaveTo === 'starboard' ? 'starboard' : 'port';
+  const isPort = leaveTo === 'port';
+  return {
+    radius,
+    leaveTo,
+    isPort,
+    angularDirection: isPort ? 1 : -1,
+  };
+}
+
 /** @deprecated use createCourse(id) from courses.js — kept for check imports */
 export function createCourse(courseId = 'harbor') {
   return buildCourse(courseId);
@@ -299,11 +379,17 @@ function buildPosts(course) {
 export function createMarks(gl, solid, course) {
   const mesh = buildBuoyMesh(gl, solid.program);
   const beamMesh = buildGateBeamMesh(gl, solid.program);
+  const roundRingMesh = buildRoundingRingMesh(gl, solid.program);
   let active = course;
   let tracker = createMarkTracker(active.gates);
   let posts = buildPosts(active);
+  let roundGates = active.gates.filter((g) => markKind(g) === 'round');
 
   let models = posts.map(() => ({
+    model: mat4.create(),
+    normal: new Float32Array(9),
+  }));
+  let roundModels = roundGates.map(() => ({
     model: mat4.create(),
     normal: new Float32Array(9),
   }));
@@ -321,6 +407,12 @@ export function createMarks(gl, solid, course) {
     get posts() {
       return posts;
     },
+    get roundGates() {
+      return roundGates;
+    },
+    get roundModels() {
+      return roundModels;
+    },
     get gates() {
       return active.gates;
     },
@@ -335,7 +427,12 @@ export function createMarks(gl, solid, course) {
       active = nextCourse;
       tracker = createMarkTracker(active.gates);
       posts = buildPosts(active);
+      roundGates = active.gates.filter((g) => markKind(g) === 'round');
       models = posts.map(() => ({
+        model: mat4.create(),
+        normal: new Float32Array(9),
+      }));
+      roundModels = roundGates.map(() => ({
         model: mat4.create(),
         normal: new Float32Array(9),
       }));
@@ -367,6 +464,18 @@ export function createMarks(gl, solid, course) {
         const scale = isNext ? (p.solo ? 2.1 : 1.75) : p.solo ? 1.35 : 1;
         mat4.compose(models[i].model, [p.x, s.y - 0.35, p.z], 0, pitch, roll, scale);
         mat4.normalMatrix(models[i].normal, models[i].model);
+      });
+
+      roundGates.forEach((gate, i) => {
+        const s = sampleWater(gate.x, gate.z, time, waveAmp);
+        const pitch = Math.atan(-s.nz) * 0.2;
+        const roll = Math.atan(s.nx) * 0.2;
+        const radius = gate.radius ?? 10;
+        const leaveSign = gate.leaveTo === 'starboard' ? -1 : 1;
+        mat4.compose(roundModels[i].model, [gate.x, s.y + 0.08, gate.z], 0, pitch, roll, 1);
+        const sc = mat4.fromScaling(mat4.create(), [radius * leaveSign, 1, radius]);
+        mat4.multiply(roundModels[i].model, roundModels[i].model, sc);
+        mat4.normalMatrix(roundModels[i].normal, roundModels[i].model);
       });
 
       const gate = tracker.nextGate;
@@ -412,6 +521,35 @@ export function createMarks(gl, solid, course) {
           translucency: isNext ? 0.45 * pulse : 0,
         });
         mesh.draw();
+      });
+
+      roundGates.forEach((gate, i) => {
+        const isNext = gate.id === tracker.nextIndex;
+        const isDone = gate.id < tracker.nextIndex;
+        let tint = [0.22, 0.88, 0.76];
+        let roughness = 0.2;
+        let translucency = 0.45;
+
+        if (isNext) {
+          tint = [
+            NEXT[0] + (NEXT_HOT[0] - NEXT[0]) * pulse,
+            NEXT[1],
+            NEXT[2] + (NEXT_HOT[2] - NEXT[2]) * (1 - pulse),
+          ];
+          roughness = 0.08;
+          translucency = 0.78;
+        } else if (isDone) {
+          tint = DONE;
+          translucency = 0.22;
+        }
+
+        solidPass.setTransform(roundModels[i].model, roundModels[i].normal);
+        solidPass.setMaterial({
+          tint,
+          roughness,
+          translucency,
+        });
+        roundRingMesh.draw();
       });
 
       if (next && markKind(next) === 'gate') {

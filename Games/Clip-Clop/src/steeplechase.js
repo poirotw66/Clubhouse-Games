@@ -7,7 +7,7 @@ import * as THREE from 'three';
  */
 export class SteeplechaseManager {
   constructor() {
-    this.hurdlePositions = [15.0, 28.0, 41.0];
+    this.hurdlePositions = [22.0, 32.0, 42.0];
     this.hurdles = [];
     this.scene = null;
     this.particles = [];

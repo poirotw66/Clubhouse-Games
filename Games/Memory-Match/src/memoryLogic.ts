@@ -71,7 +71,7 @@ export const FACE_EMOJI: Record<FaceId, string> = {
 
 export type PairCount = 6 | 12 | 18 | 24;
 
-export type PlayMode = 'classic' | 'sprint' | 'versus' | 'special' | 'daily' | 'campaign';
+export type PlayMode = 'classic' | 'sprint' | 'versus' | 'special' | 'deduction' | 'daily' | 'campaign';
 
 export type ThemeId = 'classic' | 'night' | 'orchard' | 'jewel';
 
@@ -230,17 +230,65 @@ export const THEME_OPTIONS: {
   },
 ];
 
-export type CardKind = 'normal' | 'insight' | 'bomb';
+export type CardKind = 'normal' | 'insight' | 'scan' | 'shield' | 'bomb';
 
 export interface MemoryCard {
   id: string;
   face: FaceId;
   matched: boolean;
   kind: CardKind;
+  clue?: string;
+  answer?: string;
+  isClueCard?: boolean;
+  backHint?: string;
+  clueCategory?: string;
 }
+
+export interface FaceClueRule {
+  face: FaceId;
+  category: string;
+  equation: string;
+  answer: string;
+  clueLabel: string;
+  answerLabel: string;
+}
+
+export const DEDUCTION_CLUES: Record<FaceId, FaceClueRule> = {
+  star: { face: 'star', category: '天體領域', equation: '4 + 3 = ?', answer: '7', clueLabel: '4 + 3', answerLabel: '7' },
+  moon: { face: 'moon', category: '天體領域', equation: '7 + 5 = ?', answer: '12', clueLabel: '7 + 5', answerLabel: '12' },
+  sun: { face: 'sun', category: '天體領域', equation: '2 × 5 = ?', answer: '10', clueLabel: '2 × 5', answerLabel: '10' },
+  comet: { face: 'comet', category: '天體領域', equation: '18 - 3 = ?', answer: '15', clueLabel: '18 - 3', answerLabel: '15' },
+  cloud: { face: 'cloud', category: '天體領域', equation: '1 + 5 = ?', answer: '6', clueLabel: '1 + 5', answerLabel: '6' },
+  planet: { face: 'planet', category: '天體領域', equation: '3 × 6 = ?', answer: '18', clueLabel: '3 × 6', answerLabel: '18' },
+
+  cherry: { face: 'cherry', category: '自然植物', equation: '2 + 1 = ?', answer: '3', clueLabel: '2 + 1', answerLabel: '3' },
+  leaf: { face: 'leaf', category: '自然植物', equation: '9 - 5 = ?', answer: '4', clueLabel: '9 - 5', answerLabel: '4' },
+  apple: { face: 'apple', category: '自然植物', equation: '8 + 8 = ?', answer: '16', clueLabel: '8 + 8', answerLabel: '16' },
+  grape: { face: 'grape', category: '自然植物', equation: '3 × 4 = ?', answer: '12', clueLabel: '3 × 4', answerLabel: '12' },
+  mushroom: { face: 'mushroom', category: '自然植物', equation: '11 - 2 = ?', answer: '9', clueLabel: '11 - 2', answerLabel: '9' },
+  flower: { face: 'flower', category: '自然植物', equation: '6 + 2 = ?', answer: '8', clueLabel: '6 + 2', answerLabel: '8' },
+  tree: { face: 'tree', category: '自然植物', equation: '10 + 4 = ?', answer: '14', clueLabel: '10 + 4', answerLabel: '14' },
+  acorn: { face: 'acorn', category: '自然植物', equation: '13 - 6 = ?', answer: '7', clueLabel: '13 - 6', answerLabel: '7' },
+
+  gem: { face: 'gem', category: '礦石寶物', equation: '10 - 2 = ?', answer: '8', clueLabel: '10 - 2', answerLabel: '8' },
+  ruby: { face: 'ruby', category: '礦石寶物', equation: '4 × 5 = ?', answer: '20', clueLabel: '4 × 5', answerLabel: '20' },
+  sapphire: { face: 'sapphire', category: '礦石寶物', equation: '16 - 5 = ?', answer: '11', clueLabel: '16 - 5', answerLabel: '11' },
+  crown: { face: 'crown', category: '礦石寶物', equation: '7 × 3 = ?', answer: '21', clueLabel: '7 × 3', answerLabel: '21' },
+  coin: { face: 'coin', category: '礦石寶物', equation: '5 × 5 = ?', answer: '25', clueLabel: '5 × 5', answerLabel: '25' },
+  ring: { face: 'ring', category: '礦石寶物', equation: '14 - 8 = ?', answer: '6', clueLabel: '14 - 8', answerLabel: '6' },
+
+  fish: { face: 'fish', category: '海陸生靈', equation: '15 - 10 = ?', answer: '5', clueLabel: '15 - 10', answerLabel: '5' },
+  shell: { face: 'shell', category: '海陸生靈', equation: '2 × 8 = ?', answer: '16', clueLabel: '2 × 8', answerLabel: '16' },
+  heart: { face: 'heart', category: '海陸生靈', equation: '1 + 1 = ?', answer: '2', clueLabel: '1 + 1', answerLabel: '2' },
+  anchor: { face: 'anchor', category: '器具符號', equation: '19 - 6 = ?', answer: '13', clueLabel: '19 - 6', answerLabel: '13' },
+  key: { face: 'key', category: '器具符號', equation: '3 × 3 = ?', answer: '9', clueLabel: '3 × 3', answerLabel: '9' },
+  bell: { face: 'bell', category: '器具符號', equation: '6 × 3 = ?', answer: '18', clueLabel: '6 × 3', answerLabel: '18' },
+};
 
 export type BuildDeckOptions = {
   specialInsight?: boolean;
+  specialTactical?: boolean;
+  deductionMode?: boolean;
   /** 2 = classic pairs; 3 = match-three groups. */
   copiesPerFace?: 2 | 3;
   /** Mark one face as a bomb pair/group (miss with bomb costs time in campaign). */
@@ -307,27 +355,77 @@ export function buildDeck(
   }
 
   let insightFace: FaceId | null = null;
-  if (options.specialInsight && chosen.length > 0) {
+  let scanFace: FaceId | null = null;
+  let shieldFace: FaceId | null = null;
+
+  if (options.specialTactical && chosen.length > 0) {
+    const poolCopy = chosen.slice();
+    // Deterministic shuffle of tactical candidates using rand
+    for (let i = poolCopy.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1));
+      const t = poolCopy[i];
+      poolCopy[i] = poolCopy[j];
+      poolCopy[j] = t;
+    }
+    insightFace = poolCopy[0] ?? null;
+    scanFace = poolCopy[1] ?? poolCopy[0] ?? null;
+    shieldFace = poolCopy[2] ?? poolCopy[0] ?? null;
+  } else if (options.specialInsight && chosen.length > 0) {
     const idx = Math.floor(rand() * chosen.length);
     insightFace = chosen[idx];
   }
 
   let bombFace: FaceId | null = null;
   if (options.bombPair && chosen.length > 0) {
-    const candidates = chosen.filter((f) => f !== insightFace);
+    const candidates = chosen.filter((f) => f !== insightFace && f !== scanFace && f !== shieldFace);
     const poolForBomb = candidates.length > 0 ? candidates : chosen;
     bombFace = poolForBomb[Math.floor(rand() * poolForBomb.length)];
   }
 
+  const faceSeenCounts = new Map<FaceId, number>();
+
   return faces.map((face, i) => {
     let kind: CardKind = 'normal';
     if (insightFace !== null && face === insightFace) kind = 'insight';
+    else if (scanFace !== null && face === scanFace) kind = 'scan';
+    else if (shieldFace !== null && face === shieldFace) kind = 'shield';
     else if (bombFace !== null && face === bombFace) kind = 'bomb';
+
+    const count = faceSeenCounts.get(face) ?? 0;
+    faceSeenCounts.set(face, count + 1);
+
+    let clue: string | undefined;
+    let answer: string | undefined;
+    let isClueCard: boolean | undefined;
+    let backHint: string | undefined;
+    let clueCategory: string | undefined;
+
+    if (options.deductionMode) {
+      const rule = DEDUCTION_CLUES[face];
+      if (rule) {
+        clueCategory = rule.category;
+        if (count === 0) {
+          isClueCard = true;
+          clue = rule.clueLabel;
+          backHint = `${rule.category} · 算式`;
+        } else {
+          isClueCard = false;
+          answer = rule.answerLabel;
+          backHint = `${rule.category} · 數值`;
+        }
+      }
+    }
+
     return {
       id: `${face}-${i}`,
       face,
       matched: false,
       kind,
+      clue,
+      answer,
+      isClueCard,
+      backHint,
+      clueCategory,
     };
   });
 }
@@ -529,14 +627,15 @@ export function bestStorageSlot(
     return themeId === 'classic' ? `time-${n}` : `time-${themeId}-${n}`;
   }
 
-  if (slotMode === 'sprint' || (metric === 'time' && slotMode === 'special')) {
+  if (slotMode === 'sprint' || (metric === 'time' && (slotMode === 'special' || slotMode === 'deduction'))) {
     if (themeId === 'classic' && slotMode === 'sprint') return `sprint-${n}`;
-    return slotMode === 'sprint' ? `sprint-${themeId}-${n}` : `time-special-${themeId}-${n}`;
+    return slotMode === 'sprint' ? `sprint-${themeId}-${n}` : `time-${slotMode}-${themeId}-${n}`;
   }
 
-  // classic / special moves
+  // classic / special / deduction moves
   if (themeId === 'classic' && slotMode === 'classic') return String(n);
   if (slotMode === 'special') return `special-${themeId}-${n}`;
+  if (slotMode === 'deduction') return `deduction-${themeId}-${n}`;
   return `${themeId}-${n}`;
 }
 

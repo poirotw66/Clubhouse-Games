@@ -214,4 +214,31 @@ export function savePrefs(prefs) {
   localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
 }
 
-export { MODE_KEYS, HISTORY_LIMIT, BEST_KEY, STATS_KEY, DAILY_KEY, PREFS_KEY };
+const MATRIX_KEY = 'clubhouse-dialed-color-matrix';
+
+export function defaultMatrixProgress() {
+  return {
+    cleared: false,
+    clearCount: 0,
+    chromaticMaster: false,
+    bonusPeeks: 0,
+  };
+}
+
+export function loadMatrixProgress() {
+  return loadJson(MATRIX_KEY, defaultMatrixProgress);
+}
+
+export function recordMatrixClear() {
+  const current = loadMatrixProgress();
+  const next = {
+    cleared: true,
+    clearCount: (current.clearCount || 0) + 1,
+    chromaticMaster: true,
+    bonusPeeks: (current.bonusPeeks || 0) + 1,
+  };
+  localStorage.setItem(MATRIX_KEY, JSON.stringify(next));
+  return next;
+}
+
+export { MODE_KEYS, HISTORY_LIMIT, BEST_KEY, STATS_KEY, DAILY_KEY, PREFS_KEY, MATRIX_KEY };

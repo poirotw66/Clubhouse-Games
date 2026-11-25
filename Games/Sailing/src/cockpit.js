@@ -53,6 +53,9 @@ export function createCockpit(root, options = {}) {
   const elVmgVal = root.querySelector('#hud-vmg-val');
   const elVmgEff = root.querySelector('#hud-vmg-eff');
   const elVmgCanvas = root.querySelector('#vmg-canvas');
+  const elVmgCard = root.querySelector('.vmg-card');
+  const elPlaybookCard = root.querySelector('.tactical-playbook-card');
+  const elBtnTelemetry = root.querySelector('#btn-telemetry');
   const elDeltaBadge = root.querySelector('#hud-delta-badge');
   const elTwaBadge = root.querySelector('#hud-twa-badge');
   const elAwaBadge = root.querySelector('#hud-awa-badge');
@@ -61,6 +64,9 @@ export function createCockpit(root, options = {}) {
   const elMobileTicker = root.querySelector('#tactical-ticker');
   const tacticCardEls = root.querySelectorAll('.tactic-card');
   const keyCapEls = root.querySelectorAll('.key-cap');
+
+  // Advanced telemetry toggle state for Easy Mode
+  let showAdvancedTelemetry = false;
 
   // Sparkline canvas context
   let vmgCtx = null;
@@ -133,15 +139,36 @@ export function createCockpit(root, options = {}) {
     });
   });
 
+  // Telemetry toggle button for collapsing/showing advanced panels in Easy Mode
+  if (elBtnTelemetry) {
+    elBtnTelemetry.addEventListener('click', () => {
+      showAdvancedTelemetry = !showAdvancedTelemetry;
+      applyTelemetryVisibility(document.body.classList.contains('easy-mode'));
+    });
+  }
+
+  function applyTelemetryVisibility(easy) {
+    const collapse = easy && !showAdvancedTelemetry;
+    if (elVmgCard) elVmgCard.hidden = collapse;
+    if (elPlaybookCard) elPlaybookCard.hidden = collapse;
+    if (elBtnTelemetry) {
+      elBtnTelemetry.hidden = !easy;
+      elBtnTelemetry.classList.toggle('active', showAdvancedTelemetry);
+      elBtnTelemetry.setAttribute('aria-pressed', showAdvancedTelemetry ? 'true' : 'false');
+    }
+  }
+
   function reset() {
     samples.length = 0;
     sampleTimer = 0;
     activeTacticId = 'reach';
+    showAdvancedTelemetry = false;
+    applyTelemetryVisibility(document.body.classList.contains('easy-mode'));
     drawSparkline();
   }
 
   function drawSparkline() {
-    if (!vmgCtx || !elVmgCanvas) return;
+    if (!vmgCtx || !elVmgCanvas || elVmgCard?.hidden) return;
     const ctx = vmgCtx;
     const w = elVmgCanvas.width;
     const h = elVmgCanvas.height;
@@ -383,11 +410,24 @@ export function createCockpit(root, options = {}) {
       modeBadge.textContent = easy ? '自動調帆' : '手動微調';
       modeBadge.classList.toggle('auto', easy);
     }
+    applyTelemetryVisibility(easy);
   }
 
   return {
     update,
     reset,
     syncMode,
+    toggleTelemetry(show) {
+      if (typeof show === 'boolean') {
+        showAdvancedTelemetry = show;
+      } else {
+        showAdvancedTelemetry = !showAdvancedTelemetry;
+      }
+      applyTelemetryVisibility(document.body.classList.contains('easy-mode'));
+      return showAdvancedTelemetry;
+    },
+    get isTelemetryCollapsed() {
+      return Boolean(elVmgCard?.hidden && elPlaybookCard?.hidden);
+    },
   };
 }
