@@ -18,7 +18,7 @@ import {
   formatLeaderboardPayload,
 } from './paddock.js';
 import { StrideCoach, mountStrideCoach } from './stride-coach.js';
-import { CFG, LEG_CFG, MOD, dailyInfo, todayStr, makeLegStates, makeHorseState, simHorse } from './physics.js';
+import { CFG, LEG_CFG, MOD, dailyInfo, todayStr, makeLegStates, makeHorseState, simHorse, PHYSICS_TIERS, setPhysicsTier } from './physics.js';
 import { SteeplechaseManager } from './steeplechase.js';
 import { CockpitManager } from './cockpit.js';
 
@@ -156,6 +156,36 @@ const I18N = {
     perfect_hurdle:'★ PERFECT HURDLE 完美跨欄！',
     great_hurdle:'順利跨欄！',
     hurdle_clatter:'💥 撞倒障礙欄架！',
+    tier_label:'物理手感模式',
+    tier_arcade:'街機障礙賽模式 (推薦)',
+    tier_classic:'經典極限模式 (BAL2=6)',
+    rhythm_perfect:'完美節奏 ★ 蓄勢飛躍',
+    rhythm_great:'節奏良好 · 準備起跳',
+    rhythm_prep_hurdle:'跨欄準備 · 保持節奏',
+    rhythm_pair_a:'節奏 A 組 (Q+P) 推進',
+    rhythm_pair_b:'節奏 B 組 (W+O) 推進',
+    radar_next_hurdle:'下一欄：{dist}m',
+    radar_final_sprint:'🏁 終點衝刺直道！',
+    radar_ghost:'幽靈挑戰者',
+    radar_benchmark:'標準對照馬',
+    delta_lead_target:'領先 {name} {sec}s',
+    delta_lag_target:'落後 {name} {sec}s',
+    wind_breeze:'微風 (平穩)',
+    wind_tailwind:'順風推進 (助跑)',
+    wind_headwind:'強逆風 (阻力)',
+    grip_status:'草地乾爽 (抓地佳)',
+    grip_slick_status:'草地濕滑 (抓地弱)',
+    cd_aero_text:'0.60x ⚡ 壓身破風',
+    cd_standard_text:'1.00x 🐎 標準姿態',
+    tip_fall:'馬匹倒地！點擊或按 R 立即翻正起身！',
+    tip_hurdle:'前方即將跨欄！雙蹄發力跳起，避免撞欄！',
+    tip_lean_r:'馬頭後仰危險！按住右前／左前踢地壓低重心！',
+    tip_lean_l:'馬頭前傾危險！按住後腿發力撐起上半身！',
+    tip_stamina:'高速巡航中！可長按 Shift 壓身減少 40% 風阻！',
+    tip_sprint:'進入最後衝刺！維持交替兩拍全速衝線！',
+    tip_default:'交替對角兩拍：Q+P 與 W+O 輪流踢地推進！',
+    paddock_warmup_optimal:'步態節奏極佳！暖身平路有助於養成完美兩拍。',
+    paddock_warmup_fast:'節奏稍快，放慢一點點以獲得更穩定的步幅。',
     ach:{first:'初次完賽',legend:'傳奇賽馬',race:'賽馬等級',clean:'零跌倒完賽',sprint:'極速奔馳',tumble:'摔出名堂',marathon:'長跑健將'},
     achDesc:{first:'完成一場 50m',legend:'22 秒內完賽',race:'32 秒內完賽',clean:'完賽且零跌倒',sprint:'時速達 9 km/h',tumble:'累計跌倒 10 次',marathon:'累計跑 500m'},
     vol_high:'🔊 音量：100%（標準）',
@@ -281,6 +311,36 @@ const I18N = {
     perfect_hurdle:'★ PERFECT HURDLE!',
     great_hurdle:'GREAT HURDLE!',
     hurdle_clatter:'💥 HURDLE HIT!',
+    tier_label:'PHYSICS MODE',
+    tier_arcade:'Arcade Mode (Recommended)',
+    tier_classic:'Classic Purist (BAL2=6)',
+    rhythm_perfect:'PERFECT RHYTHM ★ CHARGING',
+    rhythm_great:'GREAT RHYTHM · PREP JUMP',
+    rhythm_prep_hurdle:'HURDLE APPROACH · HOLD CADENCE',
+    rhythm_pair_a:'BEAT A (Q+P) DRIVE',
+    rhythm_pair_b:'BEAT B (W+O) DRIVE',
+    radar_next_hurdle:'NEXT HURDLE: {dist}m',
+    radar_final_sprint:'🏁 FINAL SPRINT!',
+    radar_ghost:'GHOST RIVAL',
+    radar_benchmark:'BENCHMARK',
+    delta_lead_target:'LEAD {name} {sec}s',
+    delta_lag_target:'BEHIND {name} {sec}s',
+    wind_breeze:'BREEZE (CALM)',
+    wind_tailwind:'TAILWIND (BOOST)',
+    wind_headwind:'HEADWIND (DRAG)',
+    grip_status:'DRY TURF (FIRM)',
+    grip_slick_status:'WET TURF (SLICK)',
+    cd_aero_text:'0.60x ⚡ AERO TUCK',
+    cd_standard_text:'1.00x 🐎 UPRIGHT',
+    tip_fall:'HORSE DOWN! Click or press R to get up!',
+    tip_hurdle:'HURDLE AHEAD! Push off to leap cleanly!',
+    tip_lean_r:'LEANING BACK! Kick front hooves to pitch forward!',
+    tip_lean_l:'NOSE DIVING! Kick hind hooves to lift torso!',
+    tip_stamina:'HIGH SPEED! Hold Shift for 40% aero drag reduction!',
+    tip_sprint:'FINAL SPRINT! Alternate beats to full gallop!',
+    tip_default:'Alternate diagonal beats: Q+P and W+O in rhythm!',
+    paddock_warmup_optimal:'Cadence timing is optimal! Flat warmup builds clean rhythm.',
+    paddock_warmup_fast:'Cadence slightly fast, pace yourself for stable stride.',
     ach:{first:'First Finish',legend:'Legendary',race:'Racehorse',clean:'Clean Run',sprint:'Full Gallop',tumble:'Seasoned Tumbler',marathon:'Distance Runner'},
     achDesc:{first:'Finish a 50 m race',legend:'Finish under 22 s',race:'Finish under 32 s',clean:'Finish with zero falls',sprint:'Reach 9 km/h',tumble:'Fall 10 times in total',marathon:'Run 500 m in total'},
     vol_high:'🔊 Volume: 100% (Full)',
@@ -291,7 +351,15 @@ const I18N = {
 };
 let lang = localStorage.getItem('cc_lang') || 'zh';
 let refreshPaddock = () => {};
-const tr = k => (I18N[lang] && I18N[lang][k]) || I18N.zh[k] || k;
+const tr = (k, params) => {
+  let text = (I18N[lang] && I18N[lang][k]) || I18N.zh[k] || k;
+  if (typeof text === 'string' && params && typeof params === 'object') {
+    for (const [pk, pv] of Object.entries(params)) {
+      text = text.replaceAll('{' + pk + '}', pv);
+    }
+  }
+  return text;
+};
 function applyI18n(){
   document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = tr(el.dataset.i18n); });
   document.querySelectorAll('[data-i18n-ph]').forEach(el => { el.placeholder = tr(el.dataset.i18nPh); });
@@ -2019,6 +2087,7 @@ function showResult(){
   stSpeed.textContent=(G.topSpeed*3.6).toFixed(1)+' km/h';
   dnfBadge.classList.toggle('hidden',!G.dnf);
   newRecordEl.classList.add('hidden');
+  newRecordEl.textContent=tr('new_record');
   nameRow.classList.add('hidden');
   achToastRow.innerHTML='';
   oppRow.classList.add('hidden');
@@ -2082,10 +2151,14 @@ function showResult(){
     }
   }
   if(ranked){
-    // personal best
-    const best=store.get('cc_best',null);
+    // personal best separated by physics tier
+    const tier=CFG.tier||'arcade';
+    const bestKey='cc_best_'+tier;
+    const best=store.get(bestKey,null)||(tier==='classic'?store.get('cc_best',null):null);
     if(!best||G.finishTime<best.t){
-      store.set('cc_best',{t:G.finishTime});
+      store.set(bestKey,{t:G.finishTime});
+      if(tier==='classic')store.set('cc_best',{t:G.finishTime});
+      newRecordEl.textContent=tr('new_record');
       newRecordEl.classList.remove('hidden');
     }
     // save ghost of the best run
@@ -2183,6 +2256,14 @@ function hideCadenceBanner(){
 function simStep(dt){
   const isAero = (held.ShiftLeft || held.ShiftRight || cockpit.aeroActive) && cockpit.stamina > 2;
   cockpit.aeroActive = isAero;
+  MOD.aeroActive = isAero;
+  if(G.x < 20.0){
+    MOD.drag = 1.0;
+  } else if(G.daily){
+    MOD.drag = dailyInfo().drag;
+  } else {
+    MOD.drag = 1.0;
+  }
   if(isAero){
     G.vx += 0.82 * dt;
     if(Math.random() < 0.25) dustAt(G.x, (Math.random()-0.5)*0.5, 1, true);
@@ -2495,6 +2576,30 @@ document.querySelectorAll('#aiRow .modeChip').forEach(b=>{
   b.addEventListener('click',()=>{b.blur();sfx.ensure();aiSel=b.dataset.ai;refreshAiChips();});
 });
 refreshAiChips();
+
+// Physics tier chips: arcade (default, forgiving BAL2=30) vs classic (purist BAL2=6)
+let currentTier = localStorage.getItem('cc_physics_tier') || 'arcade';
+if (!PHYSICS_TIERS[currentTier]) currentTier = 'arcade';
+setPhysicsTier(currentTier);
+function refreshTierChips(){
+  document.querySelectorAll('#tierRow .modeChip').forEach(b=>{
+    const selected = b.dataset.tier === currentTier;
+    b.classList.toggle('sel', selected);
+    b.setAttribute('aria-pressed', String(selected));
+  });
+}
+document.querySelectorAll('#tierRow .modeChip').forEach(b=>{
+  b.addEventListener('click',()=>{
+    b.blur();
+    sfx.ensure();
+    currentTier = b.dataset.tier;
+    setPhysicsTier(currentTier);
+    localStorage.setItem('cc_physics_tier', currentTier);
+    refreshTierChips();
+    toast(tr('tier_' + currentTier));
+  });
+});
+refreshTierChips();
 dailyInfoEl.textContent='📅 '+todayStr()+'　'+dailyLabels(dailyInfo());
 dailyBtn.addEventListener('click',()=>{dailyBtn.blur();startRun(false,true);});
 duelBtn.addEventListener('click',()=>{duelBtn.blur();duelStart();});

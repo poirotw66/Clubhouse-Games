@@ -1479,7 +1479,7 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const pick = a => a[Math.floor(Math.random() * a.length)];
 
 // Pure physics is loaded independently so it can be tested without WebGL.
-const { TAU, BASE, CAR, ROAD_W, TRACK_DEF, track, trackAt, bodyPose, localToWorld, closestOnTrack, rollsCount, createSim, scoreOf, tsin, tcos, tatan, atan2p } = window.WallFlipSimulation;
+const { TAU, BASE, CAR, ROAD_W, TRACK_DEF, track, trackAt, bodyPose, localToWorld, closestOnTrack, rollsCount, createSim, scoreOf, tsin, tcos, tatan, atan2p, COURSES, AERIAL_RINGS, TARGET_PAD } = window.WallFlipSimulation;
 const A = track.pts;
 
 // ============================================================
@@ -1934,6 +1934,68 @@ const gantries = [];
   halo1.position.set(track.top.x, track.top.y, 0);
   halo1.rotation.y = Math.PI / 2;
   scene.add(halo1);
+}
+
+// Mid-air aerial bonus rings
+const aerialRings3D = [];
+{
+  const rings = AERIAL_RINGS || [
+    { id: 'ring-1', x: -18, y: 22, z: 0, r: 3.5, pts: 30 },
+    { id: 'ring-2', x: -44, y: 19, z: 0, r: 3.5, pts: 40 },
+    { id: 'ring-3', x: -70, y: 12, z: 0, r: 3.5, pts: 50 },
+  ];
+  for (const r of rings) {
+    const group = new THREE.Group();
+    group.position.set(r.x, r.y, r.z || 0);
+
+    const torusGeo = new THREE.TorusGeometry(r.r, 0.16, 12, 48);
+    const torusMat = new THREE.MeshBasicMaterial({ color: 0xffd166, transparent: true, opacity: 0.9 });
+    const torus = new THREE.Mesh(torusGeo, torusMat);
+    torus.rotation.y = Math.PI / 2;
+    group.add(torus);
+
+    const outerGeo = new THREE.TorusGeometry(r.r + 0.35, 0.05, 8, 36);
+    const outerMat = new THREE.MeshBasicMaterial({ color: 0x6ff0d0, transparent: true, opacity: 0.65 });
+    const outer = new THREE.Mesh(outerGeo, outerMat);
+    outer.rotation.y = Math.PI / 2;
+    group.add(outer);
+
+    scene.add(group);
+    aerialRings3D.push({ group, torus, outer, ring: r, collected: false });
+  }
+}
+
+// 3D Target Landing Pad
+const targetPadGroup = new THREE.Group();
+{
+  const pad = TARGET_PAD || { xMin: -135, xMax: -105, sweetMin: -125, sweetMax: -115, zMax: 2.3 };
+  const padWidth = Math.abs(pad.xMax - pad.xMin);
+  const padCenterX = (pad.xMin + pad.xMax) / 2;
+
+  const padGeo = new THREE.PlaneGeometry(padWidth, ROAD_W + 1.2);
+  const padMat = new THREE.MeshBasicMaterial({ color: 0x1a3b5c, transparent: true, opacity: 0.45, depthWrite: false });
+  const padMesh = new THREE.Mesh(padGeo, padMat);
+  padMesh.rotation.x = -Math.PI / 2;
+  padMesh.position.set(padCenterX, 0.04, 0);
+  targetPadGroup.add(padMesh);
+
+  const sweetWidth = Math.abs(pad.sweetMax - pad.sweetMin);
+  const sweetCenterX = (pad.sweetMin + pad.sweetMax) / 2;
+  const sweetGeo = new THREE.PlaneGeometry(sweetWidth, ROAD_W);
+  const sweetMat = new THREE.MeshBasicMaterial({ color: 0xffd166, transparent: true, opacity: 0.7, depthWrite: false });
+  const sweetMesh = new THREE.Mesh(sweetGeo, sweetMat);
+  sweetMesh.rotation.x = -Math.PI / 2;
+  sweetMesh.position.set(sweetCenterX, 0.05, 0);
+  targetPadGroup.add(sweetMesh);
+
+  const ringDecalGeo = new THREE.RingGeometry(1.2, 1.8, 32);
+  const ringDecalMat = new THREE.MeshBasicMaterial({ color: 0x6ff0d0, side: THREE.DoubleSide });
+  const ringDecal = new THREE.Mesh(ringDecalGeo, ringDecalMat);
+  ringDecal.rotation.x = -Math.PI / 2;
+  ringDecal.position.set(sweetCenterX, 0.06, 0);
+  targetPadGroup.add(ringDecal);
+
+  scene.add(targetPadGroup);
 }
 
 // 2 aerial stunt camera drones
@@ -2809,6 +2871,18 @@ function makeSimHooks() {
       sfx.stuntWhoosh(2.2);
       game.shake = Math.max(game.shake, 0.2);
     },
+    onRingPass: (ring, count) => {
+      const found = aerialRings3D.find(m => m.ring.id === ring.id);
+      if (found) {
+        found.collected = true;
+        found.torus.material.color.setHex(0x6ff0d0);
+        found.torus.material.opacity = 0.35;
+      }
+      popAt(sim.state.x, sim.state.y + 1.8, sim.state.z, `+${ring.pts} RING!`, '#ffd166', true);
+      burstStuntGold(sim.state.x, sim.state.y + 0.8, sim.state.z, 30);
+      sfx.chime(count);
+      sfx.stuntWhoosh(game.comboMult || 1);
+    },
   };
 }
 
@@ -2833,6 +2907,11 @@ function resetRun() {
   });
   bot.target = 0; bot.plan = 0;
   newBest = false; launchX = 0; retryT = 0;
+  for (const m of aerialRings3D) {
+    m.collected = false;
+    m.torus.material.color.setHex(0xffd166);
+    m.torus.material.opacity = 0.9;
+  }
   fx.clear(); smoke.clear();
   debris.length = 0; debrisMesh.count = 0;
   bodyMat.color.copy(bodyColor0);
@@ -3575,6 +3654,10 @@ function landFx(ev, st) {
   sfx.tireTouchdown(q);
   sfx.fanfare();
   touchdownFx(ev.x, 0.1, st.z, q);
+  if (st.land && st.land.targetZone) {
+    popAt(ev.x, 4.6, st.z, st.land.sweetSpot ? '★ SWEET SPOT! +40' : 'TARGET PAD! +20', '#ffd166', true);
+    burstStuntGold(ev.x, 1.0, st.z, st.land.sweetSpot ? 50 : 30);
+  }
   if (game.score.soft >= 25 && cyberCat) {
     cyberCat.celebrating = 4.0;
     popAt(ev.x, 3.8, st.z, '🐾 [LUCKY CAT] 招財金貓為你狂賀！大吉大利', '#ffd700', true);

@@ -26,7 +26,8 @@ export const CFG = {
   TIP_PITCH: 4,       // pitch tip torque (x sin pitch)
   BALANCE: 80,        // balance spring at 3 hooves on the ground
   BAL4: 60,           // at 4 hooves (a three-point stance is actually steadiest)
-  BAL2: 6,            // at 2 hooves (nearly nothing: any lean diverges)
+  BAL2: 30,           // default: Arcade Mode (30 for forgiving trot stability; Classic is 6)
+  tier: 'arcade',     // physics tier: 'arcade' | 'classic'
   REAR: 0.6,          // nose-up torque = net thrust x body height
   LEG_I: 0.02,        // leg swing inertia reaction on pitch
   COM: 0.1,           // center of mass forward offset
@@ -56,7 +57,19 @@ export function dailyInfo(dateStr){
   info.weather=w<0.62?'day':w<0.87?'dusk':'rain';
   return info;
 }
-export const MOD={drag:1,fric:1,slope:0};   // live modifiers (neutral outside daily)
+export const PHYSICS_TIERS = {
+  arcade: { id: 'arcade', bal2: 30, nameZh: '街機障礙賽模式', nameEn: 'Arcade Mode' },
+  classic: { id: 'classic', bal2: 6, nameZh: '經典極限模式', nameEn: 'Classic Purist' },
+};
+
+export function setPhysicsTier(tierKey) {
+  const tier = PHYSICS_TIERS[tierKey] || PHYSICS_TIERS.arcade;
+  CFG.BAL2 = tier.bal2;
+  CFG.tier = tier.id;
+  return tier;
+}
+
+export const MOD={drag:1,fric:1,slope:0,aeroActive:false};   // live modifiers (neutral outside daily)
 export const LEG_CFG = [
   { key:'KeyQ', side:+1, front:false, color:0xe66900, x:-0.55, y:+0.053, z:+0.18, len:1.25 }, // left hind (longer, hip higher)
   { key:'KeyW', side:-1, front:false, color:0x00b04d, x:-0.55, y:+0.053, z:-0.18, len:1.25 }, // right hind
@@ -135,7 +148,8 @@ export function simHorse(S,L,inp,dt){
   }
 
   /* ---- linear motion ---- */
-  S.vx+=(thrust-brake*S.vx-CFG.DRAG*MOD.drag*S.vx*Math.abs(S.vx))*dt;
+  const aeroFactor = MOD.aeroActive ? 0.6 : 1.0;
+  S.vx+=(thrust-brake*S.vx-CFG.DRAG*MOD.drag*aeroFactor*S.vx*Math.abs(S.vx))*dt;
   S.vx+=MOD.slope*dt;                    // daily hill along the track
   S.vy+=(Fsum-G_GRAV)*dt;
   S.y +=S.vy*dt;

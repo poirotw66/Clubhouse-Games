@@ -1,3 +1,29 @@
+import { CFG, makeHorseState, makeLegStates, simHorse, setPhysicsTier } from './physics.js';
+
+/** Real-physics 20m flat warm-up evaluation helper. */
+export function simulateWarmupGait(steps = 2000, tier = 'arcade') {
+  setPhysicsTier(tier);
+  const state = makeHorseState();
+  const legs = makeLegStates();
+  let stepEvents = 0;
+  for (let i = 0; i < steps; i++) {
+    const input = Math.floor(i / 70) % 2
+      ? [true, false, false, true, false]
+      : [false, true, true, false, false];
+    const ev = simHorse(state, legs, input, CFG.STEP);
+    stepEvents += ev.filter(e => e.type === 'step').length;
+  }
+  return {
+    distance: state.x,
+    topSpeed: state.topSpeed,
+    steps: state.steps,
+    stepEvents,
+    fallPose: state.fallPose,
+    roll: state.roll,
+    stable: Math.abs(state.roll) < 0.15 && state.fallPose === null,
+  };
+}
+
 /** A safe, untimed rehearsal of the real diagonal gait. Never drives the race. */
 export function setupPaddock({ tr, isActive }) {
   const stage = document.getElementById('gaitStage');
@@ -12,6 +38,7 @@ export function setupPaddock({ tr, isActive }) {
   let message = 'paddock_gait_ready';
   let animationTimer;
   let activePair = '';
+  let lastBeatTime = 0;
 
   function refresh() {
     progress.textContent = `${completed} / 2`;
@@ -31,6 +58,9 @@ export function setupPaddock({ tr, isActive }) {
   }
   function playBeat(pair) {
     if (!isActive()) return;
+    const now = performance.now();
+    const interval = lastBeatTime ? now - lastBeatTime : 400;
+    lastBeatTime = now;
     releasePose();
     stage.dataset.pair = pair;
     buttons[pair].classList.add('is-current');
@@ -40,7 +70,7 @@ export function setupPaddock({ tr, isActive }) {
       message = 'paddock_gait_next';
     } else if (pair === 'B' && completed === 1) {
       completed = 2;
-      message = 'paddock_gait_done';
+      message = (interval >= 220 && interval <= 650) ? 'paddock_warmup_optimal' : 'paddock_gait_done';
     } else if (completed === 0) {
       message = 'paddock_gait_first';
     }
