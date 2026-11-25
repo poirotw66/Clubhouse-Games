@@ -18,6 +18,12 @@ export const DASH_IFRAME = 0.32;
 export const DASH_SPEED_BONUS = 22;
 export const DASH_COOLDOWN_BASE = 2.6;
 
+/** Hitstop duration on crash or shield break (~0.09s freeze-frame). */
+export const HITSTOP_DURATION = 0.09;
+
+/** Input buffer duration for responsive jump / dash chaining (~100ms). */
+export const INPUT_BUFFER_DURATION = 0.10;
+
 /** Near-miss adrenaline: short speed drip stacked on each scrub. */
 export const NEAR_MISS_SPEED_BONUS = 3.5;
 export const NEAR_MISS_SPEED_DECAY = 1.8;
@@ -69,9 +75,12 @@ export const OBSTACLE_DESPAWN_BEHIND = 12;
 export const OBSTACLE_MIN_GAP = 12;
 export const OBSTACLE_MAX_GAP = 26;
 
-/** Adjacent-lane pass counts as near-miss (lane spacing is LANE_WIDTH = 2.4). */
-export const NEAR_MISS_WINDOW = 3.2;
-export const PERFECT_MISS_WINDOW = 1.75;
+/**
+ * Near-miss detection window tightened from 3.2 to 2.0 (strictly smaller than
+ * LANE_WIDTH = 2.4) to eliminate passive adjacent-lane farming.
+ */
+export const NEAR_MISS_WINDOW = 2.0;
+export const PERFECT_MISS_WINDOW = 1.1;
 export const NEAR_MISS_SCORE = 100;
 export const PERFECT_MISS_SCORE = 220;
 export const BOOST_SCORE = 180;

@@ -80,6 +80,11 @@ export interface HouseRules {
   zeroScoreBonus: boolean;
   /** 每局輪莊：系列賽內頭家依座位輪轉，讓座位優勢不完全綁死難度。 */
   rotateLeader: boolean;
+  /**
+   * Optional strategic discard house rule: allows players to intentionally discard a
+   * matching card onto the table instead of capturing (e.g. to hold combo/avoid negative settlement or bait red cards).
+   */
+  allowStrategicDiscard?: boolean;
 }
 
 /** @deprecated Prefer HouseRules; kept so older call sites still type-check. */

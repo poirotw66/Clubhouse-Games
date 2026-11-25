@@ -8,6 +8,8 @@ import assert from 'node:assert/strict';
 import {
   COMBO_DECAY_SEC,
   FEVER_COMBO,
+  HITSTOP_DURATION,
+  INPUT_BUFFER_DURATION,
   LANE_DAMPING,
   LANE_SPRING,
   LANE_WIDTH,
@@ -42,9 +44,12 @@ import {
 assert.equal(LANE_WIDTH, 2.4, 'LANE_WIDTH must be 2.4');
 assert.equal(LANE_SPRING, 160, 'LANE_SPRING must be 160 for responsive arcade lane snap');
 assert.equal(LANE_DAMPING, 18, 'LANE_DAMPING must be 18');
-assert.ok(NEAR_MISS_WINDOW >= 3.1 && NEAR_MISS_WINDOW <= 3.3, `widened near-miss window expected ~3.2, got ${NEAR_MISS_WINDOW}`);
-assert.ok(PERFECT_MISS_WINDOW >= 1.7 && PERFECT_MISS_WINDOW <= 1.8, `widened perfect-miss window expected ~1.75, got ${PERFECT_MISS_WINDOW}`);
+assert.ok(NEAR_MISS_WINDOW >= 1.9 && NEAR_MISS_WINDOW <= 2.1, `tightened near-miss window expected ~2.0, got ${NEAR_MISS_WINDOW}`);
+assert.ok(NEAR_MISS_WINDOW < LANE_WIDTH, 'NEAR_MISS_WINDOW must be smaller than LANE_WIDTH to eliminate passive adjacent-lane farming');
+assert.ok(PERFECT_MISS_WINDOW >= 1.0 && PERFECT_MISS_WINDOW <= 1.2, `tightened perfect-miss window expected ~1.1, got ${PERFECT_MISS_WINDOW}`);
 assert.ok(COMBO_DECAY_SEC >= 3.6, `combo decay buffer should be at least 3.6s, got ${COMBO_DECAY_SEC}`);
+assert.ok(HITSTOP_DURATION >= 0.08 && HITSTOP_DURATION <= 0.10, `hitstop duration expected ~0.09s, got ${HITSTOP_DURATION}`);
+assert.ok(INPUT_BUFFER_DURATION >= 0.09 && INPUT_BUFFER_DURATION <= 0.12, `input buffer duration expected ~100ms, got ${INPUT_BUFFER_DURATION}`);
 
 assert.equal(laneToX(1), 0, 'center lane (lane 1) must be at X=0');
 assert.ok(laneToX(0) > 0, 'lane 0 (left) must be +X for +Z chase camera screen-left');

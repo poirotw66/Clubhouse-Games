@@ -3,7 +3,11 @@ import * as THREE from 'three';
 const loader = new THREE.TextureLoader();
 
 function loadTile(path: string, repeatX = 2, repeatY = 2): THREE.Texture {
-  const tex = loader.load(`${import.meta.env.BASE_URL}${path}`);
+  if (typeof document === 'undefined') {
+    return new THREE.Texture();
+  }
+  const baseUrl = (typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL) || './';
+  const tex = loader.load(`${baseUrl}${path}`);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;

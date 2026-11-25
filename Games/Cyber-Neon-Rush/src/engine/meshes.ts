@@ -16,6 +16,21 @@ const NEON_LIME = 0xa3e635;
 const STRIPE = 0x67e8f9;
 const LANE_STRIPE = 1.2;
 
+// Semantic obstacle profile palettes:
+// - jumpable: warm amber / gold (cone, lowBarrier)
+// - slideable: cyan overhead bars (slideBar)
+// - solid: crimson / magenta warning silhouettes (barrier, highGate, drone)
+const JUMPABLE_AMBER = 0xfbbf24;
+const JUMPABLE_GOLD_EMISSIVE = 0xf59e0b;
+const JUMPABLE_TIP = 0xfef08a;
+
+const SLIDEABLE_CYAN = 0x67e8f9;
+const SLIDEABLE_CYAN_EMISSIVE = 0x22d3ee;
+
+const SOLID_CRIMSON = 0xf43f5e;
+const SOLID_CRIMSON_EMISSIVE = 0xe11d48;
+const SOLID_MAGENTA_EMISSIVE = 0xf472b6;
+
 export function createCarMesh(cosmeticId: CosmeticId = 'cyan'): THREE.Group {
   const cosmetic = COSMETIC_CATALOG[cosmeticId];
   const g = new THREE.Group();
@@ -140,6 +155,7 @@ export function createObstacleMesh(kind: ObstacleKind): THREE.Group {
   g.userData.kind = kind;
 
   if (kind === 'barrier') {
+    // Solid barrier: crimson warning block with crimson hazard bar (no ambiguous lime)
     const block = new THREE.Mesh(
       new THREE.BoxGeometry(1.8, 1.1, 0.7),
       new THREE.MeshStandardMaterial({
@@ -147,8 +163,8 @@ export function createObstacleMesh(kind: ObstacleKind): THREE.Group {
         color: 0xffffff,
         metalness: 0.45,
         roughness: 0.35,
-        emissive: NEON_MAGENTA,
-        emissiveIntensity: 0.75,
+        emissive: SOLID_CRIMSON_EMISSIVE,
+        emissiveIntensity: 0.85,
       }),
     );
     block.position.y = 0.55;
@@ -156,21 +172,22 @@ export function createObstacleMesh(kind: ObstacleKind): THREE.Group {
     const bar = new THREE.Mesh(
       new THREE.BoxGeometry(2.0, 0.12, 0.12),
       new THREE.MeshStandardMaterial({
-        color: NEON_LIME,
-        emissive: NEON_LIME,
-        emissiveIntensity: 1.8,
+        color: SOLID_CRIMSON,
+        emissive: SOLID_CRIMSON_EMISSIVE,
+        emissiveIntensity: 2.2,
       }),
     );
     bar.position.y = 1.2;
     g.add(bar);
   } else if (kind === 'cone') {
+    // Jumpable cone: warm amber/gold body and glowing gold base ring
     const cone = new THREE.Mesh(
       new THREE.ConeGeometry(0.45, 1.1, 10),
       new THREE.MeshStandardMaterial({
         map: getConeMap(),
         color: 0xffffff,
-        emissive: 0xfb923c,
-        emissiveIntensity: 0.85,
+        emissive: JUMPABLE_GOLD_EMISSIVE,
+        emissiveIntensity: 0.95,
       }),
     );
     cone.position.y = 0.55;
@@ -178,15 +195,16 @@ export function createObstacleMesh(kind: ObstacleKind): THREE.Group {
     const ring = new THREE.Mesh(
       new THREE.TorusGeometry(0.38, 0.06, 8, 16),
       new THREE.MeshStandardMaterial({
-        color: NEON_CYAN,
-        emissive: NEON_CYAN,
-        emissiveIntensity: 1.6,
+        color: JUMPABLE_AMBER,
+        emissive: JUMPABLE_GOLD_EMISSIVE,
+        emissiveIntensity: 1.8,
       }),
     );
     ring.rotation.x = Math.PI / 2;
     ring.position.y = 0.15;
     g.add(ring);
   } else if (kind === 'drone') {
+    // Solid drone: crimson warning silhouette with crimson/magenta warning rotor
     const body = new THREE.Mesh(
       new THREE.BoxGeometry(1.2, 0.28, 1.2),
       new THREE.MeshStandardMaterial({
@@ -194,8 +212,8 @@ export function createObstacleMesh(kind: ObstacleKind): THREE.Group {
         color: 0xffffff,
         metalness: 0.75,
         roughness: 0.2,
-        emissive: NEON_CYAN,
-        emissiveIntensity: 0.55,
+        emissive: SOLID_CRIMSON_EMISSIVE,
+        emissiveIntensity: 0.8,
       }),
     );
     body.position.y = 1.6;
@@ -203,9 +221,9 @@ export function createObstacleMesh(kind: ObstacleKind): THREE.Group {
     const rotor = new THREE.Mesh(
       new THREE.TorusGeometry(0.55, 0.05, 8, 20),
       new THREE.MeshStandardMaterial({
-        color: NEON_LIME,
-        emissive: NEON_LIME,
-        emissiveIntensity: 1.5,
+        color: SOLID_CRIMSON,
+        emissive: SOLID_MAGENTA_EMISSIVE,
+        emissiveIntensity: 1.8,
       }),
     );
     rotor.rotation.x = Math.PI / 2;
@@ -213,14 +231,15 @@ export function createObstacleMesh(kind: ObstacleKind): THREE.Group {
     g.add(rotor);
     g.userData.spin = rotor;
   } else if (kind === 'lowBarrier') {
+    // Jumpable low barrier: warm amber body and gold glowing tip
     const block = new THREE.Mesh(
       new THREE.BoxGeometry(1.7, 0.55, 0.65),
       new THREE.MeshStandardMaterial({
-        color: 0xfbbf24,
+        color: JUMPABLE_AMBER,
         metalness: 0.4,
         roughness: 0.4,
-        emissive: 0xf59e0b,
-        emissiveIntensity: 0.9,
+        emissive: JUMPABLE_GOLD_EMISSIVE,
+        emissiveIntensity: 0.95,
       }),
     );
     block.position.y = 0.28;
@@ -228,20 +247,21 @@ export function createObstacleMesh(kind: ObstacleKind): THREE.Group {
     const tip = new THREE.Mesh(
       new THREE.BoxGeometry(1.9, 0.1, 0.1),
       new THREE.MeshStandardMaterial({
-        color: NEON_LIME,
-        emissive: NEON_LIME,
-        emissiveIntensity: 1.8,
+        color: JUMPABLE_TIP,
+        emissive: JUMPABLE_AMBER,
+        emissiveIntensity: 2.0,
       }),
     );
     tip.position.y = 0.62;
     g.add(tip);
   } else if (kind === 'highGate') {
+    // Solid high gate: crimson posts, lintel and hazard force beam
     const postL = new THREE.Mesh(
       new THREE.BoxGeometry(0.28, 2.4, 0.28),
       new THREE.MeshStandardMaterial({
-        color: 0xe879f9,
-        emissive: NEON_MAGENTA,
-        emissiveIntensity: 1.1,
+        color: SOLID_CRIMSON,
+        emissive: SOLID_MAGENTA_EMISSIVE,
+        emissiveIntensity: 1.2,
       }),
     );
     postL.position.set(-0.75, 1.2, 0);
@@ -252,9 +272,9 @@ export function createObstacleMesh(kind: ObstacleKind): THREE.Group {
     const lintel = new THREE.Mesh(
       new THREE.BoxGeometry(1.9, 0.35, 0.35),
       new THREE.MeshStandardMaterial({
-        color: 0xf0abfc,
-        emissive: NEON_MAGENTA,
-        emissiveIntensity: 1.6,
+        color: SOLID_CRIMSON,
+        emissive: SOLID_CRIMSON_EMISSIVE,
+        emissiveIntensity: 1.7,
       }),
     );
     lintel.position.y = 2.15;
@@ -262,9 +282,9 @@ export function createObstacleMesh(kind: ObstacleKind): THREE.Group {
     const beam = new THREE.Mesh(
       new THREE.BoxGeometry(1.6, 1.1, 0.25),
       new THREE.MeshStandardMaterial({
-        color: 0x4c1d95,
-        emissive: 0x7c3aed,
-        emissiveIntensity: 0.85,
+        color: 0x881337,
+        emissive: SOLID_CRIMSON_EMISSIVE,
+        emissiveIntensity: 1.0,
         transparent: true,
         opacity: 0.85,
       }),
@@ -272,12 +292,13 @@ export function createObstacleMesh(kind: ObstacleKind): THREE.Group {
     beam.position.y = 1.0;
     g.add(beam);
   } else if (kind === 'slideBar') {
+    // Slideable overhead bar: high-visibility cyan bar and ground guide
     const bar = new THREE.Mesh(
       new THREE.BoxGeometry(1.9, 0.35, 0.35),
       new THREE.MeshStandardMaterial({
-        color: 0x67e8f9,
-        emissive: NEON_CYAN,
-        emissiveIntensity: 1.7,
+        color: SLIDEABLE_CYAN,
+        emissive: SLIDEABLE_CYAN_EMISSIVE,
+        emissiveIntensity: 1.8,
       }),
     );
     bar.position.y = 1.35;
@@ -285,8 +306,8 @@ export function createObstacleMesh(kind: ObstacleKind): THREE.Group {
     const hint = new THREE.Mesh(
       new THREE.BoxGeometry(1.6, 0.08, 0.08),
       new THREE.MeshStandardMaterial({
-        color: NEON_LIME,
-        emissive: NEON_LIME,
+        color: SLIDEABLE_CYAN,
+        emissive: SLIDEABLE_CYAN_EMISSIVE,
         emissiveIntensity: 2.0,
       }),
     );
