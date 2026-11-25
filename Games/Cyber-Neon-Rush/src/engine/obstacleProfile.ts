@@ -1,6 +1,6 @@
 /**
  * Collision profile for obstacles — drives jump / dash reading.
- * - solid: must lane-change, shield, or dash i-frames
+ * - solid: must lane-change or absorb with shield; dash i-frames do NOT bypass solid obstacles
  * - jumpable: cleared while airborne
  * - slideable: cleared while dashing (low profile)
  */
@@ -22,6 +22,15 @@ export function collisionProfile(kind: ObstacleKind): CollisionProfile {
     default:
       return 'solid';
   }
+}
+
+/**
+ * Whether dash i-frames can bypass the obstacle.
+ * Dash i-frames can clear low hazards, but strictly cannot bypass solid obstacles
+ * (barrier, highGate, drone). Solid obstacles require lane change or shield.
+ */
+export function dashCanBypassObstacle(kind: ObstacleKind): boolean {
+  return collisionProfile(kind) !== 'solid';
 }
 
 export function canClearObstacle(

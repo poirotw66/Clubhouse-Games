@@ -14,6 +14,8 @@ import {
   DASH_DURATION,
   DASH_IFRAME,
   DASH_SPEED_BONUS,
+  HITSTOP_DURATION,
+  INPUT_BUFFER_DURATION,
   JUMP_DURATION,
   JUMP_HEIGHT,
   MAX_SPEED,
@@ -54,6 +56,7 @@ import {
 } from './meshes.ts';
 import {
   collisionProfile,
+  dashCanBypassObstacle,
   hitsObstacle as engineHitsObstacle,
   pickObstacleKind,
 } from './obstacleProfile.ts';
@@ -127,6 +130,7 @@ export interface GameWorld {
   getResult(): RunResult | null;
   onHud(cb: (hud: HudSnapshot) => void): void;
   onGameOver(cb: (result: RunResult) => void): void;
+  step?(dt: number): void;
 }
 
 export function createGameWorld(config: RunConfig): GameWorld {
@@ -139,13 +143,26 @@ export function createGameWorld(config: RunConfig): GameWorld {
   const powerDur = POWERUP_DURATION_BASE * powerDurationMul(upgrades.powerDuration);
   const dashCdMax = dashCooldownSec(upgrades.dashCooldown);
 
-  const renderer = new THREE.WebGLRenderer({
-    antialias: true,
-    powerPreference: 'high-performance',
-  });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.setClearColor(0x050816, 1);
-  renderer.shadowMap.enabled = false;
+  const hasDom = typeof document !== 'undefined' && typeof window !== 'undefined';
+  const renderer = hasDom
+    ? new THREE.WebGLRenderer({
+        antialias: true,
+        powerPreference: 'high-performance',
+      })
+    : ({
+        setPixelRatio() {},
+        setClearColor() {},
+        setSize() {},
+        render() {},
+        dispose() {},
+        domElement: { style: {} },
+      } as unknown as THREE.WebGLRenderer);
+
+  if (hasDom) {
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setClearColor(0x050816, 1);
+    renderer.shadowMap.enabled = false;
+  }
 
   const scene = new THREE.Scene();
   scene.fog = new THREE.FogExp2(0x070b1c, 0.0082);
@@ -200,7 +217,11 @@ export function createGameWorld(config: RunConfig): GameWorld {
   let jumpT = 0;
   let dashT = 0;
   let dashCd = 0;
-  let iframeT = 0;
+  let dashIframeT = 0;
+  let shieldIframeT = 0;
+  let hitstopT = 0;
+  let jumpBufferT = 0;
+  let dashBufferT = 0;
   let nearMissSpeed = 0;
   let shieldCharges = upgrades.startShield > 0 ? 1 : 0;
   let magnetT = 0;
@@ -225,12 +246,15 @@ export function createGameWorld(config: RunConfig): GameWorld {
   let lastHudEmit = 0;
   let tickErrorLogged = false;
 
-  const resizeObserver = new ResizeObserver(() => resize());
+  const resizeObserver =
+    typeof ResizeObserver !== 'undefined'
+      ? new ResizeObserver(() => resize())
+      : { observe() {}, disconnect() {} };
 
   function resize(): void {
     if (!mountedEl) return;
-    const w = Math.max(1, mountedEl.clientWidth);
-    const h = Math.max(1, mountedEl.clientHeight);
+    const w = Math.max(1, mountedEl.clientWidth || 800);
+    const h = Math.max(1, mountedEl.clientHeight || 600);
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
@@ -417,7 +441,11 @@ export function createGameWorld(config: RunConfig): GameWorld {
     jumpT = 0;
     dashT = 0;
     dashCd = 0;
-    iframeT = 0;
+    dashIframeT = 0;
+    shieldIframeT = 0;
+    hitstopT = 0;
+    jumpBufferT = 0;
+    dashBufferT = 0;
     nearMissSpeed = 0;
     shieldCharges = upgrades.startShield > 0 ? 1 : 0;
     magnetT = 0;
@@ -598,14 +626,18 @@ export function createGameWorld(config: RunConfig): GameWorld {
     spawnTrail(dt);
   }
 
-  function absorbsHit(): boolean {
-    if (iframeT > 0) return true;
+  function absorbsHit(kind: ObstacleKind): boolean {
+    if (shieldIframeT > 0) return true;
+    if (dashCanBypassObstacle(kind) && dashIframeT > 0) {
+      return true;
+    }
     if (shieldCharges > 0) {
       shieldCharges -= 1;
       shieldFlashT = SHIELD_FLASH_SEC;
-      shake = Math.max(shake, 0.28);
-      iframeT = 0.45;
-      haptic('impact', 0.7);
+      shake = Math.max(shake, 0.35);
+      shieldIframeT = 0.45;
+      hitstopT = HITSTOP_DURATION;
+      haptic('impact', 0.8);
       return true;
     }
     return false;
@@ -630,7 +662,7 @@ export function createGameWorld(config: RunConfig): GameWorld {
         const carX = trackOffset(z) + laneBody.x;
         const obsX = trackOffset(obs.z) + laneToX(obs.lane);
         if (Math.abs(carX - obsX) < 1.15 && hitsObstacle(obs)) {
-          if (!absorbsHit()) {
+          if (!absorbsHit(obs.kind)) {
             triggerCrash();
             return;
           }
@@ -642,7 +674,10 @@ export function createGameWorld(config: RunConfig): GameWorld {
       if (!obs.scored && dz < -0.5) {
         obs.scored = true;
         const lateral = Math.abs(laneBody.x - laneToX(obs.lane));
-        if (lateral < NEAR_MISS_WINDOW) {
+        // Active lane-switching velocity or same-lane obstacle jump/dash clearance
+        const isSwerving = Math.abs(laneBody.vx) > 0.6;
+        const isActionClear = lateral < 1.2 && (jumpT > 0 || dashT > 0);
+        if (lateral < NEAR_MISS_WINDOW && (isSwerving || isActionClear)) {
           const perfect = lateral < PERFECT_MISS_WINDOW;
           registerNearMiss(score, perfect);
           nearMissSpeed = Math.min(14, nearMissSpeed + NEAR_MISS_SPEED_BONUS);
@@ -730,6 +765,7 @@ export function createGameWorld(config: RunConfig): GameWorld {
     phase = 'over';
     shake = 0.55;
     boostT = 0;
+    hitstopT = HITSTOP_DURATION;
     haptic('error');
     breakCombo(score);
     const credits = creditsFromRun({
@@ -741,6 +777,22 @@ export function createGameWorld(config: RunConfig): GameWorld {
     result = finalizeRun(score, credits);
     overCb?.(result);
     emitHud(true);
+  }
+
+  function executeDash(): void {
+    const midJump = jumpT > 0;
+    if (midJump) {
+      // Pressing dash mid-jump cancels float into a fast-fall slam
+      jumpT = 0;
+      shake = Math.max(shake, 0.24);
+      haptic('impact', 0.6);
+    }
+    dashT = DASH_DURATION;
+    dashIframeT = DASH_IFRAME;
+    dashCd = dashCdMax;
+    registerDash(score);
+    shake = Math.max(shake, 0.12);
+    haptic('tap', 0.4);
   }
 
   function hudExtras() {
@@ -776,9 +828,26 @@ export function createGameWorld(config: RunConfig): GameWorld {
     if (jumpT > 0) jumpT = Math.max(0, jumpT - dt);
     if (dashT > 0) dashT = Math.max(0, dashT - dt);
     if (dashCd > 0) dashCd = Math.max(0, dashCd - dt);
-    if (iframeT > 0) iframeT = Math.max(0, iframeT - dt);
+    if (dashIframeT > 0) dashIframeT = Math.max(0, dashIframeT - dt);
+    if (shieldIframeT > 0) shieldIframeT = Math.max(0, shieldIframeT - dt);
     if (nearMissSpeed > 0) {
       nearMissSpeed = Math.max(0, nearMissSpeed - NEAR_MISS_SPEED_DECAY * dt);
+    }
+
+    // Process buffered inputs
+    if (jumpBufferT > 0) {
+      jumpBufferT = Math.max(0, jumpBufferT - dt);
+      if (jumpT <= 0 && dashT <= 0) {
+        jumpT = JUMP_DURATION;
+        jumpBufferT = 0;
+      }
+    }
+    if (dashBufferT > 0) {
+      dashBufferT = Math.max(0, dashBufferT - dt);
+      if (dashCd <= 0 && dashT <= 0) {
+        executeDash();
+        dashBufferT = 0;
+      }
     }
   }
 
@@ -786,6 +855,14 @@ export function createGameWorld(config: RunConfig): GameWorld {
     raf = requestAnimationFrame(tick);
     try {
       const rawDt = Math.min(0.05, clock.getDelta());
+      if (hitstopT > 0) {
+        hitstopT = Math.max(0, hitstopT - rawDt);
+        if (shake > 0) shake = Math.max(0, shake - rawDt * 0.5);
+        updateCamera(rawDt);
+        emitHud();
+        renderer.render(scene, camera);
+        return;
+      }
       const dt = slowmoT > 0 ? rawDt * SLOWMO_SCALE : rawDt;
       if (phase === 'running') {
         if (boostT > 0) boostT = Math.max(0, boostT - rawDt);
@@ -832,10 +909,14 @@ export function createGameWorld(config: RunConfig): GameWorld {
   return {
     mount(el: HTMLElement) {
       mountedEl = el;
-      el.appendChild(renderer.domElement);
-      renderer.domElement.style.width = '100%';
-      renderer.domElement.style.height = '100%';
-      renderer.domElement.style.display = 'block';
+      if (renderer.domElement && typeof el.appendChild === 'function') {
+        el.appendChild(renderer.domElement);
+        if (renderer.domElement.style) {
+          renderer.domElement.style.width = '100%';
+          renderer.domElement.style.height = '100%';
+          renderer.domElement.style.display = 'block';
+        }
+      }
       resize();
       resizeObserver.observe(el);
       rebuildRoad();
@@ -843,13 +924,15 @@ export function createGameWorld(config: RunConfig): GameWorld {
       updateCar(0);
       updateCamera(0);
       renderer.render(scene, camera);
-      if (!raf) tick();
+      if (!raf && typeof requestAnimationFrame === 'function') tick();
     },
     unmount() {
-      cancelAnimationFrame(raf);
+      if (raf && typeof cancelAnimationFrame === 'function') {
+        cancelAnimationFrame(raf);
+      }
       raf = 0;
       resizeObserver.disconnect();
-      if (mountedEl && renderer.domElement.parentElement === mountedEl) {
+      if (mountedEl && renderer.domElement?.parentElement === mountedEl) {
         mountedEl.removeChild(renderer.domElement);
       }
       mountedEl = null;
@@ -882,18 +965,48 @@ export function createGameWorld(config: RunConfig): GameWorld {
     },
     jump() {
       if (phase !== 'running') return;
-      if (jumpT > 0 || dashT > 0) return;
-      jumpT = JUMP_DURATION;
+      if (jumpT <= 0 && dashT <= 0) {
+        jumpT = JUMP_DURATION;
+        jumpBufferT = 0;
+      } else {
+        jumpBufferT = INPUT_BUFFER_DURATION;
+      }
     },
     dash() {
       if (phase !== 'running') return;
-      if (dashCd > 0 || dashT > 0) return;
-      dashT = DASH_DURATION;
-      iframeT = Math.max(iframeT, DASH_IFRAME);
-      dashCd = dashCdMax;
-      registerDash(score);
-      shake = Math.max(shake, 0.12);
-      haptic('tap', 0.4);
+      if (dashCd <= 0 && dashT <= 0) {
+        executeDash();
+        dashBufferT = 0;
+      } else {
+        dashBufferT = INPUT_BUFFER_DURATION;
+      }
+    },
+    step(dt: number) {
+      if (phase !== 'running') return;
+      if (hitstopT > 0) {
+        hitstopT = Math.max(0, hitstopT - dt);
+        return;
+      }
+      if (boostT > 0) boostT = Math.max(0, boostT - dt);
+      tickPowers(dt);
+      const feverBonus = isFever(score.combo) ? 4 : 0;
+      const dashBonus = dashT > 0 ? DASH_SPEED_BONUS : 0;
+      speed = Math.min(
+        maxSpeed + (boostT > 0 ? 8 : 0) + dashBonus * 0.35,
+        baseSpeed +
+          z * SPEED_RAMP_PER_METER +
+          (boostT > 0 ? BOOST_SPEED : 0) +
+          feverBonus +
+          nearMissSpeed +
+          dashBonus,
+      );
+      const stepDist = speed * dt;
+      z += stepDist;
+      addDistanceScore(score, stepDist);
+      tickScoreTimers(score, dt);
+      updateCar(dt);
+      updateObstacles(dt);
+      updatePickups(dt);
     },
     getHud() {
       return toHud(score, speed, boostT, hudExtras());

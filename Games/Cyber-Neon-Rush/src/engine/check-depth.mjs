@@ -10,9 +10,16 @@ import assert from 'node:assert/strict';
 import {
   canClearObstacle,
   collisionProfile,
+  dashCanBypassObstacle,
   hitsObstacle,
   pickObstacleKind,
 } from './obstacleProfile.ts';
+import {
+  LANE_WIDTH,
+  NEAR_MISS_WINDOW,
+  PERFECT_MISS_WINDOW,
+} from './constants.ts';
+import { createGameWorld } from './GameWorld.ts';
 import {
   COSMETIC_CATALOG,
   MISSION_POOL,
@@ -98,6 +105,14 @@ assert.equal(collisionProfile('drone'), 'solid');
   assert.equal(canClearObstacle('barrier', { jumping: true, dashing: true }), false);
   assert.equal(canClearObstacle('highGate', { jumping: true, dashing: true }), false);
   assert.equal(canClearObstacle('drone', { jumping: true, dashing: true }), false);
+
+  // Dash i-frame boundaries: dash cannot bypass solid barriers/highGates/drones
+  assert.equal(dashCanBypassObstacle('barrier'), false, 'dash iframe cannot bypass solid barrier');
+  assert.equal(dashCanBypassObstacle('highGate'), false, 'dash iframe cannot bypass solid high gate');
+  assert.equal(dashCanBypassObstacle('drone'), false, 'dash iframe cannot bypass solid drone');
+  assert.equal(dashCanBypassObstacle('slideBar'), true, 'slideBar is bypassed cleanly by dash');
+  assert.equal(dashCanBypassObstacle('cone'), true, 'cone is non-solid');
+  assert.equal(dashCanBypassObstacle('lowBarrier'), true, 'lowBarrier is non-solid');
 }
 
 // ── 4) Progression Economy & Upgrade Curves ──────────────────────────────────
@@ -209,6 +224,58 @@ assert.equal(collisionProfile('drone'), 'solid');
     if (m.kind === 'nearMiss') assert.equal(m.progress, 5);
     if (m.kind === 'fever') assert.equal(m.progress, 1);
   }
+}
+
+// ── 7) Near-Miss Precision, Mid-Jump Fast-Fall & Input Buffering ─────────────
+{
+  // Near-miss window tightening verification:
+  // Cruising down an adjacent lane gives lateral distance = LANE_WIDTH = 2.4.
+  // Since NEAR_MISS_WINDOW is tightened to 2.0, adjacent-lane cruising never auto-procs near-miss.
+  assert.ok(NEAR_MISS_WINDOW < LANE_WIDTH, 'NEAR_MISS_WINDOW must be smaller than LANE_WIDTH');
+  assert.ok(LANE_WIDTH - NEAR_MISS_WINDOW >= 0.35, 'comfortable margin preventing passive adjacent lane farming');
+
+  // Verify that a cruising adjacent lane pass does not satisfy near-miss window
+  const cruisingAdjacentLateral = LANE_WIDTH; // 2.4
+  assert.equal(cruisingAdjacentLateral < NEAR_MISS_WINDOW, false, 'cruising down adjacent lane must not satisfy near-miss window');
+
+  // Verify that an active swerve or same-lane clearance within window satisfies it
+  const activeSwerveLateral = 1.8;
+  assert.equal(activeSwerveLateral < NEAR_MISS_WINDOW, true, 'tight swerve within 2.0m qualifies for near-miss');
+
+  // Dash vs Solid obstacle collision verification
+  assert.equal(hitsObstacle('barrier', { dashing: true }), true, 'dashing into solid barrier still hits');
+  assert.equal(hitsObstacle('highGate', { dashing: true }), true, 'dashing into high gate still hits');
+  assert.equal(hitsObstacle('drone', { dashing: true }), true, 'dashing into drone still hits');
+  assert.equal(hitsObstacle('slideBar', { dashing: true }), false, 'dashing under slideBar clears cleanly');
+  assert.equal(dashCanBypassObstacle('barrier'), false, 'dash iframe cannot bypass solid barrier');
+  assert.equal(dashCanBypassObstacle('slideBar'), true, 'dash iframe bypasses slideBar');
+
+  const world = createGameWorld({
+    difficulty: 'normal',
+    upgrades: defaultMeta().upgrades,
+    cosmeticId: 'cyan',
+  });
+  world.start();
+
+  // Test jump action sets jumpAir
+  assert.equal(world.getHud().jumpAir, false);
+  world.jump();
+  assert.equal(world.getHud().jumpAir, true, 'jumping must set jumpAir to true');
+
+  // Test pressing dash mid-jump cancels float into fast-fall slam
+  world.dash();
+  assert.equal(world.getHud().jumpAir, false, 'pressing dash mid-jump must cancel float into fast-fall');
+  assert.equal(world.getHud().dashReady, false, 'dash must enter cooldown');
+
+  // Test jump input buffer: pressing jump while airborne or dashing buffers the action
+  world.jump(); // buffered because dash is active
+  world.step?.(0.4); // dash ends -> buffered jump executes!
+  assert.equal(world.getHud().jumpAir, true, 'buffered jump executes once dash ends');
+
+  // Cancel jump with fast-fall again
+  world.step?.(1.5); // cooldown expires
+  world.dash();
+  assert.equal(world.getHud().jumpAir, false, 'fast-fall cancels buffered jump float');
 }
 
 console.log('check-depth: ok');
