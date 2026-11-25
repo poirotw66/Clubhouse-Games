@@ -15,6 +15,7 @@ export type DailyRecord = {
   elapsedSec: number;
   score: number;
   pairCount: number;
+  assisted?: boolean;
 };
 
 export type CampaignProgress = {
@@ -50,24 +51,29 @@ export function loadDaily(): DailyRecord[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw) as DailyRecord[];
     return Array.isArray(parsed)
-      ? parsed.filter(
-          (r) =>
-            r &&
-            typeof r.date === 'string' &&
-            typeof r.moves === 'number' &&
-            typeof r.elapsedSec === 'number',
-        )
+      ? parsed
+          .filter(
+            (r) =>
+              r &&
+              typeof r.date === 'string' &&
+              typeof r.moves === 'number' &&
+              typeof r.elapsedSec === 'number',
+          )
+          .map((r) => ({ ...r, assisted: Boolean(r.assisted) }))
       : [];
   } catch {
     return [];
   }
 }
 
-/** One record per day; keep better (fewer moves, then faster). */
+/** One record per day; pure-memory clears always beat assisted runs, then fewer moves, then faster. */
 export function recordDaily(record: DailyRecord): DailyRecord[] {
   const existing = loadDaily();
   const previous = existing.find((r) => r.date === record.date);
   const better = (a: DailyRecord, b: DailyRecord): DailyRecord => {
+    const aAssisted = Boolean(a.assisted);
+    const bAssisted = Boolean(b.assisted);
+    if (aAssisted !== bAssisted) return aAssisted ? b : a;
     if (a.moves !== b.moves) return a.moves < b.moves ? a : b;
     if (a.elapsedSec !== b.elapsedSec) return a.elapsedSec < b.elapsedSec ? a : b;
     return a.score >= b.score ? a : b;

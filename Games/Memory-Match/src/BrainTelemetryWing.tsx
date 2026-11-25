@@ -18,6 +18,8 @@ export interface BrainTelemetryWingProps {
   feverLabel: string;
   knownReadyPairs: number;
   focusedIndex: number | null;
+  assistMode: boolean;
+  onToggleAssist?: () => void;
   onSelectCell?: (index: number) => void;
 }
 
@@ -34,6 +36,8 @@ export const BrainTelemetryWing = memo(function BrainTelemetryWing({
   feverLabel,
   knownReadyPairs,
   focusedIndex,
+  assistMode,
+  onToggleAssist,
   onSelectCell,
 }: BrainTelemetryWingProps) {
   const isFever = comboLevel >= 2;
@@ -103,11 +107,28 @@ export const BrainTelemetryWing = memo(function BrainTelemetryWing({
 
       {/* Memory Palace Heatmap Grid */}
       <div className="mm-wing__card">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <span className="text-xs font-bold text-amber-300">全場記憶殿堂矩陣</span>
-          <span className="text-[11px] text-slate-400">
-            探勘 {explorationPct}%
-          </span>
+          <div className="flex items-center gap-1.5">
+            {onToggleAssist && (
+              <button
+                type="button"
+                onClick={onToggleAssist}
+                aria-pressed={assistMode}
+                className={`px-2 py-0.5 rounded text-[11px] font-bold border transition ${
+                  assistMode
+                    ? 'bg-amber-500/20 border-amber-400/60 text-amber-200'
+                    : 'bg-slate-800/80 border-slate-600/60 text-slate-300 hover:border-teal-400/60'
+                }`}
+                title="切換輔助提示：開啟後顯示牌背記憶餘暉、雙牌鎖定光環與點擊矩陣翻牌"
+              >
+                輔助提示：{assistMode ? '開' : '關'}
+              </button>
+            )}
+            <span className="text-[11px] text-slate-400">
+              探勘 {explorationPct}%
+            </span>
+          </div>
         </div>
 
         <div
@@ -120,34 +141,45 @@ export const BrainTelemetryWing = memo(function BrainTelemetryWing({
 
             if (cell.matched) {
               cellStyleClass = 'is-matched';
-            } else if (cell.isReady) {
-              cellStyleClass = 'is-ready';
-            } else if (cell.level === 3) {
-              cellStyleClass = 'is-fresh';
-            } else if (cell.level === 2) {
-              cellStyleClass = 'is-warm';
-            } else if (cell.level === 1) {
-              cellStyleClass = 'is-ember';
+            } else if (assistMode) {
+              if (cell.isReady) {
+                cellStyleClass = 'is-ready';
+              } else if (cell.level === 3) {
+                cellStyleClass = 'is-fresh';
+              } else if (cell.level === 2) {
+                cellStyleClass = 'is-warm';
+              } else if (cell.level === 1) {
+                cellStyleClass = 'is-ember';
+              }
             }
+
+            const clickable = assistMode && !cell.matched && Boolean(onSelectCell);
 
             return (
               <button
                 key={cell.index}
                 type="button"
-                onClick={() => onSelectCell?.(cell.index)}
-                className={`mm-heatmap-cell ${cellStyleClass} ${isFocused ? 'is-focused' : ''}`}
+                disabled={!clickable}
+                onClick={() => {
+                  if (clickable) onSelectCell?.(cell.index);
+                }}
+                className={`mm-heatmap-cell ${cellStyleClass} ${isFocused ? 'is-focused' : ''} ${
+                  !clickable ? 'cursor-default' : ''
+                }`}
                 title={`${cell.coordinate}: ${
                   cell.matched
                     ? '已消除'
-                    : cell.isReady
-                      ? '雙牌已鎖定！'
-                      : cell.level === 3
-                        ? '鮮活記憶'
-                        : cell.level === 2
-                          ? '溫熱記憶'
-                          : cell.level === 1
-                            ? '微弱餘燼'
-                            : '未探索'
+                    : !assistMode
+                      ? '純記憶模式（開啟輔助提示可查看追蹤與點擊翻牌）'
+                      : cell.isReady
+                        ? '雙牌已鎖定！'
+                        : cell.level === 3
+                          ? '鮮活記憶'
+                          : cell.level === 2
+                            ? '溫熱記憶'
+                            : cell.level === 1
+                              ? '微弱餘燼'
+                              : '未探索'
                 }`}
                 aria-label={`矩陣 ${cell.coordinate}`}
               >
@@ -157,24 +189,30 @@ export const BrainTelemetryWing = memo(function BrainTelemetryWing({
           })}
         </div>
 
-        <div className="flex items-center justify-between text-[10px] text-slate-400 mt-2 px-1">
-          <span className="flex items-center gap-1">
-            <span className="inline-block w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_6px_#fbbf24]" />
-            鎖定待收
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="inline-block w-2 h-2 rounded-full bg-teal-400" />
-            鮮活
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="inline-block w-2 h-2 rounded-full bg-sky-400" />
-            溫熱
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="inline-block w-2 h-2 rounded-full bg-purple-400" />
-            餘燼
-          </span>
-        </div>
+        {assistMode ? (
+          <div className="flex items-center justify-between text-[10px] text-slate-400 mt-2 px-1">
+            <span className="flex items-center gap-1">
+              <span className="inline-block w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_6px_#fbbf24]" />
+              鎖定待收
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="inline-block w-2 h-2 rounded-full bg-teal-400" />
+              鮮活
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="inline-block w-2 h-2 rounded-full bg-sky-400" />
+              溫熱
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="inline-block w-2 h-2 rounded-full bg-purple-400" />
+              餘燼
+            </span>
+          </div>
+        ) : (
+          <p className="text-[11px] text-slate-400 mt-2 text-center">
+            純記憶模式：牌背提示與矩陣快點已關閉
+          </p>
+        )}
       </div>
 
       {/* Combo Fever Overdrive Gauge */}
@@ -204,7 +242,7 @@ export const BrainTelemetryWing = memo(function BrainTelemetryWing({
           />
         </div>
 
-        {knownReadyPairs > 0 && (
+        {assistMode && knownReadyPairs > 0 && (
           <div className="mt-2 p-1.5 rounded bg-amber-500/15 border border-amber-400/40 text-[11px] text-amber-200 font-bold text-center animate-pulse">
             ⚡ 腦中已鎖定 {knownReadyPairs} 組已知配對！
           </div>

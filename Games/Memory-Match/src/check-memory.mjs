@@ -11,16 +11,21 @@ import {
   buildDeck,
   clampPairCount,
   cpuCapacityFor,
+  defaultAssistForMode,
   gridColsClass,
   gridGapClass,
   hintPairIndices,
+  invalidateSwappedMemory,
   isMatchGroup,
   maxPairsForTheme,
   nextCombo,
   scoreForMatch,
   sprintLimitSec,
   swapTwoHiddenCards,
+  swapTwoHiddenCardsWithMeta,
   themeFaces,
+  versusPenaltyForMiss,
+  versusPointsForMatch,
   CPU_CAPACITY,
   CPU_RETAIN,
 } from './memoryLogic.ts';
@@ -184,7 +189,7 @@ for (const id of FACE_IDS) {
   assert.ok(FACE_EMOJI[id], `emoji for ${id}`);
 }
 
-// --- Swap mechanic ---
+// --- Swap mechanic & memory index sync ---
 const swapBase = buildDeck(6, 'classic', () => 0.4);
 const swapped = swapTwoHiddenCards(swapBase, [], () => 0.1);
 assert.equal(swapped.length, swapBase.length);
@@ -193,6 +198,68 @@ assert.ok(
     swapped.every((c, i) => c.face === swapBase[i].face),
   'swap either moves cards or is a no-op when rng collapses',
 );
+
+{
+  let seq = 0;
+  const detRand = () => {
+    const vals = [0.0, 0.5];
+    return vals[seq++ % vals.length];
+  };
+  const syncDeck = [
+    { id: 'star-0', face: 'star', matched: false, kind: 'normal' },
+    { id: 'moon-1', face: 'moon', matched: false, kind: 'normal' },
+    { id: 'star-2', face: 'star', matched: false, kind: 'normal' },
+    { id: 'moon-3', face: 'moon', matched: false, kind: 'normal' },
+  ];
+  const meta = swapTwoHiddenCardsWithMeta(syncDeck, [], detRand);
+  assert.ok(meta.swapped, 'deterministic distinct rng picks two indices to swap');
+  const [a, b] = meta.swapped;
+  assert.notEqual(a, b);
+  assert.equal(meta.cards[a].face, syncDeck[b].face);
+  assert.equal(meta.cards[b].face, syncDeck[a].face);
+
+  const preSeen = new Set([0, 2]);
+  const preSightings = new Map([
+    [0, 1],
+    [2, 2],
+  ]);
+  // Verify star pair is initially ready before swap
+  assert.equal(analyzeMemoryState(syncDeck, preSeen, 2, 0).knownReadyPairs, 1);
+
+  const synced = invalidateSwappedMemory(preSeen, preSightings, meta.swapped);
+  assert.equal(synced.seenIndices.has(a), false, 'swapped index A invalidated from seenIndices');
+  assert.equal(synced.seenIndices.has(b), false, 'swapped index B invalidated from seenIndices');
+  assert.equal(synced.sightings.has(a), false, 'swapped index A invalidated from sightings');
+  assert.equal(synced.sightings.has(b), false, 'swapped index B invalidated from sightings');
+  const postAnalysis = analyzeMemoryState(meta.cards, synced.seenIndices, 2, 0);
+  assert.equal(
+    postAnalysis.knownReadyPairs,
+    0,
+    'stale ready-pair indicator clears when one card of the pair swaps position',
+  );
+}
+
+// --- Assist mode defaults & Versus risk/reward scoring ---
+assert.equal(defaultAssistForMode('versus'), false, 'assist defaults OFF in versus');
+assert.equal(defaultAssistForMode('campaign'), false, 'assist defaults OFF in campaign');
+assert.equal(defaultAssistForMode('daily'), false, 'assist defaults OFF in daily');
+assert.equal(defaultAssistForMode('classic'), false, 'assist defaults OFF in classic');
+
+const vsSingle = versusPointsForMatch(1, false);
+assert.equal(vsSingle.points, 1);
+assert.equal(vsSingle.streakBonus, 0);
+assert.equal(vsSingle.doubled, false);
+
+const vsStreak = versusPointsForMatch(2, false);
+assert.equal(vsStreak.points, 2, '2+ streak earns +1 momentum bonus');
+assert.equal(vsStreak.streakBonus, 1);
+
+const vsGamble = versusPointsForMatch(2, true);
+assert.equal(vsGamble.points, 4, 'gamble doubles base + streak points');
+assert.equal(vsGamble.doubled, true);
+
+assert.equal(versusPenaltyForMiss(false), 0, 'normal miss incurs no opponent penalty');
+assert.equal(versusPenaltyForMiss(true), 1, 'armed gamble miss awards +1 penalty to opponent');
 
 // --- CPU memory model ---
 assert.ok(decayIsMonotonic(CPU_RETAIN.easy));
@@ -339,6 +406,16 @@ const share = buildDailyShareText({
 assert.ok(share.includes('記憶配對 每日'));
 assert.ok(share.includes('翻牌 14'));
 assert.ok(share.includes('連續 2 天'));
+const assistedShare = buildDailyShareText({
+  date: today,
+  moves: 14,
+  elapsedSec: 42,
+  streak: 2,
+  pairCount: 12,
+  themeLabel: '夜空',
+  assisted: true,
+});
+assert.ok(assistedShare.includes('輔助提示'), 'assisted daily share marks assisted run');
 
 // --- Campaign ---
 assert.ok(CAMPAIGN_STAGES.length >= 8 && CAMPAIGN_STAGES.length <= 12);

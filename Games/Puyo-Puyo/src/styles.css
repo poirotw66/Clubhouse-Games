@@ -113,6 +113,23 @@ h1 {
   border-color: rgba(255, 143, 163, 0.35);
 }
 
+.margin-badge {
+  color: #fde68a;
+  background: rgba(245, 158, 11, 0.16);
+  border-color: rgba(251, 191, 36, 0.48);
+  font-weight: 700;
+}
+
+.margin-badge.is-critical {
+  color: #fecaca;
+  background: rgba(239, 68, 68, 0.22);
+  border-color: rgba(248, 113, 113, 0.65);
+}
+
+.margin-badge[hidden] {
+  display: none !important;
+}
+
 .header-actions {
   align-items: center;
   flex-wrap: wrap;
@@ -702,7 +719,8 @@ body[data-board-theme='candy'] {
 #btn-daily-share[hidden],
 #btn-quest-skip[hidden],
 #strategy-modal[hidden],
-#radar-fuse-box[hidden] {
+#radar-fuse-box[hidden],
+#touch-undo[hidden] {
   display: none !important;
 }
 
