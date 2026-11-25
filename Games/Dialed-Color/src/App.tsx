@@ -61,6 +61,7 @@ import {
   upsertDaily,
   loadPrefs,
   savePrefs,
+  loadMatrixProgress,
 } from './storage.mjs';
 import { buildDailyShareText, copyText } from './share.mjs';
 import { GameState, GameMode, Color, BestRecords, GameStats, Prefs, ShowMs, MODE_LABELS } from './types';
@@ -124,6 +125,7 @@ export default function App() {
   const [stats, setStats] = useState<GameStats>(() => loadStats());
   const [dailyRecords, setDailyRecords] = useState(() => loadDailyRecords());
   const [prefs, setPrefs] = useState<Prefs>(() => loadPrefs());
+  const [matrixProgress, setMatrixProgress] = useState(() => loadMatrixProgress());
   const [showResultOverlay, setShowResultOverlay] = useState(false);
   const [ascentFailed, setAscentFailed] = useState(false);
   const [isNewBest, setIsNewBest] = useState(false);
@@ -149,8 +151,7 @@ export default function App() {
   const colorBlind = prefs.colorBlind;
 
   const totalColors = useMemo(() => {
-    if (gameMode === 'single' || gameMode === 'mix' || gameMode === 'complement' || gameMode === 'analogous')
-      return 1;
+    if (gameMode === 'single') return 1;
     if (gameMode === 'challenge' || gameMode === 'daily') return 5;
     if (gameMode === 'ascent') return ASCENT_LEVELS;
     return targetColors.length;
@@ -200,7 +201,8 @@ export default function App() {
     setCurrentStep(0);
     setCurrentColor({ h: 180, s: 50, l: 50 });
     setShowTarget(false);
-    setPeeksLeft(MAX_PEEKS_PER_RUN);
+    const bonus = matrixProgress.bonusPeeks > 0 ? 1 : 0;
+    setPeeksLeft(MAX_PEEKS_PER_RUN + bonus);
     setPeekUsedThisRound(false);
     setBlitzToast(null);
     if (blitzToastTimerRef.current !== null) {
@@ -696,6 +698,11 @@ export default function App() {
                   <MatrixLights
                     accentHue={currentColor.h}
                     onBack={() => setGameState('landing')}
+                    onVictory={() => {
+                      const next = loadMatrixProgress();
+                      setMatrixProgress(next);
+                      setPeeksLeft((p) => p + 1);
+                    }}
                   />
                 </motion.div>
               )}
@@ -745,6 +752,13 @@ export default function App() {
                       <Radio size={13} className="text-cyan-400 animate-pulse" />
                       <span>色相光譜戰情駕駛艙 · SYNTHWAVE LAB</span>
                     </div>
+
+                    {matrixProgress.chromaticMaster && (
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-950/70 border border-cyan-400/40 text-cyan-300 font-mono text-xs">
+                        <Zap size={13} className="text-cyan-400 animate-pulse" />
+                        <span>光譜大師 · 破譯 {matrixProgress.clearCount} 次 · 局內透視次數 +1</span>
+                      </div>
+                    )}
 
                     <h1 className="brand-mark text-[clamp(2.75rem,9vw,4.5rem)] text-[var(--color-paper)] tracking-tight">
                       色感記憶
@@ -938,24 +952,34 @@ export default function App() {
                     {gameMode === 'survival' &&
                       `生存 · 第 ${currentStep + 1} 關 · ${(showDurationMs / 1000).toFixed(1)} 秒 · 需 ${survivalParams(currentStep).pass}+`}
                     {gameMode === 'blitz' && `閃擊 · 剩 ${(blitzLeftMs / 1000).toFixed(1)} 秒`}
-                    {gameMode === 'mix' && '記住兩色，調出混色結果'}
-                    {(gameMode === 'complement' || gameMode === 'analogous') && (prompts?.[0] ?? '記住參考色')}
+                    {gameMode === 'mix' && (prompts?.[currentStep] ?? '記住兩色，調出混色結果')}
+                    {(gameMode === 'complement' || gameMode === 'analogous') && (prompts?.[currentStep] ?? '記住參考色')}
                     {(gameMode === 'single' || gameMode === 'challenge' || gameMode === 'daily') &&
                       `記住這顏色 · ${currentStep + 1} / ${totalColors}`}
                   </p>
 
-                  {gameMode === 'mix' && mixPairs?.[0] ? (
-                    <div className="flex gap-3 w-full justify-center">
-                      <Swatch color={mixPairs[0][0]} colorBlind={colorBlind} className="w-[min(36vw,9rem)] aspect-square shadow-2xl" />
-                      <Swatch color={mixPairs[0][1]} colorBlind={colorBlind} className="w-[min(36vw,9rem)] aspect-square shadow-2xl" />
+                  {gameMode === 'mix' && mixPairs?.[currentStep] ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="flex gap-3 w-full justify-center">
+                        <Swatch color={mixPairs[currentStep][0]} colorBlind={colorBlind} className="w-[min(36vw,9rem)] aspect-square shadow-2xl" />
+                        <Swatch color={mixPairs[currentStep][1]} colorBlind={colorBlind} className="w-[min(36vw,9rem)] aspect-square shadow-2xl" />
+                      </div>
+                      {prompts?.[currentStep] && (
+                        <p className="text-xs text-amber-300 font-mono">{prompts[currentStep]}</p>
+                      )}
                     </div>
-                  ) : (gameMode === 'complement' || gameMode === 'analogous') && refs?.[0] ? (
-                    <Swatch
-                      color={refs[0]}
-                      colorBlind={colorBlind}
-                      className="w-[min(72vw,18rem)] aspect-square shadow-2xl"
-                      label="參考色"
-                    />
+                  ) : (gameMode === 'complement' || gameMode === 'analogous') && refs?.[currentStep] ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <Swatch
+                        color={refs[currentStep]}
+                        colorBlind={colorBlind}
+                        className="w-[min(72vw,18rem)] aspect-square shadow-2xl"
+                        label="參考色"
+                      />
+                      {prompts?.[currentStep] && (
+                        <p className="text-xs text-cyan-300 font-mono">{prompts[currentStep]}</p>
+                      )}
+                    </div>
                   ) : (
                     <Swatch
                       color={targetColors[currentStep]}
@@ -992,8 +1016,9 @@ export default function App() {
                       {gameMode === 'survival' &&
                         `重現 · 第 ${currentStep + 1} 關（需 ${survivalParams(currentStep).pass}+）`}
                       {gameMode === 'blitz' && `重現 · 剩 ${(blitzLeftMs / 1000).toFixed(1)}s`}
-                      {gameMode === 'mix' && '調出混色'}
-                      {(gameMode === 'complement' || gameMode === 'analogous') && (prompts?.[0] ?? '調出色相關係色')}
+                      {gameMode === 'mix' && (prompts?.[currentStep] ?? '調出混色')}
+                      {(gameMode === 'complement' || gameMode === 'analogous') &&
+                        (prompts?.[currentStep] ?? '調出色相關係色')}
                       {(gameMode === 'single' || gameMode === 'challenge' || gameMode === 'daily') &&
                         `重現 · ${currentStep + 1} / ${totalColors}`}
                     </p>
@@ -1031,7 +1056,7 @@ export default function App() {
                       >
                         <Eye size={16} />
                         {peeksLeft > 0
-                          ? `透視 (${peeksLeft}/${MAX_PEEKS_PER_RUN} · -${PEEK_PENALTY})`
+                          ? `透視 (${peeksLeft} · -${PEEK_PENALTY})`
                           : '透視已用盡'}
                       </button>
                     )}
@@ -1058,16 +1083,9 @@ export default function App() {
                   colorBlind={colorBlind}
                   onContinue={continueAfterFeedback}
                   continueLabel={
-                    gameMode === 'single' ||
-                    gameMode === 'mix' ||
-                    gameMode === 'complement' ||
-                    gameMode === 'analogous' ||
-                    (gameMode !== 'blitz' &&
-                      gameMode !== 'survival' &&
-                      gameMode !== 'ascent' &&
-                      currentStep >= totalColors - 1)
+                    currentStep >= totalColors - 1
                       ? '看結果'
-                      : '繼續'
+                      : `下一輪（第 ${currentStep + 2} / ${totalColors} 回合）`
                   }
                 />
               )}

@@ -35,7 +35,15 @@ function cardFaceStyle(face: MemoryCard['face'], kind: MemoryCard['kind']): CSSP
   }
   return {
     backgroundColor:
-      kind === 'insight' ? '#fff7ed' : kind === 'bomb' ? '#fee2e2' : FACE_TINT[face] ?? '#f8fafc',
+      kind === 'insight'
+        ? '#fff7ed'
+        : kind === 'scan'
+          ? '#ecfeff'
+          : kind === 'shield'
+            ? '#f0fdf4'
+            : kind === 'bomb'
+              ? '#fee2e2'
+              : FACE_TINT[face] ?? '#f8fafc',
   };
 }
 
@@ -103,6 +111,16 @@ export const TactileCard = memo(function TactileCard({
             {coordinate}
           </span>
 
+          {/* Deduction mode domain clue hint on card back */}
+          {card.backHint && !card.matched && (
+            <span
+              className="absolute bottom-1 inset-x-1 text-center font-mono text-[9px] sm:text-[10px] py-0.5 rounded bg-black/75 text-amber-200 border border-amber-400/30 truncate backdrop-blur-sm pointer-events-none"
+              title={`推演線索領域：${card.backHint}`}
+            >
+              {card.backHint}
+            </span>
+          )}
+
           {/* Memory Palace Phosphor Glow */}
           {phosphorLevel > 0 && !card.matched && !show && (
             <span
@@ -123,6 +141,8 @@ export const TactileCard = memo(function TactileCard({
         {/* Front face with luxury foil perimeter */}
         <span
           className={`mm-face mm-face-front ${card.kind === 'insight' ? 'is-insight' : ''} ${
+            card.kind === 'scan' ? 'is-scan' : ''
+          } ${card.kind === 'shield' ? 'is-shield' : ''} ${
             card.kind === 'bomb' ? 'is-bomb' : ''
           } ${hinted ? 'mm-face--hint' : ''}`}
           style={cardFaceStyle(card.face, card.kind)}
@@ -130,6 +150,12 @@ export const TactileCard = memo(function TactileCard({
           <span className="mm-coord-badge mm-coord-badge--front" aria-hidden>
             {coordinate}
           </span>
+
+          {(card.clue || card.answer) && (
+            <span className="absolute top-1 inset-x-1 text-center font-mono font-bold text-[10px] sm:text-xs py-0.5 rounded bg-black/60 text-amber-200 border border-amber-300/40 backdrop-blur-sm truncate">
+              {card.isClueCard ? card.clue : card.answer}
+            </span>
+          )}
 
           {!faceUsesPhoto(card.face) && (
             <span className="mm-emoji" aria-hidden>
@@ -140,6 +166,18 @@ export const TactileCard = memo(function TactileCard({
           {card.kind === 'insight' && (
             <span className="absolute bottom-0.5 right-0.5 rounded-[0.3rem] bg-amber-400 px-1 text-[9px] sm:text-[10px] font-bold text-amber-950 shadow-[0_0_10px_rgba(251,191,36,0.55)]">
               洞察
+            </span>
+          )}
+
+          {card.kind === 'scan' && (
+            <span className="absolute bottom-0.5 right-0.5 rounded-[0.3rem] bg-cyan-400 px-1 text-[9px] sm:text-[10px] font-bold text-cyan-950 shadow-[0_0_10px_rgba(34,211,238,0.55)]">
+              掃描
+            </span>
+          )}
+
+          {card.kind === 'shield' && (
+            <span className="absolute bottom-0.5 right-0.5 rounded-[0.3rem] bg-emerald-400 px-1 text-[9px] sm:text-[10px] font-bold text-emerald-950 shadow-[0_0_10px_rgba(52,211,153,0.55)]">
+              護盾
             </span>
           )}
 

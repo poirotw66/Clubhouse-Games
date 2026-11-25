@@ -165,6 +165,8 @@ function modeLabel(mode: PlayMode, sprintLimit: number): string {
       return '對戰';
     case 'special':
       return '洞察特牌';
+    case 'deduction':
+      return '邏輯推演';
     case 'daily':
       return '每日盤';
     case 'campaign':
@@ -236,6 +238,9 @@ export default function App() {
   const [peekFlash, setPeekFlash] = useState<number[]>([]);
   const [peekCharges, setPeekCharges] = useState(0);
   const [peekArmed, setPeekArmed] = useState(false);
+  const [scanCharges, setScanCharges] = useState(0);
+  const [scanArmed, setScanArmed] = useState(false);
+  const [shieldActive, setShieldActive] = useState(false);
   const [missPulse, setMissPulse] = useState<number[]>([]);
   const [matchPulse, setMatchPulse] = useState<number[]>([]);
   const [flashText, setFlashText] = useState('');
@@ -378,6 +383,9 @@ export default function App() {
     setPeekFlash([]);
     setPeekCharges(0);
     setPeekArmed(false);
+    setScanCharges(0);
+    setScanArmed(false);
+    setShieldActive(false);
     setMissPulse([]);
     setMatchPulse([]);
     setFlashText('');
@@ -465,9 +473,11 @@ export default function App() {
       const freeMode: PlayMode =
         opts.nextMode === 'special'
           ? 'special'
-          : opts.nextMode === 'sprint'
-            ? 'sprint'
-            : 'classic';
+          : opts.nextMode === 'deduction'
+            ? 'deduction'
+            : opts.nextMode === 'sprint'
+              ? 'sprint'
+              : 'classic';
       setBestMoves(
         loadBestMoves(displayCount, opts.nextTheme, freeMode === 'special' ? 'special' : 'classic'),
       );
@@ -528,7 +538,11 @@ export default function App() {
         nextTheme,
         faceCount: count,
         nextCpu,
-        deckOptions: { specialInsight: nextMode === 'special' },
+        deckOptions: {
+          specialTactical: nextMode === 'special',
+          specialInsight: nextMode === 'special',
+          deductionMode: nextMode === 'deduction',
+        },
         timeLimit: nextMode === 'sprint' ? sprintLimitSec(count) : null,
         flips: 2,
       });
@@ -717,7 +731,7 @@ export default function App() {
         setBestSprint(saved);
         record = saved === finalElapsed;
       } else {
-        const movesMode: PlayMode = mode === 'special' ? 'special' : 'classic';
+        const movesMode: PlayMode = mode === 'special' ? 'special' : mode === 'deduction' ? 'deduction' : 'classic';
         const savedMoves = saveBestMoves(pairCount, finalMoves, themeId, movesMode);
         setBestMoves(savedMoves);
         if (savedMoves === finalMoves) record = true;
@@ -726,7 +740,15 @@ export default function App() {
         if (savedTime === finalElapsed) record = true;
       }
       const scoreMode: PlayMode =
-        mode === 'versus' || mode === 'campaign' ? 'classic' : mode === 'special' ? 'special' : mode === 'sprint' ? 'sprint' : 'classic';
+        mode === 'versus' || mode === 'campaign'
+          ? 'classic'
+          : mode === 'special'
+            ? 'special'
+            : mode === 'deduction'
+              ? 'deduction'
+              : mode === 'sprint'
+                ? 'sprint'
+                : 'classic';
       const savedScore = saveBestScore(scoreMode, pairCount, finalScore, themeId);
       setBestScore(savedScore);
       if (savedScore === finalScore) record = true;
@@ -808,7 +830,6 @@ export default function App() {
         else if (newCombo === 2) showFlash(`⚡ 突觸共振 ×2！+${gained}`, 'good');
         else showFlash(`配對 +${gained}`, 'good');
 
-        const insightBonus = indices.some((i) => cards[i].kind === 'insight');
         const matchedSet = new Set(indices);
         nextCards = cards.map((c, i) => (matchedSet.has(i) ? { ...c, matched: true } : c));
         setCards(nextCards);
@@ -839,9 +860,18 @@ export default function App() {
             cpuVersusScoreRef.current += vs.points;
             setCpuVersusScore(cpuVersusScoreRef.current);
           }
-        } else if (insightBonus && mode === 'special') {
-          setPeekCharges((c) => c + 1);
-          showFlash('獲得洞察！', 'neutral');
+        } else if (mode === 'special') {
+          const kind = cards[indices[0]]?.kind;
+          if (kind === 'insight') {
+            setPeekCharges((c) => c + 1);
+            showFlash('獲得洞察！', 'neutral');
+          } else if (kind === 'scan') {
+            setScanCharges((c) => c + 1);
+            showFlash('獲得橫列掃描！', 'good');
+          } else if (kind === 'shield') {
+            setShieldActive(true);
+            showFlash('獲得防護盾！抵擋下次失誤懲罰', 'good');
+          }
         }
       } else {
         playError();
@@ -849,37 +879,48 @@ export default function App() {
         haptic('error');
         shake(gridRef.current, 0.28);
         setMissPulse(indices);
-        comboRef.current = 0;
-        setCombo(0);
-        const hitBomb = indices.some((i) => cards[i].kind === 'bomb');
         let versusMissFlashed = false;
-        if (mode === 'versus') {
-          if (actor === 'player') {
-            playerVersusStreakRef.current = 0;
-            setPlayerVersusStreak(0);
-            const gambled = versusGambleRef.current;
+        if (shieldActive && actor === 'player') {
+          setShieldActive(false);
+          showFlash('🛡️ 防護盾吸收了失誤懲罰！', 'good');
+          versusMissFlashed = true;
+          if (mode === 'versus') {
             versusGambleRef.current = false;
             setVersusGamble(false);
-            const penalty = versusPenaltyForMiss(gambled);
-            if (penalty > 0) {
-              cpuVersusScoreRef.current += penalty;
-              setCpuVersusScore(cpuVersusScoreRef.current);
-              showFlash(`🎲 豪賭失手！對手 +${penalty} 分`, 'bad');
-              versusMissFlashed = true;
-            }
-          } else {
-            cpuVersusStreakRef.current = 0;
-            setCpuVersusStreak(0);
+            setTurnOwner('cpu');
           }
-          setTurnOwner(actor === 'player' ? 'cpu' : 'player');
-        }
-        if (!versusMissFlashed) {
-          if (hitBomb && bombPenaltySec > 0) {
-            elapsedRef.current += bombPenaltySec;
-            setElapsed(elapsedRef.current);
-            showFlash(`炸彈罰時 +${bombPenaltySec}s`, 'bad');
-          } else {
-            showFlash('未中', 'bad');
+        } else {
+          comboRef.current = 0;
+          setCombo(0);
+          const hitBomb = indices.some((i) => cards[i].kind === 'bomb');
+          if (mode === 'versus') {
+            if (actor === 'player') {
+              playerVersusStreakRef.current = 0;
+              setPlayerVersusStreak(0);
+              const gambled = versusGambleRef.current;
+              versusGambleRef.current = false;
+              setVersusGamble(false);
+              const penalty = versusPenaltyForMiss(gambled);
+              if (penalty > 0) {
+                cpuVersusScoreRef.current += penalty;
+                setCpuVersusScore(cpuVersusScoreRef.current);
+                showFlash(`🎲 豪賭失手！對手 +${penalty} 分`, 'bad');
+                versusMissFlashed = true;
+              }
+            } else {
+              cpuVersusStreakRef.current = 0;
+              setCpuVersusStreak(0);
+            }
+            setTurnOwner(actor === 'player' ? 'cpu' : 'player');
+          }
+          if (!versusMissFlashed) {
+            if (hitBomb && bombPenaltySec > 0) {
+              elapsedRef.current += bombPenaltySec;
+              setElapsed(elapsedRef.current);
+              showFlash(`炸彈罰時 +${bombPenaltySec}s`, 'bad');
+            } else {
+              showFlash('未中', 'bad');
+            }
           }
         }
       }
@@ -1008,6 +1049,37 @@ export default function App() {
     }
     lastActionTimeRef.current = now;
 
+    if (scanArmed && mode === 'special') {
+      const card = cards[index];
+      if (card.matched) return;
+      setScanArmed(false);
+      setScanCharges((c) => Math.max(0, c - 1));
+      const cols = getBoardCols(cards.length);
+      const row = Math.floor(index / cols);
+      const rowIndices: number[] = [];
+      for (let c = 0; c < cols; c++) {
+        const idx = row * cols + c;
+        if (idx < cards.length && !cards[idx].matched) rowIndices.push(idx);
+      }
+      setPeekFlash(rowIndices);
+      setSeenIndices((prev) => {
+        const next = new Set(prev);
+        for (const idx of rowIndices) next.add(idx);
+        return next;
+      });
+      setSightings((prev) => {
+        const next = new Map(prev);
+        for (const idx of rowIndices) next.set(idx, turnRef.current);
+        return next;
+      });
+      setCpuMemory((mem) =>
+        rememberRevealed(mem, cards, rowIndices, turnRef.current, cpuDifficulty, pairCount),
+      );
+      playMove();
+      showFlash('橫列掃描完畢！', 'good');
+      return;
+    }
+
     if (peekArmed && mode === 'special') {
       const card = cards[index];
       if (card.matched) return;
@@ -1077,8 +1149,18 @@ export default function App() {
     if (mode !== 'special' || peekCharges <= 0 || peekArmed) return;
     if (locks || won || lost || flipped.length > 0) return;
     setPeekArmed(true);
+    setScanArmed(false);
     playMove();
     showFlash('點選一張牌窺視', 'neutral');
+  };
+
+  const armScan = () => {
+    if (mode !== 'special' || scanCharges <= 0 || scanArmed) return;
+    if (locks || won || lost || flipped.length > 0) return;
+    setScanArmed(true);
+    setPeekArmed(false);
+    playMove();
+    showFlash('點選任意牌以掃描整列', 'neutral');
   };
 
   const handleShareDaily = async () => {
@@ -1191,6 +1273,13 @@ export default function App() {
         if (mode === 'special' && peekCharges > 0 && !peekArmed) {
           e.preventDefault();
           armPeek();
+        }
+        return;
+      }
+      if (key === 's' || key === 'S') {
+        if (mode === 'special' && scanCharges > 0 && !scanArmed) {
+          e.preventDefault();
+          armScan();
         }
         return;
       }
@@ -1458,7 +1547,14 @@ export default function App() {
         {bestScore != null && mode !== 'daily' && mode !== 'campaign' ? (
           <HudCell label="最高分" value={bestScore} />
         ) : null}
-        {mode === 'special' ? <HudCell label="洞察" value={`×${peekCharges}`} /> : null}
+        {mode === 'special' ? (
+          <>
+            <HudCell label="洞察" value={`×${peekCharges}`} />
+            <HudCell label="掃描" value={`×${scanCharges}`} />
+            <HudCell label="護盾" value={shieldActive ? '已啟動' : '無'} tone={shieldActive ? 'good' : undefined} />
+          </>
+        ) : null}
+        {mode === 'deduction' ? <HudCell label="模式" value="邏輯推演" tone="good" /> : null}
         {activeStage?.mechanic === 'swap' ? <HudCell label="機制" value="互換" /> : null}
         {activeStage?.mechanic === 'bomb' ? <HudCell label="機制" value="炸彈" tone="hot" /> : null}
         {runAssisted ? <HudCell label="提示" value="輔助局" tone="hot" /> : null}
@@ -1535,6 +1631,7 @@ export default function App() {
                   { id: 'sprint' as const, label: `衝刺 ${sprintLimit}s` },
                   { id: 'versus' as const, label: '對戰 CPU' },
                   { id: 'special' as const, label: '洞察特牌' },
+                  { id: 'deduction' as const, label: '邏輯推演' },
                   { id: 'daily' as const, label: '每日盤' },
                   { id: 'campaign' as const, label: '短戰役' },
                 ] as const
@@ -1787,14 +1884,26 @@ export default function App() {
           {assistMode ? '輔助提示：開' : '輔助提示：關'}
         </button>
         {mode === 'special' && (
-          <button
-            type="button"
-            onClick={armPeek}
-            disabled={peekCharges <= 0 || peekArmed || locks || won || lost || flipped.length > 0}
-            className={`mm-btn mm-btn--peek${peekArmed ? ' is-armed' : ''}`}
-          >
-            {peekArmed ? '點牌窺視中' : `使用洞察 (${peekCharges})`}
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={armPeek}
+              disabled={peekCharges <= 0 || peekArmed || locks || won || lost || flipped.length > 0}
+              className={`mm-btn mm-btn--peek${peekArmed ? ' is-armed' : ''}`}
+              title="窺視單張背面牌 [P]"
+            >
+              {peekArmed ? '點牌窺視中' : `使用洞察 (${peekCharges})`}
+            </button>
+            <button
+              type="button"
+              onClick={armScan}
+              disabled={scanCharges <= 0 || scanArmed || locks || won || lost || flipped.length > 0}
+              className={`mm-btn mm-btn--peek${scanArmed ? ' is-armed' : ''}`}
+              title="掃描整列背面牌 [S]"
+            >
+              {scanArmed ? '點牌掃描中' : `橫列掃描 (${scanCharges})`}
+            </button>
+          </>
         )}
         {mode === 'daily' && todayRecord && (
           <button type="button" onClick={() => void handleShareDaily()} className="mm-btn mm-btn--share">
@@ -1808,7 +1917,12 @@ export default function App() {
 
       {mode === 'special' && (
         <p className="mm-meta">
-          金色「洞察」對配對成功後可窺視任一張背面牌——何時用掉是關鍵決策。
+          金色「洞察」可窺視單牌、藍色「掃描」可掃描整列背面牌、綠色「護盾」可防禦失誤懲罰！
+        </p>
+      )}
+      {mode === 'deduction' && (
+        <p className="mm-meta">
+          邏輯推演模式：牌背標註領域與「算式 / 數值」屬性，翻牌後可透過數學方程式與數值結果進行邏輯反推，免除首回合盲猜！
         </p>
       )}
       {mode === 'versus' && (

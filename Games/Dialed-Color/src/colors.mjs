@@ -138,8 +138,37 @@ export function mixColors(a, b) {
   return rgbToHsl((r1 + r2) / 2, (g1 + g2) / 2, (b1 + b2) / 2);
 }
 
+/**
+ * Weighted mix in RGB (then back to HSL).
+ * @param {Color} a
+ * @param {Color} b
+ * @param {number} [weightA=0.5]
+ * @returns {Color}
+ */
+export function mixColorsWeighted(a, b, weightA = 0.5) {
+  const [r1, g1, b1] = hslToRgb(a);
+  const [r2, g2, b2] = hslToRgb(b);
+  const w1 = Math.max(0, Math.min(1, weightA));
+  const w2 = 1 - w1;
+  return rgbToHsl(
+    Math.round(r1 * w1 + r2 * w2),
+    Math.round(g1 * w1 + g2 * w2),
+    Math.round(b1 * w1 + b2 * w2),
+  );
+}
+
 export function complementaryOf(c) {
   return clampColor(c.h + 180, c.s, c.l);
+}
+
+/**
+ * Split-complementary of a color (default 150° or 210° offset).
+ * @param {Color} c
+ * @param {number} [offset=150]
+ * @returns {Color}
+ */
+export function splitComplementaryOf(c, offset = 150) {
+  return clampColor(c.h + offset, c.s, c.l);
 }
 
 /** @param {Color} c @param {30 | -30 | 40 | -40} offset */
@@ -169,6 +198,7 @@ export const ASCENT_LEVELS = ASCENT_SHOW_MS.length;
 export const DAILY_ROUNDS = 5;
 export const MIX_SHOW_MS = 2500;
 export const HARMONY_SHOW_MS = 2000;
+export const COLOR_THEORY_ROUNDS = 3;
 
 /**
  * Build a list of target colors for a mode.
@@ -207,28 +237,77 @@ export function buildTargets(mode, rand, opts = {}) {
   }
 
   if (mode === 'mix') {
-    const a = generateColor(rand, { lastHue, sRange: [35, 95], lRange: [25, 75] });
-    const b = generateColor(rand, { lastHue: a.h, minHueGap: 60, sRange: [35, 95], lRange: [25, 75] });
-    return { targets: [mixColors(a, b)], mixPairs: [[a, b]], refs: [a, b] };
+    const rounds = opts.count ?? COLOR_THEORY_ROUNDS;
+    const targets = [];
+    const mixPairs = [];
+    const refs = [];
+    const prompts = [];
+    const ratios = [0.5, 0.7, 0.3];
+    const ratioLabels = [
+      '第 1 回合 · 50/50 均衡混色',
+      '第 2 回合 · 70/30 主色混調',
+      '第 3 回合 · 30/70 逆向加權混色',
+    ];
+
+    for (let i = 0; i < rounds; i += 1) {
+      const a = generateColor(rand, { lastHue, sRange: [35, 95], lRange: [25, 75] });
+      const b = generateColor(rand, { lastHue: a.h, minHueGap: 60, sRange: [35, 95], lRange: [25, 75] });
+      lastHue = b.h;
+      const r = ratios[i % ratios.length];
+      const target = r === 0.5 ? mixColors(a, b) : mixColorsWeighted(a, b, r);
+      targets.push(target);
+      mixPairs.push([a, b]);
+      refs.push(a);
+      refs.push(b);
+      prompts.push(ratioLabels[i % ratioLabels.length]);
+    }
+    return { targets, mixPairs, refs, prompts };
   }
 
   if (mode === 'complement') {
-    const ref = generateColor(rand, { lastHue, sRange: [40, 95], lRange: [30, 70] });
-    return {
-      targets: [complementaryOf(ref)],
-      refs: [ref],
-      prompts: ['調出互補色（色相 +180°）'],
-    };
+    const rounds = opts.count ?? COLOR_THEORY_ROUNDS;
+    const targets = [];
+    const refs = [];
+    const prompts = [];
+    const compConfigs = [
+      { offset: 180, label: '第 1 回合 · 經典互補色（色相 +180°）' },
+      { offset: 150, label: '第 2 回合 · 分裂互補色 A（色相 +150°）' },
+      { offset: 210, label: '第 3 回合 · 分裂互補色 B（色相 +210°）' },
+    ];
+
+    for (let i = 0; i < rounds; i += 1) {
+      const ref = generateColor(rand, { lastHue, sRange: [40, 95], lRange: [30, 70] });
+      lastHue = ref.h;
+      const cfg = compConfigs[i % compConfigs.length];
+      const target = cfg.offset === 180 ? complementaryOf(ref) : splitComplementaryOf(ref, cfg.offset);
+      targets.push(target);
+      refs.push(ref);
+      prompts.push(cfg.label);
+    }
+    return { targets, refs, prompts };
   }
 
   if (mode === 'analogous') {
-    const offset = rand() < 0.5 ? 30 : -30;
-    const ref = generateColor(rand, { lastHue, sRange: [40, 95], lRange: [30, 70] });
-    return {
-      targets: [analogousOf(ref, offset)],
-      refs: [ref],
-      prompts: [`調出類似色（色相 ${offset > 0 ? '+' : ''}${offset}°）`],
-    };
+    const rounds = opts.count ?? COLOR_THEORY_ROUNDS;
+    const targets = [];
+    const refs = [];
+    const prompts = [];
+    const anaConfigs = [
+      { offset: 30, label: '第 1 回合 · 近距類似色（色相 +30°）' },
+      { offset: -30, label: '第 2 回合 · 逆向類似色（色相 -30°）' },
+      { offset: 45, label: '第 3 回合 · 擴展類似色（色相 +45°）' },
+    ];
+
+    for (let i = 0; i < rounds; i += 1) {
+      const ref = generateColor(rand, { lastHue, sRange: [40, 95], lRange: [30, 70] });
+      lastHue = ref.h;
+      const cfg = anaConfigs[i % anaConfigs.length];
+      const target = clampColor(ref.h + cfg.offset, ref.s, ref.l);
+      targets.push(target);
+      refs.push(ref);
+      prompts.push(cfg.label);
+    }
+    return { targets, refs, prompts };
   }
 
   if (mode === 'blitz') {

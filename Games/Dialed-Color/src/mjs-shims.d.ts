@@ -1,11 +1,14 @@
 declare module './score.mjs' {
   import type { Color } from './types';
   export function hueDelta(c1: Color, c2: Color): number;
+  export function perceptualHueWeight(c1: Color, c2: Color): number;
   export function distanceComponents(
     c1: Color,
     c2: Color,
   ): {
     hueNorm: number;
+    effectiveHueNorm?: number;
+    hueWeight?: number;
     satNorm: number;
     lightNorm: number;
     hueDeg: number;
@@ -48,7 +51,9 @@ declare module './colors.mjs' {
   export function hslToRgb(c: Color): [number, number, number];
   export function rgbToHsl(r: number, g: number, b: number): Color;
   export function mixColors(a: Color, b: Color): Color;
+  export function mixColorsWeighted(a: Color, b: Color, weightA?: number): Color;
   export function complementaryOf(c: Color): Color;
+  export function splitComplementaryOf(c: Color, offset?: number): Color;
   export function analogousOf(c: Color, offset: number): Color;
   export function survivalParams(round: number): {
     showMs: number;
@@ -65,6 +70,7 @@ declare module './colors.mjs' {
   export const DAILY_ROUNDS: number;
   export const MIX_SHOW_MS: number;
   export const HARMONY_SHOW_MS: number;
+  export const COLOR_THEORY_ROUNDS: number;
   export function buildTargets(
     mode: string,
     rand: () => number,
@@ -115,6 +121,18 @@ declare module './storage.mjs' {
   export function upsertDaily(records: DailyRecord[], entry: DailyRecord): DailyRecord[];
   export function loadPrefs(): Prefs;
   export function savePrefs(prefs: Prefs): void;
+  export function loadMatrixProgress(): {
+    cleared: boolean;
+    clearCount: number;
+    chromaticMaster: boolean;
+    bonusPeeks: number;
+  };
+  export function recordMatrixClear(): {
+    cleared: boolean;
+    clearCount: number;
+    chromaticMaster: boolean;
+    bonusPeeks: number;
+  };
   export const MODE_KEYS: string[];
   export const HISTORY_LIMIT: number;
 }
