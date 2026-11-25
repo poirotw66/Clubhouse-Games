@@ -8,7 +8,7 @@ const SHORTCUTS = [
   { key: '1 – 6', action: '選擇塔種', desc: '1:十字弩 2:磨盤 3:冰霜 4:線圈 5:彈簧錘 6:迫擊砲' },
   { key: 'Space', action: '開始下一波／加壓', desc: '準備階段啟動波次；戰鬥階段強行加壓換取金幣' },
   { key: 'F', action: '發條超頻 (Overdrive)', desc: '壓力蓄滿 100% 時啟動：全塔攻速 +60%、得分 +50%（持續 8 秒）' },
-  { key: 'W', action: '手動上發條', desc: '手動旋緊發條核心，快速蓄壓 +15%' },
+  { key: 'W', action: '手動上發條', desc: '戰鬥波次中旋緊發條蓄壓 +15%（冷卻 8 秒）' },
   { key: 'U', action: '基礎升級', desc: '選取塔後按 U 直接進行 Lv.0 → Lv.1 基礎升級' },
   { key: 'A / B', action: '選擇進階分支', desc: '選取 Lv.1 塔時，直接選擇分支 A 或分支 B' },
   { key: 'S', action: '售出塔', desc: '退還選取塔已投入金幣的 70%' },

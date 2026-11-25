@@ -158,6 +158,8 @@ export interface GameState {
   overdriveCount: number;
   /** Total manual clockwork spring windings. */
   totalWindings: number;
+  /** Seconds remaining before manual winding can be used again (0 when ready). */
+  mainspringCooldown: number;
   /** Current active kill streak combo within comboTimer. */
   currentCombo: number;
   /** Seconds before active kill combo drops back to zero. */

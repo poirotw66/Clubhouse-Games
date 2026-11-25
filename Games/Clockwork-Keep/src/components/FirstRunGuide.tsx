@@ -47,23 +47,23 @@ export function FirstRunGuide({ onClose }: Props): ReactElement {
         </h2>
         <p className="mt-2 text-center text-sm text-amber-200/60">先記住這三件事，細節可開操作說明</p>
 
-        <ul className="mt-5 space-y-3 text-sm text-amber-50">
+        <ul className="mt-5 space-y-2.5 text-sm text-amber-50">
           <li className="rounded-xl border border-amber-900/40 bg-black/30 px-3 py-2.5">
-            <p className="font-bold text-amber-300">塔就是牆</p>
+            <p className="font-bold text-amber-300">塔就是牆・選放與升級</p>
             <p className="mt-0.5 text-amber-200/60">
-              擺塔改寫敵人最短路；不能完全封死出口，封鎖會被拒絕。
+              點底部塔欄（1–6）擺塔改寫最短路，不可完全封死出口；點已放塔可升級或售出，Z 撤銷開波前最後一步。
             </p>
           </li>
           <li className="rounded-xl border border-amber-900/40 bg-black/30 px-3 py-2.5">
-            <p className="font-bold text-amber-300">選塔再放格</p>
+            <p className="font-bold text-amber-300">Space 開波與提前召波獎金</p>
             <p className="mt-0.5 text-amber-200/60">
-              點底部塔欄（或按 1–6）選塔，再點格子放置；點已放的塔可升級（高級二選一）或售出。
+              備戰按 Space 開始下一波；波次出兵完畢後再按 Space 提前召波，依場上餘敵領取額外金幣獎金。
             </p>
           </li>
           <li className="rounded-xl border border-amber-900/40 bg-black/30 px-3 py-2.5">
-            <p className="font-bold text-amber-300">開波與撤銷</p>
+            <p className="font-bold text-amber-300">W 上發條冷卻・F 蒸汽超載 (Overdrive)</p>
             <p className="mt-0.5 text-amber-200/60">
-              準備好後按「開始下一波」或空白鍵；Z 可撤銷本波開始前的最後一次放置／升級。
+              戰鬥中按 W 上發條蓄壓 +15%（冷卻 8 秒），擊殺亦會蓄能；蓄滿 100% 按 F 啟動 8 秒超載（攻速 +60%、得分 +50%）。
             </p>
           </li>
         </ul>

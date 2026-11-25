@@ -18,7 +18,10 @@ import {
   selectPrimaryTarget,
 } from './game/combat.ts';
 import {
+  MAINSPRING_COOLDOWN_SEC,
   createInitialState,
+  startNextWave,
+  step,
   triggerOverdrive,
   windMainspring,
 } from './game/engine.ts';
@@ -180,20 +183,50 @@ function makeEnemy(overrides = {}) {
   const s = createInitialState('standard', 'open', false);
   assert.equal(s.steamPressure, 0);
   assert.equal(s.overdriveRemaining, 0);
+  assert.equal(s.mainspringCooldown, 0);
 
   // Overdrive rejected if steam pressure < 100
   const earlyOverdrive = triggerOverdrive(s);
   assert.equal(earlyOverdrive.ok, false);
 
-  // Manual winding increases tension by 15%
-  const wind1 = windMainspring(s);
+  // Manual winding is blocked during prep phase (prevents free prep-phase Overdrive exploit)
+  const prepWind = windMainspring(s);
+  assert.equal(prepWind.ok, false, 'windMainspring must be blocked during prep phase');
+  assert.equal(prepWind.state.steamPressure, 0);
+  assert.equal(prepWind.state.totalWindings, 0);
+
+  // Start wave 1 so phase === 'wave'
+  let waveState = startNextWave(s).state;
+  assert.equal(waveState.phase, 'wave');
+
+  // Manual winding increases tension by 15% and starts cooldown
+  const wind1 = windMainspring(waveState);
   assert.equal(wind1.ok, true);
   assert.equal(wind1.state.steamPressure, 15);
   assert.equal(wind1.state.totalWindings, 1);
+  assert.equal(wind1.state.mainspringCooldown, MAINSPRING_COOLDOWN_SEC);
 
-  // Wind 6 more times to reach 100% (caps at 100)
-  let fullState = wind1.state;
+  // Immediate spam during cooldown must be rejected cleanly
+  const spamWind = windMainspring(wind1.state);
+  assert.equal(spamWind.ok, false, 'windMainspring must enforce cooldown');
+  assert.equal(spamWind.state.steamPressure, 15);
+  assert.equal(spamWind.state.totalWindings, 1);
+
+  // Advancing simulation by 8 seconds clears cooldown and permits winding again
+  let cooled = wind1.state;
+  const stepsPerSec = 60;
+  for (let i = 0; i < MAINSPRING_COOLDOWN_SEC * stepsPerSec; i++) {
+    cooled = step(cooled, 1 / stepsPerSec);
+  }
+  assert.equal(cooled.mainspringCooldown, 0, 'cooldown must reach 0 after 8s');
+  const wind2 = windMainspring(cooled);
+  assert.equal(wind2.ok, true, 'windMainspring succeeds once cooldown expires');
+  assert.ok(wind2.state.steamPressure >= 30);
+
+  // Wind repeatedly after resetting cooldown to reach 100% (caps at 100)
+  let fullState = wind2.state;
   for (let i = 0; i < 6; i++) {
+    fullState = { ...fullState, mainspringCooldown: 0 };
     fullState = windMainspring(fullState).state;
   }
   assert.equal(fullState.steamPressure, 100);
