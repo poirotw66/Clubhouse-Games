@@ -85,6 +85,10 @@ export interface GameState {
   log: TrickEntry[];
   /** Set once someone empties their hand. */
   winner: Seat | null;
+  /** Seat that violated Ding Da right before the next seat could win on 1 card. */
+  pendingDingDaViolator?: Seat | null;
+  /** Seat liable for full Ding Da buyout ("包賠") if the next seat went out immediately. */
+  dingDaViolator?: Seat | null;
   /** Ladder / special tables can recolour CPU seats. */
   seatPersonalities?: SeatPersonalityMap;
 }
@@ -144,6 +148,8 @@ export interface HandRecord {
   bombs: number[];
   /** How many real plays the winner needed to empty their hand. */
   winnerPlayCount: number;
+  /** Seat that triggered a Ding Da buyout penalty, if any. */
+  dingDaViolator?: Seat | null;
 }
 
 export type MatchPhase = 'playing' | 'handOver' | 'matchOver';
@@ -174,6 +180,8 @@ export interface Outcome {
   scores: SeatScore[];
   /** Winner's take: the sum of everyone else's penalties. */
   pot: number;
+  /** Seat liable for full Ding Da buyout ("包賠"), if triggered on the winning play. */
+  dingDaViolator?: Seat | null;
 }
 
 /** Named CPU style — same difficulty tier, different decision weights. */

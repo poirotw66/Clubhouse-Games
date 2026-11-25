@@ -1,5 +1,6 @@
 import { cardLabel } from './cards';
 import { sizeMultiplier } from './engine';
+import { handDeltas } from './match';
 import { TYPE_LABEL } from './plays';
 import { HUMAN } from './types';
 import type { GameState, Outcome, Seat, SeatScore } from './types';
@@ -13,6 +14,8 @@ export interface HandReview {
   winner: Seat;
   pot: number;
   scores: SeatScore[];
+  deltas?: number[];
+  dingDaViolator?: Seat | null;
   lessons: ReviewLesson[];
   highlight: string;
 }
@@ -24,16 +27,38 @@ export interface HandReview {
 export function buildHandReview(state: GameState, result: Outcome): HandReview {
   const lessons: ReviewLesson[] = [];
   const human = result.scores[HUMAN];
+  const deltas = handDeltas(result);
+  const humanDelta = deltas[HUMAN] ?? 0;
 
   if (result.winner === HUMAN) {
     lessons.push({
       title: '你出完了',
-      detail: `這局收 ${result.pot} 分。對手的牌分加總就是你的獎金。`,
+      detail:
+        result.dingDaViolator != null
+          ? `這局收 ${result.pot} 分（由${seatName(result.dingDaViolator)}觸發頂大包賠）。`
+          : `這局收 ${result.pot} 分。對手的牌分加總就是你的獎金。`,
+    });
+  } else if (result.dingDaViolator === HUMAN) {
+    lessons.push({
+      title: '觸發頂大包賠',
+      detail: `下家剩 1 張時未出手中最大單張且被完賽，你須全額包賠 ${Math.abs(humanDelta)} 分。`,
+    });
+  } else if (result.dingDaViolator != null) {
+    lessons.push({
+      title: '這局免賠',
+      detail: `${seatName(result.dingDaViolator)} 違反頂大規則包賠全場，你本局免賠 0 分。`,
     });
   } else {
     lessons.push({
       title: '這局輸了',
       detail: `你賠 ${human.penalty} 分（剩 ${human.remaining} 張）。`,
+    });
+  }
+
+  if (result.dingDaViolator != null && result.dingDaViolator !== HUMAN) {
+    lessons.push({
+      title: '頂大包賠生效',
+      detail: `${seatName(result.dingDaViolator)} 未出最大單張讓下家完賽，獨自承擔全場 ${result.pot} 分；其餘敗家免賠。`,
     });
   }
 
@@ -78,12 +103,16 @@ export function buildHandReview(state: GameState, result: Outcome): HandReview {
   const highlight =
     result.winner === HUMAN
       ? `+${result.pot}`
-      : `−${human.penalty}`;
+      : humanDelta === 0
+        ? '0'
+        : `−${Math.abs(humanDelta)}`;
 
   return {
     winner: result.winner,
     pot: result.pot,
     scores: result.scores,
+    deltas,
+    dingDaViolator: result.dingDaViolator ?? null,
     lessons: trimmed,
     highlight,
   };

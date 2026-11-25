@@ -33,15 +33,17 @@ import {
   PERSONALITY_IDS,
   DIFFICULTY_LABELS,
   DIFFICULTY_BLURBS,
+  advancePopOutPositionCounts,
   analyzeTactics,
   applyMove,
   createInitialBoard,
   evaluateMoveQuality,
   getDropRow,
   getLegalDropColumns,
+  getLegalMoves,
   getPopOutColumns,
   getWinningCells,
-  isBoardFull,
+  isPopOutRepetitionDraw,
   pickBotMove,
   resolveWinnerAfterMove,
   type MoveEvaluation,
@@ -98,6 +100,7 @@ interface GameState {
   currentTurn: PieceColor;
   phase: GamePhase;
   winner: PieceColor | 'draw' | null;
+  positionCounts?: Record<string, number>;
 }
 
 interface DropFx {
@@ -133,11 +136,13 @@ function persistSeriesSnapshot(opts: {
 }
 
 function freshGame(rules: RulesConfig): GameState {
+  const board = createInitialBoard(rules);
   return {
-    board: createInitialBoard(rules),
+    board,
     currentTurn: 'red',
     phase: 'playing',
     winner: null,
+    positionCounts: advancePopOutPositionCounts(undefined, board, 'red', rules),
   };
 }
 
@@ -312,16 +317,22 @@ export default function App() {
   }, [state.phase, screen, tactics.threatSegments]);
 
   const isBotTurn =
-    screen === 'play' &&
-    gameMode === 'bot' &&
     state.phase === 'playing' &&
-    state.currentTurn !== playerSide;
+    ((screen === 'play' &&
+      gameMode === 'bot' &&
+      state.currentTurn !== playerSide) ||
+      (screen === 'puzzles' &&
+        Boolean(activePuzzle) &&
+        puzzleStatus === 'playing' &&
+        state.currentTurn !== activePuzzle!.sideToMove));
 
   const humanCanAct =
     state.phase === 'playing' &&
     !isBotTurn &&
     (screen === 'puzzles'
-      ? puzzleStatus === 'playing'
+      ? Boolean(activePuzzle) &&
+        puzzleStatus === 'playing' &&
+        state.currentTurn === activePuzzle!.sideToMove
       : gameMode === 'two' || state.currentTurn === playerSide);
 
   const resetBoard = useCallback(
@@ -406,8 +417,16 @@ export default function App() {
         dropRow,
         rules,
       );
-      const full = !winner && isBoardFull(nextBoard, rules);
       const nextTurn: PieceColor = color === 'red' ? 'yellow' : 'red';
+      const nextCounts = advancePopOutPositionCounts(
+        state.positionCounts,
+        nextBoard,
+        nextTurn,
+        rules,
+      );
+      const noMoves = !winner && getLegalMoves(nextBoard, nextTurn, rules).length === 0;
+      const repDraw = !winner && isPopOutRepetitionDraw(nextCounts, nextBoard, nextTurn, rules);
+      const isDraw = noMoves || repDraw;
 
       if (fromHuman) {
         setHistory((h) => [...h, state]);
@@ -430,8 +449,9 @@ export default function App() {
       const nextState: GameState = {
         board: nextBoard,
         currentTurn: nextTurn,
-        phase: winner || full ? 'over' : 'playing',
-        winner: winner ?? (full ? 'draw' : null),
+        phase: winner || isDraw ? 'over' : 'playing',
+        winner: winner ?? (isDraw ? 'draw' : null),
+        positionCounts: nextCounts,
       };
       setState(nextState);
 
@@ -450,7 +470,7 @@ export default function App() {
             saveStats(next);
             return next;
           });
-        } else if (winner || plies >= activePuzzle.maxMoves) {
+        } else if (winner || isDraw || plies >= activePuzzle.maxMoves) {
           setPuzzleStatus('failed');
           playLose();
         }
@@ -473,12 +493,12 @@ export default function App() {
     if (!isBotTurn || botScheduled.current) return;
     botScheduled.current = true;
     const timer = setTimeout(() => {
-      const botColor: PieceColor = playerSide === 'red' ? 'yellow' : 'red';
+      const botColor: PieceColor = state.currentTurn;
       const move = pickBotMove(
         state.board,
         botColor,
-        difficulty,
-        personality,
+        screen === 'puzzles' ? 'hard' : difficulty,
+        screen === 'puzzles' ? 'blocker' : personality,
         rules,
       );
       botScheduled.current = false;
@@ -495,7 +515,16 @@ export default function App() {
         dropRow,
         rules,
       );
-      const full = !winner && isBoardFull(nextBoard, rules);
+      const nextTurn: PieceColor = botColor === 'red' ? 'yellow' : 'red';
+      const nextCounts = advancePopOutPositionCounts(
+        state.positionCounts,
+        nextBoard,
+        nextTurn,
+        rules,
+      );
+      const noMoves = !winner && getLegalMoves(nextBoard, nextTurn, rules).length === 0;
+      const repDraw = !winner && isPopOutRepetitionDraw(nextCounts, nextBoard, nextTurn, rules);
+      const isDraw = noMoves || repDraw;
       playMoveFx(nextBoard, move, botColor, Boolean(winner));
 
       const moveEval = evaluateMoveQuality(
@@ -511,10 +540,16 @@ export default function App() {
 
       setState({
         board: nextBoard,
-        currentTurn: botColor === 'red' ? 'yellow' : 'red',
-        phase: winner || full ? 'over' : 'playing',
-        winner: winner ?? (full ? 'draw' : null),
+        currentTurn: nextTurn,
+        phase: winner || isDraw ? 'over' : 'playing',
+        winner: winner ?? (isDraw ? 'draw' : null),
+        positionCounts: nextCounts,
       });
+
+      if (screen === 'puzzles' && (winner || isDraw)) {
+        setPuzzleStatus('failed');
+        playLose();
+      }
     }, 480);
     return () => {
       clearTimeout(timer);
@@ -522,8 +557,10 @@ export default function App() {
     };
   }, [
     isBotTurn,
+    screen,
     state.board,
-    playerSide,
+    state.currentTurn,
+    state.positionCounts,
     difficulty,
     personality,
     rules,
@@ -688,16 +725,19 @@ export default function App() {
 
   const openPuzzle = useCallback((puzzle: PuzzleDef) => {
     const r = puzzleRules(puzzle);
+    const initialBoard = loadPuzzleBoard(puzzle);
     setActivePuzzle(puzzle);
     setScreen('puzzles');
     setGameMode('puzzle');
+    setPlayerSide(puzzle.sideToMove);
     setVariant(puzzle.variant);
     setPreset(puzzle.preset);
     setState({
-      board: loadPuzzleBoard(puzzle),
+      board: initialBoard,
       currentTurn: puzzle.sideToMove,
       phase: 'playing',
       winner: null,
+      positionCounts: advancePopOutPositionCounts(undefined, initialBoard, puzzle.sideToMove, r),
     });
     setHistory([]);
     setHintMove(null);
@@ -706,8 +746,6 @@ export default function App() {
     setDropFx(null);
     setActionMode('drop');
     botScheduled.current = false;
-    // Keep rules in sync via variant/preset — board already loaded.
-    void r;
   }, []);
 
   const handleGateRelease = useCallback(() => {
@@ -823,10 +861,14 @@ export default function App() {
         ? '謎題破解！'
         : puzzleStatus === 'failed'
           ? '未在步數內取勝'
-          : `紅方 · ${activePuzzle.maxMoves} 步內取勝（已用 ${puzzlePlies}）`
+          : isBotTurn
+            ? '對手應著中…'
+            : `${activePuzzle.sideToMove === 'red' ? '紅方' : '黃方'} · ${activePuzzle.maxMoves} 步內取勝（已用 ${puzzlePlies}）`
       : state.phase === 'over'
         ? state.winner === 'draw'
-          ? '和局'
+          ? isPopOutRepetitionDraw(state.positionCounts, state.board, state.currentTurn, rules)
+            ? '和局（三次重複局面）'
+            : '和局'
           : state.winner === 'red'
             ? '紅方獲勝'
             : '黃方獲勝'
@@ -2237,7 +2279,7 @@ export default function App() {
                 棋盤可選 7×6、8×7、9×7；五子勝改為先連五，預設 9×7。
               </li>
               <li>
-                PopOut：回合可改為取出底格己子，該欄上方棋子下墜；重力後連線亦算勝。
+                PopOut：回合可改為取出底格己子，該欄上方棋子下墜；重力後連線亦算勝；同一局面重複三次判和局。
               </li>
               <li>
                 系列賽：先取得 N 場單局勝利者勝出（和局不計分）。

@@ -22,11 +22,16 @@ import {
   hasConnectN,
   hasWonAt,
   isBoardFull,
+  isPopOutRepetitionDraw,
+  opponent,
   pickBotColumn,
   pickBotMove,
   popOutPiece,
+  positionKey,
   resolveWinnerAfterMove,
+  advancePopOutPositionCounts,
   DIFFICULTY_BLURBS,
+  POPOUT_REPETITION_COUNT,
   detectThreatSegments,
   evaluateMoveQuality,
   type Board,
@@ -46,6 +51,7 @@ import {
 } from './match';
 import {
   PUZZLES,
+  getPuzzleById,
   loadPuzzleBoard,
   puzzleRules,
   verifyPuzzleSolution,
@@ -519,6 +525,65 @@ describe('pickBotMove (adversarial bot)', () => {
     const move = pickBotMove(board, 'red', 'hard', 'architect', popout);
     expect(move?.kind).toBe('pop');
     expect(winningPops.map((m) => m.col)).toContain(move!.col);
+  });
+
+  it('tracks 3-fold position repetition draw in popout mode only', () => {
+    let board = createInitialBoard(popout);
+    board = dropPiece(board, 0, 'red', popout)!;
+    board = dropPiece(board, 1, 'yellow', popout)!;
+
+    let counts = advancePopOutPositionCounts(undefined, board, 'red', popout);
+    expect(isPopOutRepetitionDraw(counts, board, 'red', popout)).toBe(false);
+    counts = advancePopOutPositionCounts(counts, board, 'red', popout);
+    expect(isPopOutRepetitionDraw(counts, board, 'red', popout)).toBe(false);
+    counts = advancePopOutPositionCounts(counts, board, 'red', popout);
+    expect(Object.values(counts)[0]).toBe(POPOUT_REPETITION_COUNT);
+    expect(isPopOutRepetitionDraw(counts, board, 'red', popout)).toBe(true);
+    expect(positionKey(board, 'red')).not.toBe(positionKey(board, 'yellow'));
+
+    // Classic mode ignores repetition checks.
+    expect(isPopOutRepetitionDraw(counts, board, 'red', classic)).toBe(false);
+  });
+
+  it('handles 2-step fork puzzles with hard bot defensive replies and still allows winning on ply 2', () => {
+    for (const id of ['p04-fork-2', 'p09-fork-wide', 'p10-diag-fork']) {
+      const puzzle = getPuzzleById(id)!;
+      expect(puzzle).toBeDefined();
+      const rules = puzzleRules(puzzle);
+      const board0 = loadPuzzleBoard(puzzle);
+      const firstMove = puzzle.solution[0];
+      const afterFirst = applyMove(board0, firstMove, puzzle.sideToMove, rules)!;
+      expect(afterFirst).not.toBeNull();
+
+      const botColor = opponent(puzzle.sideToMove);
+      const botReply = pickBotMove(afterFirst, botColor, 'hard', 'blocker', rules);
+      expect(botReply).not.toBeNull();
+
+      const afterBot = applyMove(afterFirst, botReply!, botColor, rules)!;
+      expect(afterBot).not.toBeNull();
+
+      // Player must have a legal winning second move after the bot reply.
+      const winningReplies = getLegalMoves(afterBot, puzzle.sideToMove, rules).filter((m) => {
+        const dropRow = m.kind === 'drop' ? getDropRow(afterBot, m.col, rules) : null;
+        const next = applyMove(afterBot, m, puzzle.sideToMove, rules);
+        return next && resolveWinnerAfterMove(next, puzzle.sideToMove, m, dropRow, rules) === puzzle.sideToMove;
+      });
+      expect(winningReplies.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('runs hard search on popout and 8x7/9x7 boards with time budget without errors', () => {
+    const popout9x7 = buildRules('popout', '9x7');
+    let board = createInitialBoard(popout9x7);
+    board = fillColumn(board, 3, ['red', 'yellow', 'red'], popout9x7);
+    board = fillColumn(board, 4, ['yellow', 'red', 'yellow'], popout9x7);
+
+    const moveNormalBudget = pickBotMove(board, 'red', 'hard', 'architect', popout9x7);
+    expect(moveNormalBudget).not.toBeNull();
+
+    // Even with a 0ms budget on a wide PopOut board, iterative deepening returns a legal move cleanly.
+    const moveTightBudget = pickBotMove(board, 'red', 'hard', 'architect', popout9x7, 0);
+    expect(moveTightBudget).not.toBeNull();
   });
 });
 

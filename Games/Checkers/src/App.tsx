@@ -14,6 +14,7 @@ import {
 import type { Board, BotStyle, PieceColor, Move, RulesetId } from './utils/checkersLogic';
 import {
   analyzeCheckersTactics,
+  boardKey,
   createInitialBoard,
   getLegalMoves,
   getLegalMovesFrom,
@@ -21,6 +22,7 @@ import {
   countPieces,
   getWinner,
   isDarkSquare,
+  isProgressMove,
   pickBotMove,
   isCaptureMove,
   captureHopCount,
@@ -117,8 +119,10 @@ interface GameState {
   board: Board;
   currentTurn: PieceColor;
   phase: GamePhase;
-  winner: PieceColor | null;
+  winner: PieceColor | 'draw' | null;
   continuationFrom: [number, number] | null;
+  noProgressPlies: number;
+  positionCounts: Record<string, number>;
 }
 
 interface LastMove {
@@ -134,12 +138,34 @@ interface HistoryEntry {
 }
 
 function getInitialState(ruleset: RulesetId): GameState {
+  const board = createInitialBoard(ruleset);
   return {
-    board: createInitialBoard(ruleset),
+    board,
     currentTurn: 'black',
     phase: 'playing',
     winner: null,
     continuationFrom: null,
+    noProgressPlies: 0,
+    positionCounts: { [boardKey(board, 'black')]: 1 },
+  };
+}
+
+function nextDrawTracking(
+  prevState: GameState,
+  boardBefore: Board,
+  move: Move,
+  nextBoard: Board,
+  nextTurn: PieceColor,
+): { noProgressPlies: number; positionCounts: Record<string, number>; currentPositionCount: number } {
+  const madeProgress = isProgressMove(boardBefore, move) || Boolean(prevState.continuationFrom);
+  const noProgressPlies = madeProgress ? 0 : prevState.noProgressPlies + 1;
+  const key = boardKey(nextBoard, nextTurn);
+  const baseCounts = madeProgress ? {} : prevState.positionCounts;
+  const currentPositionCount = (baseCounts[key] ?? 0) + 1;
+  return {
+    noProgressPlies,
+    positionCounts: { ...baseCounts, [key]: currentPositionCount },
+    currentPositionCount,
   };
 }
 
@@ -460,17 +486,25 @@ export default function App() {
           phase: 'playing',
           winner: null,
           continuationFrom: [lastR, lastC],
+          noProgressPlies: 0,
+          positionCounts: state.positionCounts,
         });
       } else {
         const nextTurn: PieceColor = botColor === 'black' ? 'white' : 'black';
-        const winner = getWinner(nextBoard, nextTurn, ruleset);
-        playMoveJuice(boardBefore, move, { won: winner != null, promoted });
+        const drawTrack = nextDrawTracking(state, boardBefore, move, nextBoard, nextTurn);
+        const winner = getWinner(nextBoard, nextTurn, ruleset, {
+          noProgressPlies: drawTrack.noProgressPlies,
+          positionCount: drawTrack.currentPositionCount,
+        });
+        playMoveJuice(boardBefore, move, { won: winner != null && winner !== 'draw', promoted });
         setState({
           board: nextBoard,
           currentTurn: nextTurn,
           phase: winner ? 'over' : 'playing',
           winner,
           continuationFrom: null,
+          noProgressPlies: drawTrack.noProgressPlies,
+          positionCounts: drawTrack.positionCounts,
         });
         setLastMove({
           path: move.path,
@@ -518,7 +552,8 @@ export default function App() {
       (gameMode === 'bot' || gameMode === 'series') &&
       state.winner
     ) {
-      if (state.winner === playerSide) playWin();
+      if (state.winner === 'draw') playScore();
+      else if (state.winner === playerSide) playWin();
       else playLose();
     } else if (gameMode === 'two' && state.winner) {
       playScore();
@@ -527,7 +562,7 @@ export default function App() {
     if (!statsRecordedRef.current) {
       statsRecordedRef.current = true;
       const margin = Math.abs(black - white);
-      if (gameMode === 'bot' && state.winner) {
+      if (gameMode === 'bot' && state.winner && state.winner !== 'draw') {
         if (state.winner === playerSide) {
           setProgress((p) => recordBotWin(p, margin, opponentId));
         } else {
@@ -535,7 +570,12 @@ export default function App() {
         }
       }
       if (gameMode === 'series' && state.winner) {
-        const side: 'a' | 'b' = state.winner === playerSide ? 'a' : 'b';
+        const side: 'a' | 'b' | 'draw' =
+          state.winner === 'draw'
+            ? 'draw'
+            : state.winner === playerSide
+              ? 'a'
+              : 'b';
         setMatch((m) => {
           const next = applyGameResult(m, side);
           if (next.matchOver && next.matchWinner === 'a') {
@@ -543,10 +583,12 @@ export default function App() {
           }
           return next;
         });
-        if (state.winner === playerSide) {
-          setProgress((p) => recordBotWin(p, margin, opponentId));
-        } else {
-          setProgress((p) => recordBotLoss(p));
+        if (side !== 'draw') {
+          if (state.winner === playerSide) {
+            setProgress((p) => recordBotWin(p, margin, opponentId));
+          } else {
+            setProgress((p) => recordBotLoss(p));
+          }
         }
       }
     }
@@ -602,17 +644,25 @@ export default function App() {
           phase: 'playing',
           winner: null,
           continuationFrom: [lastR, lastC],
+          noProgressPlies: 0,
+          positionCounts: state.positionCounts,
         });
       } else {
         const nextTurn: PieceColor = state.currentTurn === 'black' ? 'white' : 'black';
-        const winner = getWinner(nextBoard, nextTurn, ruleset);
-        playMoveJuice(boardBefore, move, { won: winner != null, promoted });
+        const drawTrack = nextDrawTracking(state, boardBefore, move, nextBoard, nextTurn);
+        const winner = getWinner(nextBoard, nextTurn, ruleset, {
+          noProgressPlies: drawTrack.noProgressPlies,
+          positionCount: drawTrack.currentPositionCount,
+        });
+        playMoveJuice(boardBefore, move, { won: winner != null && winner !== 'draw', promoted });
         setState({
           board: nextBoard,
           currentTurn: nextTurn,
           phase: winner ? 'over' : 'playing',
           winner,
           continuationFrom: null,
+          noProgressPlies: drawTrack.noProgressPlies,
+          positionCounts: drawTrack.positionCounts,
         });
         setLastMove({
           path: move.path,
@@ -681,12 +731,15 @@ export default function App() {
     setRuleset(puzzle.ruleset);
     setPuzzleId(puzzle.id);
     setGameMode('puzzle');
+    const initialBoard = puzzleBoard(puzzle);
     setState({
-      board: puzzleBoard(puzzle),
+      board: initialBoard,
       currentTurn: puzzle.sideToMove,
       phase: 'playing',
       winner: null,
       continuationFrom: null,
+      noProgressPlies: 0,
+      positionCounts: { [boardKey(initialBoard, puzzle.sideToMove)]: 1 },
     });
     setSelected(null);
     setLastMove(null);
@@ -924,9 +977,11 @@ export default function App() {
 
   const bannerText =
     state.phase === 'over'
-      ? state.winner === 'black'
-        ? '⚫ 黑方獲勝'
-        : '⚪ 白方獲勝'
+      ? state.winner === 'draw'
+        ? '🤝 和局（40 步無進展／三次重複）'
+        : state.winner === 'black'
+          ? '⚫ 黑方獲勝'
+          : '⚪ 白方獲勝'
       : state.continuationFrom
         ? '🔁 繼續跳吃'
         : mustCapture && isMyTurn
@@ -960,13 +1015,15 @@ export default function App() {
           : state.winner === activePuzzle.sideToMove
             ? '超過步數'
             : '挑戰失敗'
-        : gameMode === 'bot' || gameMode === 'series'
-          ? state.winner === playerSide
-            ? '你贏了！'
-            : `${opponent.name} 獲勝`
-          : state.winner === 'black'
-            ? '黑方獲勝'
-            : '白方獲勝'
+        : state.winner === 'draw'
+          ? '和局'
+          : gameMode === 'bot' || gameMode === 'series'
+            ? state.winner === playerSide
+              ? '你贏了！'
+              : `${opponent.name} 獲勝`
+            : state.winner === 'black'
+              ? '黑方獲勝'
+              : '白方獲勝'
       : '';
 
   const resultVariant =
@@ -975,11 +1032,13 @@ export default function App() {
         ? puzzleSuccess
           ? 'win'
           : 'lose'
-        : gameMode === 'bot' || gameMode === 'series'
-          ? state.winner === playerSide
-            ? 'win'
-            : 'lose'
-          : 'neutral'
+        : state.winner === 'draw'
+          ? 'neutral'
+          : gameMode === 'bot' || gameMode === 'series'
+            ? state.winner === playerSide
+              ? 'win'
+              : 'lose'
+            : 'neutral'
       : 'neutral';
 
   const modeLabel =
@@ -1482,11 +1541,13 @@ export default function App() {
               ? match.matchWinner === 'a'
                 ? '系列賽獲勝！'
                 : '系列賽落敗'
-              : gameMode === 'bot' || gameMode === 'series'
+              : (gameMode === 'bot' || gameMode === 'series') && state.winner !== 'draw'
                 ? state.winner === playerSide
                   ? opponent.catchphrase.lose
                   : opponent.catchphrase.win
-                : undefined
+                : state.winner === 'draw'
+                  ? '40 步無進展或局面三次重複，雙方和局'
+                  : undefined
           }
           variant={resultVariant}
           stats={[
@@ -1621,7 +1682,7 @@ export default function App() {
                   <li>多種吃法時必須選擇吃子數最多的序列。</li>
                 </>
               )}
-              <li>無合法移動或無子的一方輸。</li>
+              <li>無合法移動或無子的一方輸；連續 40 回合無吃子且無兵前進，或同一局面重複三次，判為和局。</li>
               <li>模式：雙人／電腦名冊／系列賽／殘局謎題；提示會說明建議理由。</li>
             </ul>
             <div className="mt-4">

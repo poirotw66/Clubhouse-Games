@@ -55,6 +55,7 @@ import {
   createMatch,
   dealHand,
   defaultMatchConfig,
+  handDeltas,
   isSeriesMode,
   matchProgressLabel,
 } from './game/match';
@@ -138,6 +139,7 @@ export default function App(): React.ReactElement {
   const [review, setReview] = useState<HandReview | null>(null);
   const [callout, setCallout] = useState<{ text: string; key: number } | null>(null);
   const [showFirstRun, setShowFirstRun] = useState(() => !hasSeenFirstRunGuide());
+  const [showRulesModal, setShowRulesModal] = useState(false);
   const [resumeAvailable, setResumeAvailable] = useState(false);
   const [ladder, setLadder] = useState<LadderProgress>(EMPTY_LADDER);
   const [dailyProgress, setDailyProgress] = useState(EMPTY_DAILY);
@@ -371,7 +373,7 @@ export default function App(): React.ReactElement {
       } else playLose();
     }
 
-    const delta = won ? result.pot : -result.scores[HUMAN].penalty;
+    const delta = handDeltas(result)[HUMAN] ?? 0;
     const nextMatch = applyHandResult(match, result, state.seedCode, state);
     setMatch(nextMatch);
     saveMatch(nextMatch);
@@ -573,7 +575,7 @@ export default function App(): React.ReactElement {
   }, [state?.hands]);
 
   useEffect(() => {
-    if (screen !== 'game' || !state || state.phase !== 'playing' || state.turn !== HUMAN) {
+    if (screen !== 'game' || !state || state.phase !== 'playing' || state.turn !== HUMAN || showRulesModal) {
       return;
     }
 
@@ -641,7 +643,7 @@ export default function App(): React.ReactElement {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [screen, state, playable, canUndo, cursorIndex, toggle, submit, doPass, showHint, handleUndo]);
+  }, [screen, state, playable, canUndo, cursorIndex, showRulesModal, toggle, submit, doPass, showHint, handleUndo]);
 
   if (screen === 'setup') {
     return (
@@ -702,6 +704,23 @@ export default function App(): React.ReactElement {
 
         {/* Center Column: Table & Play Arena */}
         <div className="relative w-full max-w-2xl flex flex-col gap-3">
+          <header className="flex items-center justify-between gap-2 px-1">
+            <div className="flex items-center gap-2 min-w-0">
+              <h1 className="text-base font-black tracking-tight text-white">大老二</h1>
+              <span className="rounded-full border border-indigo-400/30 bg-slate-900/70 px-2.5 py-0.5 text-[11px] font-medium text-indigo-200 truncate">
+                {match.config.rules.straights === 'topCard' ? '順子：23456 最大' : '順子：10JQKA 最大'}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowRulesModal(true)}
+              className="min-h-[44px] px-3 rounded-xl border border-indigo-400/35 bg-slate-900/75 hover:bg-slate-800 text-xs font-bold text-indigo-100 touch-manipulation shrink-0"
+              aria-label="牌型規則"
+            >
+              牌型規則
+            </button>
+          </header>
+
           <MatchScoreboard match={match} progress={matchProgressLabel(match)} />
 
           {ladderOpp && (
@@ -890,6 +909,13 @@ export default function App(): React.ReactElement {
         )}
       </div>
 
+      {showRulesModal && (
+        <QuickRulesModal
+          straightsRule={match.config.rules.straights}
+          onClose={() => setShowRulesModal(false)}
+        />
+      )}
+
       {showReview && review && (
         <HandReviewPanel
           review={review}
@@ -913,6 +939,100 @@ export default function App(): React.ReactElement {
           onShare={match.config.mode === 'daily' ? handleDailyShare : null}
         />
       )}
+    </div>
+  );
+}
+
+function QuickRulesModal({
+  straightsRule,
+  onClose,
+}: {
+  straightsRule: StraightRule;
+  onClose: () => void;
+}): React.ReactElement {
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-40 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="big-two-quick-rules-title"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-2xl border border-indigo-400/25 bg-slate-900 p-5 shadow-2xl text-left"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <h2 id="big-two-quick-rules-title" className="text-lg font-black text-white">
+            牌型與規則速查
+          </h2>
+          <span className="rounded-full border border-indigo-400/30 bg-indigo-500/15 px-2.5 py-0.5 text-[11px] font-bold text-indigo-200">
+            {straightsRule === 'topCard' ? '目前：23456 最大' : '目前：10JQKA 最大'}
+          </span>
+        </div>
+
+        <div className="space-y-3 text-xs leading-relaxed text-slate-200">
+          <section className="rounded-xl border border-white/5 bg-slate-800/70 p-3">
+            <h3 className="font-bold text-indigo-300 mb-1">點數與花色大小</h3>
+            <p>點數：2 &gt; A &gt; K &gt; Q &gt; J &gt; 10 &gt; … &gt; 3</p>
+            <p className="mt-1">花色：♠ 黑桃 &gt; ♥ 紅心 &gt; ♦ 方塊 &gt; ♣ 梅花（♣3 最小並開局首出）</p>
+            <p className="mt-1 text-slate-400">出牌僅限 1 張、2 張（對子）或 5 張；不同張數不可互壓。</p>
+          </section>
+
+          <section className="rounded-xl border border-white/5 bg-slate-800/70 p-3">
+            <h3 className="font-bold text-indigo-300 mb-1.5">五張牌型強弱（由大到小）</h3>
+            <ol className="space-y-1 list-decimal pl-4">
+              <li><strong className="text-amber-300">同花順</strong>：同花色五張連續牌（最高牌型）</li>
+              <li><strong className="text-rose-300">鐵支</strong>：四張同點數＋任意一張單牌（比四張點數）</li>
+              <li><strong className="text-sky-300">葫蘆</strong>：三張同點數＋一對（比三張點數）</li>
+              <li><strong className="text-emerald-300">同花</strong>：同花色五張（先比花色，再比最大點數）</li>
+              <li><strong className="text-indigo-200">順子</strong>：五張連續點數（不含 JQKA2／QKA23／KA234）</li>
+            </ol>
+          </section>
+
+          <section className="rounded-xl border border-white/5 bg-slate-800/70 p-3">
+            <h3 className="font-bold text-indigo-300 mb-1">順子比法：23456 vs 10JQKA</h3>
+            <p>
+              <strong className={straightsRule === 'topCard' ? 'text-emerald-300' : 'text-slate-200'}>
+                台灣頂張制（23456 最大）
+              </strong>
+              ：以順子中最大張定強弱，23456（頂張 2）最大、10JQKA 次之、A2345（頂張 5）最小；同順比最大張花色。
+            </p>
+            <p className="mt-1.5">
+              <strong className={straightsRule === 'sequence' ? 'text-emerald-300' : 'text-slate-200'}>
+                序列制（10JQKA 最大）
+              </strong>
+              ：依牌面序列升冪，10JQKA 最大、910JQK 次之、23456 第二小、A2345 最小。
+            </p>
+          </section>
+
+          <section className="rounded-xl border border-rose-500/25 bg-rose-950/30 p-3">
+            <h3 className="font-bold text-rose-300 mb-1">頂大防線與包賠</h3>
+            <p>
+              下家僅剩 1 張牌時，若你打出單張必須出手中最大單張；違規且下家隨即出完，將觸發「包賠」由違規者獨自承擔全場籌碼。
+            </p>
+          </section>
+        </div>
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-4 w-full min-h-[44px] rounded-xl bg-indigo-600 hover:bg-indigo-500 font-bold text-sm text-white touch-manipulation"
+        >
+          關閉
+        </button>
+      </div>
     </div>
   );
 }

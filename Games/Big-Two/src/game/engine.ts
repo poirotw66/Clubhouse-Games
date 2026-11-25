@@ -1,4 +1,4 @@
-import { LOWEST_CARD_ID, buildDeck, isDeuce, shuffle, sortCards } from './cards';
+import { LOWEST_CARD_ID, buildDeck, isDeuce, power, shuffle, sortCards } from './cards';
 import { beats, detectPlay, legalPlays } from './plays';
 import { seedFromCode, streamRng } from './rng';
 import { HAND_SIZE, SEATS } from './types';
@@ -46,6 +46,8 @@ export function deal(
     passed: [],
     log: [],
     winner: null,
+    pendingDingDaViolator: null,
+    dingDaViolator: null,
   };
 }
 
@@ -112,6 +114,11 @@ export function play(state: GameState, cards: readonly Card[]): GameState {
 
   const next = clone(state);
   const seat = next.turn;
+  const handBefore = state.hands[seat];
+  const nextInOrder = ((seat + 1) % SEATS) as Seat;
+  const nextCount = state.hands[nextInOrder]?.length ?? 0;
+  const nextCanActImmediately = !next.passed.includes(nextInOrder);
+
   const ids = new Set(candidate.cards.map((card) => card.id));
   next.hands[seat] = next.hands[seat].filter((card) => !ids.has(card.id));
   next.table = candidate;
@@ -121,9 +128,20 @@ export function play(state: GameState, cards: readonly Card[]): GameState {
   if (next.hands[seat].length === 0) {
     next.phase = 'over';
     next.winner = seat;
+    const pending = state.pendingDingDaViolator;
+    next.dingDaViolator =
+      pending !== undefined && pending !== null && (pending + 1) % SEATS === seat
+        ? pending
+        : null;
+    next.pendingDingDaViolator = null;
     return next;
   }
 
+  next.dingDaViolator = null;
+  next.pendingDingDaViolator =
+    nextCanActImmediately && isDingDaViolation(handBefore, candidate, nextCount)
+      ? seat
+      : null;
   next.turn = nextSeat(next);
   return next;
 }
@@ -134,6 +152,7 @@ export function pass(state: GameState): GameState {
   const next = clone(state);
   next.passed.push(next.turn);
   next.log.push({ seat: next.turn, play: null });
+  next.pendingDingDaViolator = null;
 
   // Everyone else has passed, so the last player to put cards down takes the
   // lead and may open with any size they like.
@@ -147,6 +166,51 @@ export function pass(state: GameState): GameState {
 
   next.turn = nextSeat(next);
   return next;
+}
+
+/**
+ * Check whether a played single violates the Taiwanese "頂大" (Ding Da) anti-collusion rule.
+ *
+ * When the next player holds only 1 card and the current player plays a single card,
+ * the current player MUST play their highest single card. Failing to do so is a
+ * violation that triggers the full penalty buyout ("包賠") if the next player finishes.
+ */
+export function isDingDaViolation(
+  hand: readonly Card[],
+  played: Play,
+  nextPlayerCount: number,
+): boolean {
+  if (nextPlayerCount !== 1) return false;
+  if (played.type !== 'single') return false;
+  const playedPower = power(played.cards[0]);
+  return hand.some((c) => power(c) > playedPower);
+}
+
+export interface DingDaPenaltyResult {
+  deltas: number[];
+  violator: Seat;
+  totalPaid: number;
+}
+
+/**
+ * Enforce the Taiwanese "包賠" (full penalty buyout) rule for a 頂大 violation.
+ *
+ * When a player commits a Ding Da violation and the next seat wins on their final card,
+ * all innocent non-winning seats pay 0 chips, and the violator is liable for the entire
+ * pot owed to the winner. Zero-sum balance across all seats is strictly preserved.
+ */
+export function enforceDingDaPenalty(
+  result: Outcome,
+  violatorSeat: Seat,
+): DingDaPenaltyResult {
+  const deltas = result.scores.map(() => 0);
+  deltas[result.winner] = result.pot;
+  deltas[violatorSeat] = -result.pot;
+  return {
+    deltas,
+    violator: violatorSeat,
+    totalPaid: result.pot,
+  };
 }
 
 /**
@@ -187,10 +251,12 @@ export function outcome(state: GameState): Outcome | null {
     deuces: scores[state.winner].deuces,
     penalty: 0,
   };
+  const pot = scores.reduce((total, entry) => total + entry.penalty, 0);
   return {
     winner: state.winner,
     scores,
-    pot: scores.reduce((total, entry) => total + entry.penalty, 0),
+    pot,
+    ...(state.dingDaViolator != null ? { dingDaViolator: state.dingDaViolator } : {}),
   };
 }
 
