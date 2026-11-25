@@ -17,6 +17,7 @@ import {
   HIT_STOP_DURATION,
   DAMAGE_PLAYER_HIT,
   DAMAGE_PLAYER_BLOCK,
+  DAMAGE_GUARD,
   DAMAGE_EARLY,
   DAMAGE_FEINT,
   DAMAGE_WRONG_SIDE,
@@ -25,6 +26,7 @@ import {
   HEAL_PERFECT,
   SCORE_PERFECT,
   SCORE_GOOD,
+  SCORE_GUARD,
   SCORE_FEINT_PATIENCE,
   MAX_HP,
   FEINT_VANISH_AT,
@@ -33,7 +35,7 @@ import {
   SIDE_LABELS,
   getTimingWindows,
   getAttackDelayRange,
-  getProjectileDurationScale,
+  getEffectiveProjectileDurationMs,
   type PracticeIntensity,
   type PracticeScenario,
 } from '../constants';
@@ -43,11 +45,12 @@ import {
   nextEndlessEvent,
   noteEventResolved,
   type AttackEvent,
+  type ParryInput,
   type ParrySide,
   type PatternState,
 } from '../patterns';
 import { opponentSprite, type OpponentDef } from '../opponents';
-import { resolveCounter } from '../resolveCounter';
+import { resolveCounter, resolveVersusRelease } from '../resolveCounter';
 import { computeReactionRank } from '../ranks';
 import { createRng } from '../rng';
 import { loadBest, loadLadder } from '../storage';
@@ -86,6 +89,7 @@ const COUNTER_FEEDBACK_LABEL: Record<CounterResult, string> = {
   [CounterResult.NONE]: '',
   [CounterResult.PERFECT]: '完美',
   [CounterResult.GOOD]: '不錯',
+  [CounterResult.GUARD]: '格擋',
   [CounterResult.EARLY]: '太早',
   [CounterResult.LATE]: '太晚',
   [CounterResult.MISS]: '失誤',
@@ -151,7 +155,12 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const impactTime = useRef<number>(0);
   const enemyState = useRef<EnemyState>(EnemyState.IDLE);
   const playerStance = useRef<PlayerStance>(PlayerStance.IDLE);
-  const sheathedSide = useRef<ParrySide | null>(null);
+  const sheathedSide = useRef<ParryInput | null>(null);
+  const activePointer = useRef<{ pointerId: number; side: ParrySide } | null>(null);
+  const versusPointers = useRef<{ left: number | null; right: number | null }>({
+    left: null,
+    right: null,
+  });
   const hitStopTimer = useRef<number>(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const lastHeartbeat = useRef<number>(0);
@@ -312,22 +321,24 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     enemyState.current = EnemyState.IDLE;
     projectileProgress.current = 0;
 
-    const durationScale =
-      event.durationScale *
-      getProjectileDurationScale(stats.current.score, tier);
     currentProjectileType.current = ProjectileType[event.projectile];
-    currentProjectileDuration.current =
-      PROJECTILE_DURATION[event.projectile] * durationScale;
+    currentProjectileDuration.current = getEffectiveProjectileDurationMs(
+      PROJECTILE_DURATION[event.projectile],
+      event.durationScale,
+      stats.current.score,
+      tier,
+      event.projectile,
+    );
     versusFouled.current = { p1: false, p2: false };
   }, [effectiveBaseTier]);
 
   const recordHistory = useCallback(
-    (timing: number, result: CounterResult, side?: ParrySide) => {
+    (timing: number, result: CounterResult, side?: ParryInput) => {
       const rec: ReactionRecord = {
         id: Date.now() + stats.current.history.length,
         timing,
         result,
-        side,
+        side: side === 'left' || side === 'right' ? side : undefined,
       };
       stats.current.history.push(rec);
       setLatestRecord(rec);
@@ -336,7 +347,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   );
 
   const applyCounterResult = useCallback(
-    (result: CounterResult, timingDiff: number, side: ParrySide | null) => {
+    (result: CounterResult, timingDiff: number, side: ParryInput | null) => {
       const abs = Math.abs(timingDiff);
 
       if (result === CounterResult.PERFECT) {
@@ -376,6 +387,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         setSlashBurst(true);
         setTimeout(() => setSlashBurst(false), 160);
         hitStopTimer.current = HIT_STOP_DURATION / 2;
+      } else if (result === CounterResult.GUARD) {
+        playImpact(0.3);
+        haptic('tap', 0.5);
+        stats.current.score += SCORE_GUARD;
+        stats.current.combo = 0;
+        stats.current.guards = (stats.current.guards ?? 0) + 1;
+        takePlayerDamage(DAMAGE_GUARD);
       } else if (result === CounterResult.EARLY) {
         playError();
         playTone(180, 'sawtooth', 0.15, 0, 0.35);
@@ -444,7 +462,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   );
 
   const handleParryRelease = useCallback(
-    (side: ParrySide) => {
+    (side: ParryInput) => {
       if (!gameActive || hp.current <= 0) return;
       if (isVersus) return;
       if (
@@ -492,7 +510,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   );
 
   const handleParryDown = useCallback(
-    (side: ParrySide) => {
+    (side: ParryInput) => {
       if (!gameActive || hp.current <= 0 || isVersus) return;
       if (
         playerStance.current === PlayerStance.HIT ||
@@ -506,6 +524,21 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       playMove();
     },
     [gameActive, isVersus],
+  );
+
+  const cancelParry = useCallback(
+    (side: ParrySide) => {
+      if (isVersus) {
+        if (side === 'left') versusSheathed.current.p1 = false;
+        else versusSheathed.current.p2 = false;
+        return;
+      }
+      if (playerStance.current === PlayerStance.SHEATHED && sheathedSide.current === side) {
+        playerStance.current = PlayerStance.IDLE;
+        sheathedSide.current = null;
+      }
+    },
+    [isVersus],
   );
 
   // --- Versus (same-device quick-draw) ---
@@ -549,6 +582,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   const handleVersusDown = useCallback(
     (player: 1 | 2) => {
       if (!gameActive || !isVersus) return;
+      const alreadyFouled =
+        player === 1 ? versusFouled.current.p1 : versusFouled.current.p2;
+      if (alreadyFouled) return;
       if (player === 1) versusSheathed.current.p1 = true;
       else versusSheathed.current.p2 = true;
       playMove();
@@ -569,8 +605,19 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       const attacking =
         enemyState.current === EnemyState.WARNING ||
         enemyState.current === EnemyState.ATTACKING;
+      const windows = getTimingWindows(0, 0, 0);
+      const evt = currentEvent.current;
+      const resolution = resolveVersusRelease({
+        attacking,
+        isFeint: Boolean(evt && evt.kind === 'feint' && attacking),
+        timingDiffMs: attacking ? now - impactTime.current : -9999,
+        goodWindowMs: windows.good,
+        alreadyFouled: player === 1 ? versusFouled.current.p1 : versusFouled.current.p2,
+      });
 
-      if (!attacking) {
+      if (resolution.outcome === 'ignore') return;
+
+      if (resolution.outcome === 'foul') {
         if (player === 1) versusFouled.current.p1 = true;
         else versusFouled.current.p2 = true;
         playError();
@@ -580,24 +627,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         return;
       }
 
-      const windows = getTimingWindows(0, 0, 0);
-      const diff = now - impactTime.current;
-      if (Math.abs(diff) > windows.good) {
-        if (diff < 0) {
-          if (player === 1) versusFouled.current.p1 = true;
-          else versusFouled.current.p2 = true;
-          playError();
-          return;
-        }
-      }
-
       // First valid release in window wins the point.
-      const otherFouled =
-        player === 1 ? versusFouled.current.p2 : versusFouled.current.p1;
-      if (otherFouled) {
-        resolveVersusPoint(player);
-        return;
-      }
       resolveVersusPoint(player);
     },
     [gameActive, isVersus, resolveVersusPoint],
@@ -609,8 +639,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
       handleVersusDown(1);
       return;
     }
-    const targetSide: ParrySide = currentEvent.current?.side ?? 'left';
-    handleParryDown(targetSide);
+    handleParryDown('guard');
   }, [gameActive, isVersus, handleVersusDown, handleParryDown]);
 
   const handleQuickUp = useCallback(() => {
@@ -730,12 +759,24 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
           progress >= FEINT_VANISH_AT
         ) {
           feintResolved.current = true;
-          stats.current.score += SCORE_FEINT_PATIENCE;
-          playScore();
-          haptic('success', 0.5);
-          showFeedback(CounterResult.PERFECT, '看破');
-          noteEventResolved(patternState.current, evt);
-          scheduleNextAttack();
+          if (isVersus) {
+            if (versusFouled.current.p1 && !versusFouled.current.p2) {
+              resolveVersusPoint(2);
+            } else if (versusFouled.current.p2 && !versusFouled.current.p1) {
+              resolveVersusPoint(1);
+            } else {
+              playScore();
+              showFeedback(CounterResult.PERFECT, '看破');
+              scheduleNextAttack();
+            }
+          } else {
+            stats.current.score += SCORE_FEINT_PATIENCE;
+            playScore();
+            haptic('success', 0.5);
+            showFeedback(CounterResult.PERFECT, '看破');
+            noteEventResolved(patternState.current, evt);
+            scheduleNextAttack();
+          }
           raf = requestAnimationFrame(loop);
           return;
         }
@@ -797,10 +838,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     enemyState.current === EnemyState.WARNING ||
     enemyState.current === EnemyState.ATTACKING;
   const activeSide = currentEvent.current?.side;
-  const isFeintFlight =
-    currentEvent.current?.kind === 'feint' &&
-    isEnemyAttacking &&
-    !feintResolved.current;
 
   const renderProjectile = () => {
     if (!isEnemyAttacking || !currentEvent.current) return null;
@@ -885,23 +922,62 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     );
   };
 
-  const onSidePointerDown = (side: ParrySide, e: React.SyntheticEvent) => {
+  const onSidePointerDown = (side: ParrySide, e: React.PointerEvent<HTMLButtonElement>) => {
     e.preventDefault();
     e.stopPropagation();
+    try {
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+    } catch {
+      /* ignore synthetic pointer capture failure */
+    }
     if (isVersus) {
+      versusPointers.current[side] = e.pointerId;
       handleVersusDown(side === 'left' ? 1 : 2);
     } else {
+      activePointer.current = { pointerId: e.pointerId, side };
       handleParryDown(side);
     }
   };
 
-  const onSidePointerUp = (side: ParrySide, e: React.SyntheticEvent) => {
+  const onSidePointerUp = (side: ParrySide, e: React.PointerEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
+    } catch {
+      /* ignore */
+    }
+    if (isVersus) {
+      if (versusPointers.current[side] != null && versusPointers.current[side] !== e.pointerId) {
+        return;
+      }
+      versusPointers.current[side] = null;
+      handleVersusUp(side === 'left' ? 1 : 2);
+    } else {
+      if (
+        activePointer.current &&
+        (activePointer.current.pointerId !== e.pointerId || activePointer.current.side !== side)
+      ) {
+        return;
+      }
+      activePointer.current = null;
+      handleParryRelease(side);
+    }
+  };
+
+  const onSidePointerCancel = (side: ParrySide, e: React.PointerEvent<HTMLButtonElement>) => {
     e.preventDefault();
     e.stopPropagation();
     if (isVersus) {
-      handleVersusUp(side === 'left' ? 1 : 2);
-    } else {
-      handleParryRelease(side);
+      if (versusPointers.current[side] === e.pointerId) {
+        versusPointers.current[side] = null;
+      }
+      cancelParry(side);
+    } else if (activePointer.current?.pointerId === e.pointerId) {
+      activePointer.current = null;
+      cancelParry(side);
     }
   };
 
@@ -976,7 +1052,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         onToggleRightWing={() => setMobileDrawer((d) => (d === 'right' ? null : 'right'))}
       />
 
-      {/* Touch / mouse side zones */}
+      {/* Touch / mouse side zones (pointer capture prevents drift from firing premature releases) */}
       <button
         type="button"
         aria-label={isVersus ? '玩家一待機／出刀' : SIDE_LABELS.left}
@@ -985,15 +1061,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             ? 'bg-cyan-400/10'
             : 'bg-transparent'
         }`}
-        onMouseDown={(e) => onSidePointerDown('left', e)}
-        onMouseUp={(e) => onSidePointerUp('left', e)}
-        onMouseLeave={() => {
-          if (!isVersus && sheathedSide.current === 'left') {
-            handleParryRelease('left');
-          }
-        }}
-        onTouchStart={(e) => onSidePointerDown('left', e)}
-        onTouchEnd={(e) => onSidePointerUp('left', e)}
+        onPointerDown={(e) => onSidePointerDown('left', e)}
+        onPointerUp={(e) => onSidePointerUp('left', e)}
+        onPointerCancel={(e) => onSidePointerCancel('left', e)}
       />
       <button
         type="button"
@@ -1003,15 +1073,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
             ? 'bg-amber-400/10'
             : 'bg-transparent'
         }`}
-        onMouseDown={(e) => onSidePointerDown('right', e)}
-        onMouseUp={(e) => onSidePointerUp('right', e)}
-        onMouseLeave={() => {
-          if (!isVersus && sheathedSide.current === 'right') {
-            handleParryRelease('right');
-          }
-        }}
-        onTouchStart={(e) => onSidePointerDown('right', e)}
-        onTouchEnd={(e) => onSidePointerUp('right', e)}
+        onPointerDown={(e) => onSidePointerDown('right', e)}
+        onPointerUp={(e) => onSidePointerUp('right', e)}
+        onPointerCancel={(e) => onSidePointerCancel('right', e)}
       />
 
       {/* Central Cockpit Layout (Left Wing, Battlefield Center, Right Wing) */}
@@ -1103,10 +1167,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                 <div
                   className={`mt-1 text-sm font-display font-bold tracking-widest ${
                     activeSide === 'left' ? 'text-cyan-300' : 'text-amber-300'
-                  } ${isFeintFlight ? 'opacity-70' : ''}`}
+                  }`}
                 >
                   {SIDE_LABELS[activeSide]}
-                  {isFeintFlight ? '？' : ''}
                 </div>
               )}
             </div>
@@ -1214,10 +1277,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                 {isSheathed && sheathedSide.current ? (
                   <span
                     className={`font-display text-xs md:text-sm tracking-widest animate-pulse drop-shadow-md font-bold ${
-                      sheathedSide.current === 'left' ? 'text-cyan-300' : 'text-amber-300'
+                      sheathedSide.current === 'left'
+                        ? 'text-cyan-300'
+                        : sheathedSide.current === 'right'
+                          ? 'text-amber-300'
+                          : 'text-slate-300'
                     }`}
                   >
-                    集中·{SIDE_LABELS[sheathedSide.current]}
+                    集中·{sheathedSide.current === 'guard' ? '中立格擋' : SIDE_LABELS[sheathedSide.current]}
                   </span>
                 ) : (
                   <span className="text-slate-400 text-[11px] font-display tracking-widest">
@@ -1286,6 +1353,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                       ? 'text-white drop-shadow-[0_0_15px_#38bdf8] scale-[2]'
                       : ''
                   } ${feedback.type === CounterResult.GOOD ? 'text-amber-300 drop-shadow-[0_0_10px_#fbbf24]' : ''} ${
+                    feedback.type === CounterResult.GUARD ? 'text-slate-200 drop-shadow-[0_0_8px_#94a3b8]' : ''
+                  } ${
                     feedback.type === CounterResult.FEINT ||
                     feedback.type === CounterResult.WRONG_SIDE ||
                     feedback.type === CounterResult.EARLY ||

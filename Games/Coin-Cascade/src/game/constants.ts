@@ -97,7 +97,10 @@ export const MIN_COST = Math.min(...Object.values(COST));
 export const HEAVY_RADIUS_MULT = 1.16;
 export const HEAVY_MASS = 2.4;
 export const BALL_RADIUS_MULT = 0.82;
-export const BALL_MASS = 0.55;
+export const BALL_MASS = 1.6;
+export const BALL_LATERAL_SLIDE = 0.9;
+export const BALL_SCATTER_RADIUS = COIN_R * 4.0;
+export const BALL_SCATTER_STRENGTH = 0.95;
 export const MAGNET_RADIUS_MULT = 1.05;
 export const MAGNET_MASS = 1.35;
 /** How far (in radii) a magnet pull reaches, and how hard it tugs. */

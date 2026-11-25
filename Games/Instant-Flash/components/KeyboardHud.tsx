@@ -111,13 +111,13 @@ export const KeyboardHud: React.FC<KeyboardHudProps> = ({
         <kbd
           className={`px-1.5 py-0.5 rounded border text-[10px] font-mono transition-all ${
             isQuickActive
-              ? 'bg-emerald-400 text-slate-950 border-emerald-300 font-bold shadow-[0_0_8px_#34d399]'
-              : 'bg-slate-900 text-emerald-300 border-emerald-500/40'
+              ? 'bg-slate-300 text-slate-950 border-slate-200 font-bold'
+              : 'bg-slate-900 text-slate-300 border-slate-600/60'
           }`}
         >
           Space / J
         </kbd>
-        <span className="text-emerald-300 font-semibold">快速拔刀</span>
+        <span className="text-slate-300 font-semibold">中立格擋</span>
       </span>
 
       <span className="text-slate-700 hidden sm:inline">•</span>

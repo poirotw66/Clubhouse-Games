@@ -155,14 +155,9 @@ export function survivalParams(round) {
   const showMs = Math.max(400, 2200 - round * 140);
   const pass = Math.min(820, 580 + round * 18);
   const nearHueWindow = Math.max(18, 90 - round * 6);
-  const sRange = /** @type {[number, number]} */ ([
-    Math.min(40, 15 + round),
-    Math.max(60, 95 - round),
-  ]);
-  const lRange = /** @type {[number, number]} */ ([
-    Math.min(35, 18 + round),
-    Math.max(65, 88 - round),
-  ]);
+  // Keep saturation and lightness ranges wide in late rounds so colors never collapse toward (50%, 50%).
+  const sRange = /** @type {[number, number]} */ ([12, 95]);
+  const lRange = /** @type {[number, number]} */ ([15, 90]);
   return { showMs, pass, nearHueWindow, sRange, lRange };
 }
 

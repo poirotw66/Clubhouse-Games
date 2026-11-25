@@ -19,8 +19,11 @@
  * pegs / pusher rhythm / jackpot rules stay deterministic per run.
  */
 import {
+  BALL_LATERAL_SLIDE,
   BALL_MASS,
   BALL_RADIUS_MULT,
+  BALL_SCATTER_RADIUS,
+  BALL_SCATTER_STRENGTH,
   CASCADE_BONUS_PER_EXTRA,
   CASCADE_MIN,
   COIN_R,
@@ -346,7 +349,11 @@ function resolvePairs(list: Working[], lateralSlide: number): void {
       const totalMass = a.mass + b.mass;
       const aShare = (b.mass / totalMass) * overlap;
       const bShare = (a.mass / totalMass) * overlap;
-      const fx = nx * lateralSlide;
+      const pairSlide =
+        a.kind === 'ball' || b.kind === 'ball'
+          ? Math.max(lateralSlide, BALL_LATERAL_SLIDE)
+          : lateralSlide;
+      const fx = nx * pairSlide;
       a.x -= fx * aShare;
       a.y -= ny * aShare;
       b.x += fx * bShare;
@@ -397,6 +404,24 @@ function applyMagnetPull(list: Working[], magnetId: number): void {
   }
 }
 
+/** Ball wedge impact: scatter nearby coins laterally and forward to break jams. */
+function applyBallScatter(list: Working[], ballId: number): void {
+  const ball = list.find((w) => w.id === ballId);
+  if (!ball) return;
+  for (const w of list) {
+    if (w.id === ballId) continue;
+    const dx = w.x - ball.x;
+    const dy = w.y - ball.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < 1e-6 || dist > BALL_SCATTER_RADIUS) continue;
+    const impulse = BALL_SCATTER_STRENGTH * (1 - dist / BALL_SCATTER_RADIUS);
+    const invMass = 1 / (w.mass + ball.mass);
+    const dirX = Math.abs(dx) > 0.5 ? Math.sign(dx) : w.id % 2 === 0 ? 1 : -1;
+    w.x += dirX * COIN_R * 0.85 * impulse * (ball.mass * invMass);
+    w.y += Math.max(0.25, dy / dist) * COIN_R * 0.4 * impulse * (ball.mass * invMass);
+  }
+}
+
 // ── Step ─────────────────────────────────────────────────────────────────
 
 export function step(state: RunState, input: PlayerInput, _dt: number): RunState {
@@ -430,10 +455,11 @@ export function step(state: RunState, input: PlayerInput, _dt: number): RunState
   let potGrewBy = 0;
   let pendingTrigger: Working | null = null;
   let magnetJustDroppedId = -1;
+  let ballJustDroppedId = -1;
 
   const isFiend = Boolean(input.fiendPush && creditsRemaining >= 20);
   const costMult = isFiend ? 2 : 1;
-  const valueMult = isFiend ? 2 : 1;
+  const valueMult = (isFiend ? 2 : 1) * (input.feverActive ? 2 : 1);
   const pusherSpeedMult = isFiend ? 1.35 : 1.0;
   const currentPusherTick = state.pusherTick ?? state.tick;
   const nextPusherTick = currentPusherTick + pusherSpeedMult;
@@ -493,12 +519,16 @@ export function step(state: RunState, input: PlayerInput, _dt: number): RunState
         cooldown = DROP_COOLDOWN_TICKS;
         ticksSinceLastDrop = 0;
         if (kind === 'magnet') magnetJustDroppedId = newId;
+        if (kind === 'ball') ballJustDroppedId = newId;
       }
     }
   }
 
   if (magnetJustDroppedId >= 0) {
     applyMagnetPull(work, magnetJustDroppedId);
+  }
+  if (ballJustDroppedId >= 0) {
+    applyBallScatter(work, ballJustDroppedId);
   }
 
   const frontY = pusherFrontY(nextPusherTick, physics);

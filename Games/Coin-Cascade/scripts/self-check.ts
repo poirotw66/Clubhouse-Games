@@ -20,12 +20,15 @@ import {
   INITIAL_SETTLE_TICKS,
   MAX_COINS_ON_SHELF,
   NEAR_MISS_OVERHANG,
+  PUSHER_PERIOD_TICKS,
   SETTLE_GRACE_TICKS,
   SHELF_LEN,
   STARTING_CREDITS,
+  TIMING_BONUS,
   WALL_X0,
   WALL_X1,
 } from '../src/game/constants.js';
+import type { Coin } from '../src/game/types.js';
 import { coinRadius, createRun, isTeetering, isWindingDown, pusherFrontY, step, triangleWave } from '../src/game/engine.js';
 import {
   EMPTY_MODE_PROGRESS,
@@ -1616,6 +1619,87 @@ for (const seed of LANE_SEEDS) {
   assert.equal(computeShakeIntensity(12), 2.4, 'cascade 12 intensity must clamp to 2.4');
 
   ok('Fiend Push 2x bets, 1.35x pusher speed, 2x scoring, gutter loss, safeguard, and avalanche shake hold');
+}
+
+// ── 22) Fever Active 2X Engine Scoring & Ball Lateral Scatter Utility ──────
+{
+  const feverBase = createRun('FEVER-2X', { startingCredits: 50 });
+  const fallingCoin = {
+    id: 9901,
+    kind: 'normal' as const,
+    x: (WALL_X0 + WALL_X1) / 2,
+    y: SHELF_LEN + 1,
+    teeterSince: 5,
+    wellTimed: true,
+    prefilled: false,
+  };
+  const baseWithFall = { ...feverBase, coins: [fallingCoin] };
+  const noFeverStep = step(
+    baseWithFall,
+    { dropX: (WALL_X0 + WALL_X1) / 2, drop: false, special: 'normal', feverActive: false },
+    FIXED_DT,
+  );
+  const withFeverStep = step(
+    baseWithFall,
+    { dropX: (WALL_X0 + WALL_X1) / 2, drop: false, special: 'normal', feverActive: true },
+    FIXED_DT,
+  );
+  const normalGain = noFeverStep.score - feverBase.score;
+  const feverGain = withFeverStep.score - feverBase.score;
+  assert.equal(normalGain, FALL_VALUE + TIMING_BONUS, 'baseline fall + timing bonus');
+  assert.equal(feverGain, normalGain * 2, 'feverActive=true must double fall + timing score in engine.step');
+
+  // Cascade bonus doubling under feverActive
+  const cascadeBase = {
+    ...feverBase,
+    strokeWasForward: true,
+    strokeFallen: CASCADE_MIN,
+    // Advance tick to the start of the retreat half-cycle so cascade finalizes this step.
+    tick: Math.floor(PUSHER_PERIOD_TICKS / 2),
+    pusherTick: Math.floor(PUSHER_PERIOD_TICKS / 2),
+    coins: [],
+  };
+  const noFeverCascade = step(
+    cascadeBase,
+    { dropX: (WALL_X0 + WALL_X1) / 2, drop: false, special: 'normal', feverActive: false },
+    FIXED_DT,
+  );
+  const withFeverCascade = step(
+    cascadeBase,
+    { dropX: (WALL_X0 + WALL_X1) / 2, drop: false, special: 'normal', feverActive: true },
+    FIXED_DT,
+  );
+  assert.ok(noFeverCascade.events.cascadeFinalized >= CASCADE_MIN, 'cascade must finalize on turn');
+  assert.equal(
+    withFeverCascade.score - cascadeBase.score,
+    (noFeverCascade.score - cascadeBase.score) * 2,
+    'feverActive=true must double cascade bonus score',
+  );
+
+  // Ball lateral scatter / jam-breaking utility vs normal coin on a settled non-overlapping row
+  const midX = (WALL_X0 + WALL_X1) / 2;
+  const clusterRun = createRun('BALL-SCATTER', { startingCredits: 50 });
+  const clusterCoins = [
+    { id: 8001, kind: 'normal' as const, x: midX - COIN_R, y: 60, teeterSince: -1, prefilled: false },
+    { id: 8002, kind: 'normal' as const, x: midX + COIN_R, y: 60, teeterSince: -1, prefilled: false },
+    { id: 8003, kind: 'normal' as const, x: midX, y: 60 + COIN_R * 2, teeterSince: -1, prefilled: false },
+  ];
+  const packedState = { ...clusterRun, coins: clusterCoins, nextCoinId: 8010 };
+  const afterNormal = step(packedState, { dropX: midX, drop: true, special: 'normal' }, FIXED_DT);
+  const afterBall = step(packedState, { dropX: midX, drop: true, special: 'ball' }, FIXED_DT);
+  const lateralDisplacement = (before: readonly Coin[], after: readonly Coin[]) =>
+    before.reduce((sum, c) => {
+      const found = after.find((a) => a.id === c.id);
+      return sum + (found ? Math.abs(found.x - c.x) : 0);
+    }, 0);
+  const normalDisp = lateralDisplacement(clusterCoins, afterNormal.coins);
+  const ballDisp = lateralDisplacement(clusterCoins, afterBall.coins);
+  assert.ok(
+    ballDisp > normalDisp * 1.5,
+    `ball must produce significantly stronger lateral scatter than normal (ball=${ballDisp.toFixed(3)}, normal=${normalDisp.toFixed(3)})`,
+  );
+
+  ok('Fever 2X engine scoring and ball lateral jam-breaking scatter verified');
 }
 
 console.log(`\nself-check: ok (${passed} checks${HEAVY ? ', heavy' : ''})`);

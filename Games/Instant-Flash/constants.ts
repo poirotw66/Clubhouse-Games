@@ -25,8 +25,15 @@ export const HEAL_PERFECT = 15;
 
 export const SCORE_PERFECT = 1000;
 export const SCORE_GOOD = 300;
+export const SCORE_GUARD = 100;
 export const SCORE_FEINT_PATIENCE = 400;
 export const SCORE_EARLY_PENALTY = 0;
+
+/** Chip damage taken on a neutral Space/J guard (no heal, no counter damage). */
+export const DAMAGE_GUARD = 8;
+
+/** Minimum kunai flight duration (ms) so directional reading stays humanly fair. */
+export const MIN_KUNAI_FLIGHT_MS = 270;
 
 /** Damage dealt to duel opponent on successful counters. */
 export const DAMAGE_ENEMY_PERFECT = 28;
@@ -185,4 +192,22 @@ export function getProjectileDurationScale(
 ): number {
   const tier = Math.min(4, baseTier + Math.floor(score / 8000));
   return Math.max(0.72, 1 - tier * 0.07);
+}
+
+/**
+ * Compute effective projectile flight duration in ms, enforcing a fair floor
+ * for fast projectiles (kunai) so directional cues remain readable.
+ */
+export function getEffectiveProjectileDurationMs(
+  baseDurationMs: number,
+  eventDurationScale: number,
+  score: number,
+  baseTier: number,
+  projectile: 'SHURIKEN' | 'KUNAI' | 'BOMB' | 'SICKLE',
+): number {
+  const scaled = baseDurationMs * eventDurationScale * getProjectileDurationScale(score, baseTier);
+  if (projectile === 'KUNAI') {
+    return Math.max(MIN_KUNAI_FLIGHT_MS, scaled);
+  }
+  return scaled;
 }

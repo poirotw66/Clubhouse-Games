@@ -5,6 +5,9 @@ import {
   scoreEmoji,
   scoreBandLabel,
   scoreToAccuracy,
+  MAX_PEEKS_PER_RUN,
+  PEEK_PENALTY,
+  applyPeekPenalty,
 } from './score.mjs';
 import {
   mixColors,
@@ -156,6 +159,11 @@ assert(scoreBandLabel(200) === '偏離', 'band label < 550');
 assert(scoreToAccuracy(999) === 100, 'perfect accuracy');
 assert(scoreToAccuracy(0) === 0, 'zero accuracy');
 assert(scoreToAccuracy(499) === 50, 'half accuracy');
+assert(MAX_PEEKS_PER_RUN === 1, 'peek limit is 1 per run');
+assert(PEEK_PENALTY === 150, 'peek penalty is 150 points');
+assert(applyPeekPenalty(900, false) === 900, 'no penalty when peek unused');
+assert(applyPeekPenalty(900, true) === 750, 'peek penalty subtracts 150');
+assert(applyPeekPenalty(100, true) === 0, 'peek penalty clamps at 0');
 
 // ============================================================================
 // 2. Perceptual Gradient Monotonic Decay
@@ -357,6 +365,11 @@ assert(s20.pass === 820, 'survival pass clamps at 820');
 // nearHueWindow strictly narrows to clamp
 assert(s0.nearHueWindow > s5.nearHueWindow && s5.nearHueWindow > s10.nearHueWindow, 'survival hues tighten');
 assert(s20.nearHueWindow === 18, 'survival nearHueWindow clamps at 18');
+
+// sRange and lRange must NOT collapse toward (50%, 50%) in late survival rounds
+const s30 = survivalParams(30);
+assert(s30.sRange[1] - s30.sRange[0] >= 75, `survival late sRange should remain wide, got ${s30.sRange}`);
+assert(s30.lRange[1] - s30.lRange[0] >= 65, `survival late lRange should remain wide, got ${s30.lRange}`);
 
 // Ascent mode levels and pass threshold:
 assert(ASCENT_SHOW_MS.length === 5, 'ascent mode 5 stages');

@@ -40,6 +40,7 @@ export const CounterResult = {
   NONE: 'NONE',
   PERFECT: 'PERFECT',
   GOOD: 'GOOD',
+  GUARD: 'GUARD', // Neutral guard (partial block via Space/J, no directional parry)
   EARLY: 'EARLY', // Released too early
   LATE: 'LATE', // Released too late (hit)
   MISS: 'MISS', // Didn't release at all
@@ -61,6 +62,7 @@ export interface GameStats {
   maxCombo: number;
   perfects: number;
   goods: number;
+  guards?: number;
   misses: number;
   earlies: number;
   feints: number;
@@ -87,6 +89,7 @@ export function emptyStats(): GameStats {
     maxCombo: 0,
     perfects: 0,
     goods: 0,
+    guards: 0,
     misses: 0,
     earlies: 0,
     feints: 0,

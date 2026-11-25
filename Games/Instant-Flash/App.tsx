@@ -645,8 +645,9 @@ export default function App() {
               </div>
               <ol className="list-decimal pl-5 space-y-2">
                 <li>
-                  按住 <strong className="text-cyan-300">左半／A</strong> 或{' '}
-                  <strong className="text-amber-300">右半／D</strong> 進入拔刀待機（亦可按 <strong className="text-emerald-300">Space／J</strong> 快速引刀）。
+                  按住 <strong className="text-cyan-300">左半／A（←）</strong> 或{' '}
+                  <strong className="text-amber-300">右半／D（→）</strong> 進入拔刀待機（
+                  <strong className="text-slate-300">Space／J</strong> 僅為中立格擋，無法反擊回血或破敵）。
                 </li>
                 <li>
                   看敵人暗器路線：<span className="text-cyan-300">上偏＝左斬</span>、
