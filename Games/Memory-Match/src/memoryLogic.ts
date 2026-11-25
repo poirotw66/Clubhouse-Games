@@ -371,6 +371,43 @@ export function isMatchGroup(cards: MemoryCard[], indices: readonly number[]): b
   return indices.every((i) => cards[i]?.face === face);
 }
 
+export interface SwapCardsResult {
+  cards: MemoryCard[];
+  swapped: [number, number] | null;
+}
+
+/**
+ * Swap positions of two face-down unmatched cards (campaign swap mechanic)
+ * and report the swapped indices so caller memory/sightings can sync cleanly.
+ */
+export function swapTwoHiddenCardsWithMeta(
+  cards: MemoryCard[],
+  flipped: readonly number[],
+  rand: () => number,
+): SwapCardsResult {
+  const eligible: number[] = [];
+  for (let i = 0; i < cards.length; i++) {
+    if (cards[i].matched) continue;
+    if (flipped.includes(i)) continue;
+    eligible.push(i);
+  }
+  if (eligible.length < 2) return { cards, swapped: null };
+  const i = eligible[Math.floor(rand() * eligible.length)];
+  let j = eligible[Math.floor(rand() * eligible.length)];
+  let guard = 0;
+  while (j === i && guard < 8) {
+    j = eligible[Math.floor(rand() * eligible.length)];
+    guard += 1;
+  }
+  if (j === i) return { cards, swapped: null };
+  const next = cards.slice();
+  const a = next[i];
+  const b = next[j];
+  next[i] = { ...b, id: `${b.face}-swap-${i}-${b.id}` };
+  next[j] = { ...a, id: `${a.face}-swap-${j}-${a.id}` };
+  return { cards: next, swapped: [i, j] };
+}
+
 /**
  * Swap positions of two face-down unmatched cards (campaign swap mechanic).
  * Returns a new array; no-op when fewer than two eligible cards.
@@ -380,27 +417,68 @@ export function swapTwoHiddenCards(
   flipped: readonly number[],
   rand: () => number,
 ): MemoryCard[] {
-  const eligible: number[] = [];
-  for (let i = 0; i < cards.length; i++) {
-    if (cards[i].matched) continue;
-    if (flipped.includes(i)) continue;
-    eligible.push(i);
+  return swapTwoHiddenCardsWithMeta(cards, flipped, rand).cards;
+}
+
+/**
+ * Invalidate player memory sightings and seen indices for swapped card positions
+ * so stale phosphor traces or ready-pair rings never point at moved cards.
+ */
+export function invalidateSwappedMemory(
+  seenIndices: ReadonlySet<number>,
+  sightings: ReadonlyMap<number, number>,
+  swapped: readonly [number, number] | null,
+): { seenIndices: Set<number>; sightings: Map<number, number> } {
+  const nextSeen = new Set(seenIndices);
+  const nextSightings = new Map(sightings);
+  if (swapped) {
+    nextSeen.delete(swapped[0]);
+    nextSeen.delete(swapped[1]);
+    nextSightings.delete(swapped[0]);
+    nextSightings.delete(swapped[1]);
   }
-  if (eligible.length < 2) return cards;
-  const i = eligible[Math.floor(rand() * eligible.length)];
-  let j = eligible[Math.floor(rand() * eligible.length)];
-  let guard = 0;
-  while (j === i && guard < 8) {
-    j = eligible[Math.floor(rand() * eligible.length)];
-    guard += 1;
-  }
-  if (j === i) return cards;
-  const next = cards.slice();
-  const a = next[i];
-  const b = next[j];
-  next[i] = { ...b, id: `${b.face}-swap-${i}-${b.id}` };
-  next[j] = { ...a, id: `${a.face}-swap-${j}-${a.id}` };
-  return next;
+  return { seenIndices: nextSeen, sightings: nextSightings };
+}
+
+/**
+ * Assist Mode defaults OFF across modes (especially versus, campaign, and daily)
+ * so pure memory play is preserved unless explicitly opted in.
+ */
+export function defaultAssistForMode(_mode: PlayMode): boolean {
+  return false;
+}
+
+export interface VersusMatchScore {
+  points: number;
+  base: number;
+  streakBonus: number;
+  doubled: boolean;
+}
+
+/**
+ * Versus risk/reward scoring:
+ * - Consecutive matches in one turn earn +1 streak momentum bonus (2+ streak).
+ * - Armed gamble (double-or-nothing) doubles match points, at the risk of +1 opponent penalty on miss.
+ */
+export function versusPointsForMatch(
+  streakAfterMatch: number,
+  gambleArmed: boolean,
+): VersusMatchScore {
+  const streak = Math.max(1, streakAfterMatch);
+  const base = 1;
+  const streakBonus = streak >= 2 ? 1 : 0;
+  const subtotal = base + streakBonus;
+  const points = gambleArmed ? subtotal * 2 : subtotal;
+  return {
+    points,
+    base,
+    streakBonus,
+    doubled: gambleArmed,
+  };
+}
+
+export function versusPenaltyForMiss(gambleArmed: boolean): number {
+  return gambleArmed ? 1 : 0;
 }
 
 /** Combo scoring: each consecutive match multiplies base points. */

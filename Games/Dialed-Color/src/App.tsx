@@ -27,7 +27,15 @@ import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
 import { haptic, particles, shake } from '@clubhouse/shared/juice';
 import { playLose, playScore, playWin, playGoal, playMove } from '@clubhouse/shared/synthAudio';
-import { calculateScore, scoreToAccuracy, scoreEmoji } from './score.mjs';
+import {
+  calculateScore,
+  scoreToAccuracy,
+  scoreEmoji,
+  scoreBandLabel,
+  MAX_PEEKS_PER_RUN,
+  PEEK_PENALTY,
+  applyPeekPenalty,
+} from './score.mjs';
 import {
   ASCENT_LEVELS,
   ASCENT_PASS,
@@ -37,6 +45,7 @@ import {
   HARMONY_SHOW_MS,
   MIX_SHOW_MS,
   buildTargets,
+  colorToCss,
   looseRand,
   survivalParams,
 } from './colors.mjs';
@@ -102,6 +111,14 @@ export default function App() {
   const [currentStep, setCurrentStep] = useState(0);
   const [currentColor, setCurrentColor] = useState<Color>({ h: 180, s: 50, l: 50 });
   const [showTarget, setShowTarget] = useState(false);
+  const [peeksLeft, setPeeksLeft] = useState(MAX_PEEKS_PER_RUN);
+  const [peekUsedThisRound, setPeekUsedThisRound] = useState(false);
+  const [blitzToast, setBlitzToast] = useState<{
+    score: number;
+    target: Color;
+    guess: Color;
+    key: number;
+  } | null>(null);
   const [showModal, setShowModal] = useState<'privacy' | 'scoring' | null>(null);
   const [bests, setBests] = useState<BestRecords>(() => loadBests());
   const [stats, setStats] = useState<GameStats>(() => loadStats());
@@ -118,6 +135,8 @@ export default function App() {
   const [mobileTab, setMobileTab] = useState<MobileTab>('cockpit');
 
   const blitzEndRef = useRef(0);
+  const blitzToastTimerRef = useRef<number | null>(null);
+  const peekTimerRef = useRef<number | null>(null);
   const boardRef = useRef<HTMLDivElement>(null);
   const finishedRef = useRef(false);
   const todayKey = useMemo(() => dateKey(), []);
@@ -180,6 +199,18 @@ export default function App() {
     setRoundScores([]);
     setCurrentStep(0);
     setCurrentColor({ h: 180, s: 50, l: 50 });
+    setShowTarget(false);
+    setPeeksLeft(MAX_PEEKS_PER_RUN);
+    setPeekUsedThisRound(false);
+    setBlitzToast(null);
+    if (blitzToastTimerRef.current !== null) {
+      window.clearTimeout(blitzToastTimerRef.current);
+      blitzToastTimerRef.current = null;
+    }
+    if (peekTimerRef.current !== null) {
+      window.clearTimeout(peekTimerRef.current);
+      peekTimerRef.current = null;
+    }
     setAscentFailed(false);
     setIsNewBest(false);
     setShowResultOverlay(false);
@@ -195,9 +226,19 @@ export default function App() {
   }, [todayKey, beginShowing]);
 
   const flashTarget = useCallback(() => {
+    if (gameState !== 'guessing' || gameMode === 'blitz') return;
+    if (peeksLeft <= 0 || showTarget) return;
+    setPeeksLeft((p) => Math.max(0, p - 1));
+    setPeekUsedThisRound(true);
     setShowTarget(true);
-    window.setTimeout(() => setShowTarget(false), 500);
-  }, []);
+    if (peekTimerRef.current !== null) {
+      window.clearTimeout(peekTimerRef.current);
+    }
+    peekTimerRef.current = window.setTimeout(() => {
+      setShowTarget(false);
+      peekTimerRef.current = null;
+    }, 500);
+  }, [gameState, gameMode, peeksLeft, showTarget]);
 
   const toggleColorBlind = () => {
     const next = { colorBlind: !prefs.colorBlind };
@@ -344,6 +385,7 @@ export default function App() {
       }
       setCurrentStep(currentStep + 1);
       setCurrentColor({ h: 180, s: 50, l: 50 });
+      setPeekUsedThisRound(false);
       beginShowing();
       return;
     }
@@ -361,6 +403,7 @@ export default function App() {
       }
       setCurrentStep(currentStep + 1);
       setCurrentColor({ h: 180, s: 50, l: 50 });
+      setPeekUsedThisRound(false);
       beginShowing();
       return;
     }
@@ -372,6 +415,7 @@ export default function App() {
       }
       setCurrentStep(currentStep + 1);
       setCurrentColor({ h: 180, s: 50, l: 50 });
+      setPeekUsedThisRound(false);
       beginShowing();
       return;
     }
@@ -379,6 +423,7 @@ export default function App() {
     if (currentStep < totalColors - 1) {
       setCurrentStep(currentStep + 1);
       setCurrentColor({ h: 180, s: 50, l: 50 });
+      setPeekUsedThisRound(false);
       if (gameMode === 'challenge' || gameMode === 'daily') {
         setGameState('guessing');
       } else {
@@ -401,11 +446,14 @@ export default function App() {
 
   const handleGuess = useCallback(() => {
     playScore();
+    const target = targetColors[currentStep];
     const newGuesses = [...userGuesses, currentColor];
-    const roundScore = calculateScore(targetColors[currentStep], currentColor);
+    const rawScore = calculateScore(target, currentColor);
+    const roundScore = applyPeekPenalty(rawScore, peekUsedThisRound);
     const newScores = [...roundScores, roundScore];
     setUserGuesses(newGuesses);
     setRoundScores(newScores);
+    setShowTarget(false);
     if (roundScore >= 850) {
       playGoal();
       haptic('success');
@@ -415,8 +463,46 @@ export default function App() {
       haptic('tap');
       shake(boardRef.current, 0.12);
     }
+
+    if (gameMode === 'blitz') {
+      setBlitzToast({
+        score: roundScore,
+        target,
+        guess: currentColor,
+        key: Date.now(),
+      });
+      if (blitzToastTimerRef.current !== null) {
+        window.clearTimeout(blitzToastTimerRef.current);
+      }
+      blitzToastTimerRef.current = window.setTimeout(() => {
+        setBlitzToast(null);
+        blitzToastTimerRef.current = null;
+      }, 1400);
+
+      if (blitzLeftMs <= 0 || currentStep >= targetColors.length - 1) {
+        finishRun(newGuesses, newScores, false);
+      } else {
+        setCurrentStep(currentStep + 1);
+        setCurrentColor({ h: 180, s: 50, l: 50 });
+        setPeekUsedThisRound(false);
+        beginShowing();
+      }
+      return;
+    }
+
     setGameState('feedback');
-  }, [userGuesses, currentColor, targetColors, currentStep, roundScores]);
+  }, [
+    userGuesses,
+    currentColor,
+    targetColors,
+    currentStep,
+    roundScores,
+    peekUsedThisRound,
+    gameMode,
+    blitzLeftMs,
+    finishRun,
+    beginShowing,
+  ]);
 
   const handleShare = async () => {
     const text = buildDailyShareText({
@@ -572,6 +658,31 @@ export default function App() {
                 : 'hidden lg:flex'
             }`}
           >
+            {gameMode === 'blitz' &&
+              blitzToast &&
+              (gameState === 'showing' || gameState === 'guessing') && (
+                <div
+                  key={blitzToast.key}
+                  className="mb-4 px-3.5 py-2 rounded-xl bg-black/65 border border-cyan-400/35 backdrop-blur-md flex items-center gap-3 text-xs font-mono pointer-events-none shadow-lg"
+                >
+                  <div className="flex items-center gap-1">
+                    <span
+                      className="w-4 h-4 rounded border border-white/20"
+                      style={{ backgroundColor: colorToCss(blitzToast.target) }}
+                      title="目標色"
+                    />
+                    <span
+                      className="w-4 h-4 rounded border border-white/20"
+                      style={{ backgroundColor: colorToCss(blitzToast.guess) }}
+                      title="猜測色"
+                    />
+                  </div>
+                  <span className="font-bold text-white tabular-nums">
+                    {scoreEmoji(blitzToast.score)} +{blitzToast.score} 分
+                  </span>
+                  <span className="text-cyan-300/80">{scoreBandLabel(blitzToast.score)}</span>
+                </div>
+              )}
             <AnimatePresence mode="wait">
               {/* Matrix Mode */}
               {gameState === 'matrix' && (
@@ -914,15 +1025,14 @@ export default function App() {
                     {gameMode !== 'blitz' && (
                       <button
                         type="button"
-                        onMouseDown={flashTarget}
-                        onMouseUp={() => setShowTarget(false)}
-                        onMouseLeave={() => setShowTarget(false)}
-                        onTouchStart={flashTarget}
-                        onTouchEnd={() => setShowTarget(false)}
-                        className="btn-secondary flex-1"
+                        disabled={peeksLeft <= 0 || showTarget}
+                        onClick={flashTarget}
+                        className="btn-secondary flex-1 disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <Eye size={16} />
-                        透視提示
+                        {peeksLeft > 0
+                          ? `透視 (${peeksLeft}/${MAX_PEEKS_PER_RUN} · -${PEEK_PENALTY})`
+                          : '透視已用盡'}
                       </button>
                     )}
                     <button
@@ -1073,9 +1183,17 @@ export default function App() {
           >
             <ChromaStarMap
               currentColor={currentColor}
-              dailyColors={gameMode === 'daily' ? targetColors : targetColors.slice(0, 5)}
+              dailyColors={
+                gameState === 'results'
+                  ? targetColors.slice(0, userGuesses.length)
+                  : targetColors.slice(0, roundScores.length)
+              }
               recentScores={roundScores}
               onApplyHue={(h) => setCurrentColor((prev) => ({ ...prev, h }))}
+              disableHarmonySnap={
+                gameState === 'guessing' &&
+                (gameMode === 'complement' || gameMode === 'analogous')
+              }
               streak={dailyStreak}
             />
           </aside>

@@ -11,8 +11,11 @@ import {
   getLegalMovesFrom,
   getWinner,
   isDarkSquare,
+  isProgressMove,
   pickBotMove,
   DIFFICULTY_BLURBS,
+  DRAW_NO_PROGRESS_PLIES,
+  DRAW_REPETITION_COUNT,
   type Board,
   type Move,
   type Piece,
@@ -170,6 +173,64 @@ describe('pickBotMove (adversarial bot)', () => {
     const picked = pickBotMove(board, 'black', null, 'hard');
     expect(picked).not.toBeNull();
     expect(picked!.path.length).toBe(3);
+  });
+
+  it('hard AI runs minimax on multiple captures and avoids a counter-capture trap', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.99);
+    // Black at (5,4) has two 1-hop captures:
+    // - (5,4)->(3,2) capturing (4,3): safe.
+    // - (5,4)->(3,6) capturing (4,5): walks into White (2,7) double-jump (3,6)->(4,5)->(5,6)->(6,7), wiping Black out!
+    const board = place(emptyBoard(), [
+      [5, 4, { color: 'black', king: false }],
+      [5, 6, { color: 'black', king: false }],
+      [4, 3, { color: 'white', king: false }],
+      [4, 5, { color: 'white', king: false }],
+      [2, 7, { color: 'white', king: false }],
+    ]);
+    const picked = pickBotMove(board, 'black', null, 'hard');
+    expect(picked).not.toBeNull();
+    expect(picked!.path[picked!.path.length - 1]).toEqual([3, 2]);
+  });
+
+  it('detects 40-move no-progress and 3-fold repetition draws in getWinner without overriding checkmate', () => {
+    const drawBoard = place(emptyBoard(), [
+      [0, 1, { color: 'black', king: true }],
+      [7, 6, { color: 'white', king: true }],
+    ]);
+    expect(
+      getWinner(drawBoard, 'black', 'american', {
+        noProgressPlies: DRAW_NO_PROGRESS_PLIES - 1,
+      }),
+    ).toBeNull();
+    expect(
+      getWinner(drawBoard, 'black', 'american', {
+        noProgressPlies: DRAW_NO_PROGRESS_PLIES,
+      }),
+    ).toBe('draw');
+    expect(
+      getWinner(drawBoard, 'black', 'american', {
+        positionCount: DRAW_REPETITION_COUNT,
+      }),
+    ).toBe('draw');
+
+    const kingMove: Move = { from: [0, 1], path: [[0, 1], [1, 2]] };
+    expect(isProgressMove(drawBoard, kingMove)).toBe(false);
+
+    const manBoard = place(emptyBoard(), [[5, 2, { color: 'black', king: false }]]);
+    const manMove: Move = { from: [5, 2], path: [[5, 2], [4, 3]] };
+    expect(isProgressMove(manBoard, manMove)).toBe(true);
+
+    // No legal moves still awards the win even if draw counters hit the threshold.
+    const trapped = place(emptyBoard(), [
+      [7, 0, { color: 'white', king: false }],
+      [5, 2, { color: 'black', king: false }],
+    ]);
+    expect(
+      getWinner(trapped, 'white', 'american', {
+        noProgressPlies: DRAW_NO_PROGRESS_PLIES,
+        positionCount: DRAW_REPETITION_COUNT,
+      }),
+    ).toBe('black');
   });
 });
 

@@ -23,6 +23,10 @@
   var POP_SIZE = 4;
   var GARBAGE = 'garbage';
   var GARBAGE_RATE = 70;
+  var MARGIN_TIME_START_SEC = 90;
+  var MARGIN_TIME_MIN_RATE = 45;
+  var MARGIN_TIME_RAMP_SEC = 90;
+  var QUEUE_LOOKAHEAD_SIZE = 3;
 
   // Vs-CPU career stats (replay hook). 2P local matches are not counted.
   var STATS_KEY = 'clubhouse-puyo-stats';
@@ -1124,10 +1128,52 @@
     },
   };
 
-  function evaluatePlacement(board, placement, queue, depth, incomingGarbage, difficultyConfig) {
+  function isUndoAllowedForMode(mode) {
+    return typeof mode === 'string' && !!VALID_MODES[mode] && mode !== 'versus' && mode !== 'cpu';
+  }
+
+  /**
+   * Margin Time garbage escalation for versus/cpu:
+   * After 90s, gradually tighten garbage conversion rate from 70 toward 45 pts/garbage.
+   */
+  function effectiveGarbageRate(elapsedSec, mode) {
+    if (mode !== 'versus' && mode !== 'cpu') return GARBAGE_RATE;
+    var sec = Number(elapsedSec);
+    if (!isFinite(sec) || sec < MARGIN_TIME_START_SEC) return GARBAGE_RATE;
+    var progress = Math.min(1, (sec - MARGIN_TIME_START_SEC) / MARGIN_TIME_RAMP_SEC);
+    return Math.max(
+      MARGIN_TIME_MIN_RATE,
+      Math.round(GARBAGE_RATE - progress * (GARBAGE_RATE - MARGIN_TIME_MIN_RATE))
+    );
+  }
+
+  function marginTimeState(elapsedMs, mode) {
+    var elapsedSec = Math.max(0, (Number(elapsedMs) || 0) / 1000);
+    var isCompetitive = mode === 'versus' || mode === 'cpu';
+    var active = isCompetitive && elapsedSec >= MARGIN_TIME_START_SEC;
+    var garbageRate = effectiveGarbageRate(elapsedSec, mode);
+    var intensityPct = active
+      ? Math.round(((GARBAGE_RATE - garbageRate) / (GARBAGE_RATE - MARGIN_TIME_MIN_RATE)) * 100)
+      : 0;
+    return {
+      active: active,
+      elapsedSec: Math.floor(elapsedSec),
+      garbageRate: garbageRate,
+      intensityPct: Math.max(0, Math.min(100, intensityPct)),
+    };
+  }
+
+  function candidateLimitForDepth(depth) {
+    if (depth >= 4) return 6;
+    if (depth === 3) return 4;
+    if (depth === 2) return 3;
+    return 24;
+  }
+
+  function scoreImmediatePlacement(board, placement, incomingGarbage, difficultyConfig, garbageRate) {
     var diff = difficultyConfig || DIFFICULTIES.nightmare;
     if (typeof diff === 'string') diff = DIFFICULTIES[diff] || DIFFICULTIES.nightmare;
-    var resolved = simulateLock(board, placement, GARBAGE_RATE);
+    var resolved = simulateLock(board, placement, garbageRate || GARBAGE_RATE);
     var danger = boardDanger(resolved.board);
     var incoming = incomingGarbage || 0;
     var stackPenalty = danger * 11;
@@ -1169,33 +1215,80 @@
       - weakPenalty
       + (diff.noise ? (Math.random() * 2 - 1) * diff.noise : 0);
 
+    return { base: base, resolved: resolved };
+  }
+
+  function evaluatePlacement(board, placement, queue, depth, incomingGarbage, difficultyConfig, garbageRate) {
+    var diff = difficultyConfig || DIFFICULTIES.nightmare;
+    if (typeof diff === 'string') diff = DIFFICULTIES[diff] || DIFFICULTIES.nightmare;
+    var immediate = scoreImmediatePlacement(board, placement, incomingGarbage, diff, garbageRate);
+    var base = immediate.base;
+    var resolved = immediate.resolved;
+
     if (depth <= 1 || !queue || queue.length === 0) return base;
     // Nested search keeps leftover incoming pressure only one ply (after we "spent" a turn).
-    var futureIncoming = Math.max(0, incoming - resolved.attack);
+    var futureIncoming = Math.max(0, (incomingGarbage || 0) - resolved.attack);
     var future = bestPlacementFor(
       resolved.board,
       queue[0],
       queue.slice(1),
       depth - 1,
       futureIncoming,
-      diff
+      diff,
+      garbageRate
     );
     return base + (future ? future.score * diff.futureWeight : 0);
   }
 
-  function bestPlacementFor(board, pair, queue, depth, incomingGarbage, difficultyConfig) {
+  function bestPlacementFor(board, pair, queue, depth, incomingGarbage, difficultyConfig, garbageRate) {
     var diff = difficultyConfig || DIFFICULTIES.nightmare;
     if (typeof diff === 'string') diff = DIFFICULTIES[diff] || DIFFICULTIES.nightmare;
     var placements = enumeratePlacements(board, pair);
     if (placements.length === 0) return null;
 
-    var bestPlacement = placements[0];
-    var bestScore = evaluatePlacement(board, placements[0], queue, depth, incomingGarbage, diff);
-    for (var i = 1; i < placements.length; i += 1) {
-      var score = evaluatePlacement(board, placements[i], queue, depth, incomingGarbage, diff);
-      if (score > bestScore) {
-        bestScore = score;
-        bestPlacement = placements[i];
+    var immediateList = new Array(placements.length);
+    for (var i = 0; i < placements.length; i += 1) {
+      var immediate = scoreImmediatePlacement(board, placements[i], incomingGarbage, diff, garbageRate);
+      immediateList[i] = {
+        placement: placements[i],
+        base: immediate.base,
+        resolved: immediate.resolved,
+      };
+    }
+
+    if (depth <= 1 || !queue || queue.length === 0) {
+      var bestImmediate = immediateList[0];
+      for (var k = 1; k < immediateList.length; k += 1) {
+        if (immediateList[k].base > bestImmediate.base) bestImmediate = immediateList[k];
+      }
+      return { placement: bestImmediate.placement, score: bestImmediate.base };
+    }
+
+    // Bounded candidate pruning keeps 4-ply lookahead smooth without combinatorial explosion.
+    immediateList.sort(function (a, b) { return b.base - a.base; });
+    var limit = Math.min(immediateList.length, candidateLimitForDepth(depth));
+    var nextPair = queue[0];
+    var restQueue = queue.slice(1);
+    var incoming = incomingGarbage || 0;
+
+    var bestPlacement = immediateList[0].placement;
+    var bestScore = -Infinity;
+    for (var j = 0; j < limit; j += 1) {
+      var cand = immediateList[j];
+      var futureIncoming = Math.max(0, incoming - cand.resolved.attack);
+      var future = bestPlacementFor(
+        cand.resolved.board,
+        nextPair,
+        restQueue,
+        depth - 1,
+        futureIncoming,
+        diff,
+        garbageRate
+      );
+      var totalScore = cand.base + (future ? future.score * diff.futureWeight : 0);
+      if (totalScore > bestScore) {
+        bestScore = totalScore;
+        bestPlacement = cand.placement;
       }
     }
     return { placement: bestPlacement, score: bestScore };
@@ -1210,7 +1303,15 @@
     ALL_COLORS: ALL_COLORS,
     GARBAGE: GARBAGE,
     GARBAGE_RATE: GARBAGE_RATE,
+    MARGIN_TIME_START_SEC: MARGIN_TIME_START_SEC,
+    MARGIN_TIME_MIN_RATE: MARGIN_TIME_MIN_RATE,
+    MARGIN_TIME_RAMP_SEC: MARGIN_TIME_RAMP_SEC,
+    QUEUE_LOOKAHEAD_SIZE: QUEUE_LOOKAHEAD_SIZE,
     ALL_CLEAR_BONUS: ALL_CLEAR_BONUS,
+    isUndoAllowedForMode: isUndoAllowedForMode,
+    effectiveGarbageRate: effectiveGarbageRate,
+    marginTimeState: marginTimeState,
+    candidateLimitForDepth: candidateLimitForDepth,
     createBoard: createBoard,
     cloneBoard: cloneBoard,
     clonePair: clonePair,

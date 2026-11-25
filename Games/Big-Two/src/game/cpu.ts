@@ -1,8 +1,9 @@
 import { isDeuce, power } from './cards';
-import { canPass, playsFor } from './engine';
+import { canPass, isDingDaViolation, playsFor } from './engine';
 import { canAnyoneBeat, finishingSeats } from './memory';
 import { legalPlays } from './plays';
 import { seedFromCode, streamRng } from './rng';
+import { SEATS } from './types';
 import type {
   Card,
   DifficultyId,
@@ -190,6 +191,13 @@ export function chooseMove(state: GameState): Play | null {
   const finisher = options.find((p) => p.cards.length === hand.length);
   if (finisher) return finisher;
 
+  // Enforce Taiwanese Ding Da ("頂大"): when the next seat holds 1 card, never
+  // play a single weaker than the highest single in hand if a legal alternative exists.
+  const nextSeat = ((state.turn + 1) % SEATS) as Seat;
+  const nextCount = state.hands[nextSeat]?.length ?? 0;
+  const compliant = options.filter((option) => !isDingDaViolation(hand, option, nextCount));
+  const legalOptions = compliant.length > 0 ? compliant : options;
+
   const difficulty = state.difficulty;
   const personality = personalityForSeat(state.turn, state.seatPersonalities)?.id ?? null;
 
@@ -199,19 +207,19 @@ export function chooseMove(state: GameState): Play | null {
     // Light seat tint: among random picks, prefer the personality's favourite
     // shape ~40% of the time so Easy seats are not identical noise.
     if (personality && r() < 0.4) {
-      return pickHard(state, options, personality);
+      return pickHard(state, legalOptions, personality);
     }
-    return options[Math.floor(r() * options.length)];
+    return legalOptions[Math.floor(r() * legalOptions.length)];
   }
 
   if (difficulty === 'normal') {
     // Always answer with the cheapest legal play (original normal policy).
     // Personality only breaks exact key ties so the three seats are not clones.
-    const cheapestKey = options[0].key;
-    const tied = options.filter((p) => p.key === cheapestKey);
+    const cheapestKey = legalOptions[0].key;
+    const tied = legalOptions.filter((p) => p.key === cheapestKey);
     if (tied.length === 1) return tied[0];
     return pickHard(state, tied, personality);
   }
 
-  return pickHard(state, options, personality);
+  return pickHard(state, legalOptions, personality);
 }

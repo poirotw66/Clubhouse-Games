@@ -25,6 +25,7 @@ interface Props {
   feverActive?: boolean;
   feverRemainingSec?: number;
   feverRatio?: number;
+  fiendPush?: boolean;
 }
 
 interface Spark {
@@ -219,14 +220,28 @@ function drawPegs(ctx: CanvasRenderingContext2D, pegs: readonly Peg[]): void {
   }
 }
 
-function drawEdgeBonusZones(ctx: CanvasRenderingContext2D): void {
+function drawEdgeBonusZones(ctx: CanvasRenderingContext2D, fiendActive: boolean): void {
+  if (!fiendActive) return;
   const h = SHELF_LEN - 12;
   for (const x0 of [WALL_X0, WALL_X1 - EDGE_MARGIN]) {
-    const wash = ctx.createLinearGradient(x0, 0, x0 + (x0 === WALL_X0 ? EDGE_MARGIN : -EDGE_MARGIN), 0);
-    wash.addColorStop(0, 'rgba(52, 211, 153, 0.14)');
-    wash.addColorStop(1, 'rgba(52, 211, 153, 0)');
+    const isLeft = x0 === WALL_X0;
+    const wash = ctx.createLinearGradient(x0, 0, x0 + (isLeft ? EDGE_MARGIN : -EDGE_MARGIN), 0);
+    wash.addColorStop(0, 'rgba(244, 63, 94, 0.28)');
+    wash.addColorStop(0.55, 'rgba(245, 158, 11, 0.14)');
+    wash.addColorStop(1, 'rgba(244, 63, 94, 0)');
     ctx.fillStyle = wash;
-    ctx.fillRect(x0 === WALL_X0 ? WALL_X0 : WALL_X1 - EDGE_MARGIN, 8, EDGE_MARGIN, h);
+    ctx.fillRect(x0, 8, EDGE_MARGIN, h);
+
+    const borderX = isLeft ? WALL_X0 + EDGE_MARGIN : WALL_X1 - EDGE_MARGIN;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(251, 113, 133, 0.55)';
+    ctx.setLineDash([4, 4]);
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(borderX, 8);
+    ctx.lineTo(borderX, SHELF_LEN - 4);
+    ctx.stroke();
+    ctx.restore();
   }
 }
 
@@ -601,6 +616,7 @@ export function GameCanvas({
   feverActive = false,
   feverRemainingSec = 0,
   feverRatio = 0,
+  fiendPush = false,
 }: Props): React.ReactElement {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef(0);
@@ -610,6 +626,7 @@ export function GameCanvas({
   const feverActiveRef = useRef(feverActive);
   const feverRemainingSecRef = useRef(feverRemainingSec);
   const feverRatioRef = useRef(feverRatio);
+  const fiendPushRef = useRef(fiendPush);
 
   coinSetRef.current = coinSet;
   hueRef.current = cabinetHue;
@@ -617,6 +634,7 @@ export function GameCanvas({
   feverActiveRef.current = feverActive;
   feverRemainingSecRef.current = feverRemainingSec;
   feverRatioRef.current = feverRatio;
+  fiendPushRef.current = fiendPush;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -716,7 +734,7 @@ export function GameCanvas({
 
       drawCabinet(ctx, shelfImg, hueRef.current, s.tick, reducedMotion, feverOn);
       drawTriggerZone(ctx, s.triggerZoneX, s.tick, reducedMotion);
-      drawEdgeBonusZones(ctx);
+      drawEdgeBonusZones(ctx, fiendPushRef.current);
       drawPegs(ctx, s.config.physics.pegs);
       drawPusher(ctx, s.pusherTick ?? s.tick, metalImg, s.config.physics);
 

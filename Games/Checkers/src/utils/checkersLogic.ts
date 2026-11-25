@@ -432,17 +432,42 @@ export function countPieces(board: Board): { black: number; white: number } {
   return { black, white };
 }
 
+export const DRAW_NO_PROGRESS_PLIES = 80; // 40 moves per side without capture or man advance
+export const DRAW_REPETITION_COUNT = 3;
+
+export interface DrawCheckContext {
+  /** Consecutive half-moves without any capture or non-king (man) movement. */
+  noProgressPlies?: number;
+  /** Occurrence count of the current (board, turn) position key. */
+  positionCount?: number;
+}
+
+export function isProgressMove(boardBefore: Board, move: Move): boolean {
+  if (isCaptureMove(move)) return true;
+  const piece = boardBefore[move.from[0]]?.[move.from[1]];
+  return Boolean(piece && !piece.king);
+}
+
 export function getWinner(
   board: Board,
   currentTurn: PieceColor,
   ruleset: RulesetId = 'american',
-): PieceColor | null {
+  drawContext?: DrawCheckContext,
+): PieceColor | 'draw' | null {
   const moves = getLegalMoves(board, currentTurn, ruleset);
-  if (moves.length > 0) return null;
-  const { black, white } = countPieces(board);
-  if (black === 0) return 'white';
-  if (white === 0) return 'black';
-  return currentTurn === 'black' ? 'white' : 'black';
+  if (moves.length === 0) {
+    const { black, white } = countPieces(board);
+    if (black === 0) return 'white';
+    if (white === 0) return 'black';
+    return currentTurn === 'black' ? 'white' : 'black';
+  }
+  if ((drawContext?.noProgressPlies ?? 0) >= DRAW_NO_PROGRESS_PLIES) {
+    return 'draw';
+  }
+  if ((drawContext?.positionCount ?? 0) >= DRAW_REPETITION_COUNT) {
+    return 'draw';
+  }
+  return null;
 }
 
 /** True when consecutive path squares jump over at least one square (capture hop). */
@@ -523,6 +548,8 @@ function evaluateCheckers(
   return score;
 }
 
+const CAPTURE_QUIESCENCE_PLIES = 4;
+
 function minimaxCheckers(
   board: Board,
   depth: number,
@@ -531,6 +558,7 @@ function minimaxCheckers(
   turn: PieceColor,
   rules: Ruleset,
   style: BotStyle,
+  quiescenceLeft: number = CAPTURE_QUIESCENCE_PLIES,
 ): number {
   const moves = getLegalMoves(board, turn, rules.id);
   if (moves.length === 0) {
@@ -538,7 +566,14 @@ function minimaxCheckers(
     if (black === 0 && white === 0) return 0;
     return -WIN_SCORE - depth;
   }
-  if (depth <= 0) return evaluateCheckers(board, turn, rules, style);
+
+  const inCaptureExtension = depth <= 0;
+  if (inCaptureExtension) {
+    const hasCapture = isCaptureMove(moves[0]);
+    if (!hasCapture || quiescenceLeft <= 0) {
+      return evaluateCheckers(board, turn, rules, style);
+    }
+  }
 
   let value = -Infinity;
   for (const move of moves) {
@@ -551,6 +586,7 @@ function minimaxCheckers(
       opponent(turn),
       rules,
       style,
+      inCaptureExtension ? quiescenceLeft - 1 : quiescenceLeft,
     );
     if (score > value) value = score;
     if (value > alpha) alpha = value;
@@ -574,7 +610,8 @@ function styleScoreMove(
 }
 
 /**
- * Bot: forced captures take the longest / majority chain; quiet moves from search.
+ * Bot: search captures (when multiple exist) and quiet moves with capture-quiescence
+ * so Hard AI avoids multi-capture counter-traps; only short-circuits forced single captures.
  * Optional `style` biases evaluation and capture preference for roster opponents.
  */
 export function pickBotMove(
@@ -593,20 +630,7 @@ export function pickBotMove(
   if (moves.length === 1) return moves[0];
 
   const captures = moves.filter((m) => isCaptureMove(m));
-  if (captures.length > 0) {
-    return captures.reduce((best, move) => {
-      const bestCap = captureHopCount(best);
-      const moveCap = captureHopCount(move);
-      if (moveCap !== bestCap) return moveCap > bestCap ? move : best;
-      const bestStyle = styleScoreMove(board, best, color, rules, style);
-      const moveStyle = styleScoreMove(board, move, color, rules, style);
-      if (moveStyle !== bestStyle) return moveStyle > bestStyle ? move : best;
-      const moveKing = promotesKing(board, move, color, rules.size);
-      const bestKing = promotesKing(board, best, color, rules.size);
-      if (moveKing !== bestKing) return moveKing ? move : best;
-      return move;
-    });
-  }
+  if (captures.length === 1) return captures[0];
 
   const config = DIFFICULTY[difficulty];
   const blunder = style.blunderOverride ?? config.blunderRate;
@@ -627,8 +651,11 @@ export function pickBotMove(
       opponent(color),
       rules,
       style,
+      CAPTURE_QUIESCENCE_PLIES,
     );
-    score += styleScoreMove(board, move, color, rules, style) * 0.15;
+    if (Math.abs(score) < WIN_SCORE / 2) {
+      score += styleScoreMove(board, move, color, rules, style) * 0.15;
+    }
     if (score > bestScore) {
       bestScore = score;
       best = [move];

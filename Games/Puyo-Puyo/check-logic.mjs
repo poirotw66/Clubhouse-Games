@@ -771,6 +771,46 @@ function runTests() {
     assert.ok(planD4.placement.rot >= 0 && planD4.placement.rot < 4);
     assert.ok(typeof planD4.score === 'number', 'depth 4 score is a valid finite number');
     assert.ok(Number.isFinite(planD4.score));
+
+    // 4-ply queue depth & bounded candidate pruning checks
+    assert.equal(L.QUEUE_LOOKAHEAD_SIZE, 3, 'CPU maintains 3 queued pairs for 4-ply lookahead');
+    assert.ok(L.candidateLimitForDepth(4) <= 8, 'depth 4 prunes candidates cleanly');
+    assert.ok(L.candidateLimitForDepth(3) <= 6, 'depth 3 prunes candidates cleanly');
+    assert.ok(L.candidateLimitForDepth(2) <= 4, 'depth 2 prunes candidates cleanly');
+
+    const benchStart = performance.now();
+    const benchPlan = L.bestPlacementFor(tacticalBoard, testPair, testQueue, 4, 0, nightmare);
+    const benchMs = performance.now() - benchStart;
+    assert.ok(benchPlan && benchPlan.placement, 'pruned 4-ply search produces a valid placement');
+    assert.ok(benchMs < 500, `pruned 4-ply search completes swiftly (took ${benchMs.toFixed(1)}ms)`);
+
+    // Undo mode gating: disabled in versus and cpu, enabled in solo modes
+    assert.equal(L.isUndoAllowedForMode('versus'), false, 'undo disabled in versus');
+    assert.equal(L.isUndoAllowedForMode('cpu'), false, 'undo disabled in cpu');
+    assert.equal(L.isUndoAllowedForMode('practice'), true, 'undo enabled in solo practice');
+    assert.equal(L.isUndoAllowedForMode('tutorial'), true, 'undo enabled in tutorial');
+    assert.equal(L.isUndoAllowedForMode('mission'), true, 'undo enabled in mission');
+    assert.equal(L.isUndoAllowedForMode('daily'), true, 'undo enabled in daily');
+
+    // Margin Time garbage escalation in versus/cpu after 90s
+    assert.equal(L.MARGIN_TIME_START_SEC, 90);
+    assert.equal(L.MARGIN_TIME_MIN_RATE, 45);
+    assert.equal(L.effectiveGarbageRate(0, 'cpu'), 70, 'before 90s rate stays 70');
+    assert.equal(L.effectiveGarbageRate(89, 'versus'), 70, 'at 89s rate stays 70');
+    assert.equal(L.effectiveGarbageRate(90, 'cpu'), 70, 'at 90s margin time activates at 70');
+    const midRate = L.effectiveGarbageRate(135, 'versus');
+    assert.ok(midRate < 70 && midRate > 45, `at 135s rate tightens between 70 and 45 (got ${midRate})`);
+    assert.equal(L.effectiveGarbageRate(180, 'cpu'), 45, 'at 180s rate reaches 45 floor');
+    assert.equal(L.effectiveGarbageRate(300, 'versus'), 45, 'rate never drops below 45');
+    assert.equal(L.effectiveGarbageRate(240, 'practice'), 70, 'solo modes do not trigger margin time');
+
+    const mtBefore = L.marginTimeState(60000, 'cpu');
+    assert.equal(mtBefore.active, false);
+    assert.equal(mtBefore.garbageRate, 70);
+    const mtActive = L.marginTimeState(150000, 'versus');
+    assert.equal(mtActive.active, true);
+    assert.ok(mtActive.garbageRate < 70 && mtActive.garbageRate >= 45);
+    assert.ok(mtActive.intensityPct > 0 && mtActive.intensityPct <= 100);
   }
 
   // =========================================================================

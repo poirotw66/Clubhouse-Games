@@ -9,6 +9,7 @@ import {
 import type { OpponentDef, PatternTrait } from './opponents.ts';
 
 export type ParrySide = 'left' | 'right';
+export type ParryInput = ParrySide | 'guard';
 
 export type ProjectileId = 'SHURIKEN' | 'KUNAI' | 'BOMB' | 'SICKLE';
 
@@ -142,7 +143,9 @@ export function nextAttackEvent(
   }
 
   const feint = shouldFeint(trait, rand);
-  const scale = durationScaleFor(trait, rand, state.strikeIndex);
+  const rawScale = durationScaleFor(trait, rand, state.strikeIndex);
+  // Keep kunai pattern scale high enough that stacked tier speed-ups stay readable.
+  const scale = projectile === 'KUNAI' ? Math.max(0.85, rawScale) : rawScale;
 
   const event: AttackEvent = {
     kind: feint ? 'feint' : 'strike',

@@ -1057,8 +1057,10 @@ export default function App(): ReactElement {
 
       {/* Clockwork Steam Overdrive Gauge */}
       <ClockworkOverdriveGauge
+        phase={state.phase}
         steamPressure={state.steamPressure}
         overdriveRemaining={state.overdriveRemaining}
+        mainspringCooldown={state.mainspringCooldown}
         currentCombo={state.currentCombo}
         onTriggerOverdrive={handleTriggerOverdrive}
         onWindMainspring={handleWindMainspring}

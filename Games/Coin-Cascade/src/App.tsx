@@ -197,6 +197,8 @@ export default function App(): React.ReactElement {
   const lastDangerTeeterRef = useRef(0);
   const chuteXRef = useRef<number>(SHELF_W / 2);
   const dropRequestRef = useRef(false);
+  const isPointerAimingRef = useRef(false);
+  const activePointerIdRef = useRef<number | null>(null);
   const rafRef = useRef(0);
   const accRef = useRef(0);
   const lastRef = useRef(0);
@@ -327,6 +329,8 @@ export default function App(): React.ReactElement {
   useEffect(() => {
     if (!paused) return;
     dropRequestRef.current = false;
+    isPointerAimingRef.current = false;
+    activePointerIdRef.current = null;
   }, [paused]);
 
   // Leaving the game is a pause, never an invitation to spend a life offscreen.
@@ -334,6 +338,8 @@ export default function App(): React.ReactElement {
     if (screen !== 'playing') return;
     const pauseAway = () => {
       dropRequestRef.current = false;
+      isPointerAimingRef.current = false;
+      activePointerIdRef.current = null;
       setPaused(true);
     };
     const onVisibility = () => {
@@ -438,6 +444,7 @@ export default function App(): React.ReactElement {
           drop: wantedDrop,
           special: specialRef.current,
           fiendPush: isFiendActive,
+          feverActive: feverRef.current.active,
         };
         dropRequestRef.current = false;
         next = step(next, input, FIXED_DT);
@@ -635,15 +642,64 @@ export default function App(): React.ReactElement {
     return Math.max(WALL_X0, Math.min(WALL_X1, x));
   }, []);
 
-  const onPointerDown = useCallback(
+  const onPointerMove = useCallback(
     (e: React.PointerEvent) => {
       if (paused) return;
-      const x = toShelfX(e.clientX);
-      chuteXRef.current = x;
+      if (
+        isPointerAimingRef.current &&
+        activePointerIdRef.current !== null &&
+        activePointerIdRef.current !== e.pointerId
+      ) {
+        return;
+      }
+      chuteXRef.current = toShelfX(e.clientX);
+    },
+    [toShelfX, paused],
+  );
+
+  const onPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (paused) return;
+      isPointerAimingRef.current = true;
+      activePointerIdRef.current = e.pointerId;
+      try {
+        e.currentTarget.setPointerCapture?.(e.pointerId);
+      } catch {
+        /* ignore synthetic pointer capture failure */
+      }
+      chuteXRef.current = toShelfX(e.clientX);
+    },
+    [toShelfX, paused],
+  );
+
+  const onPointerUp = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (!isPointerAimingRef.current) return;
+      if (activePointerIdRef.current !== null && activePointerIdRef.current !== e.pointerId) {
+        return;
+      }
+      isPointerAimingRef.current = false;
+      activePointerIdRef.current = null;
+      try {
+        if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
+          e.currentTarget.releasePointerCapture(e.pointerId);
+        }
+      } catch {
+        /* ignore */
+      }
+      if (paused) return;
+      chuteXRef.current = toShelfX(e.clientX);
       dropRequestRef.current = true;
     },
     [toShelfX, paused],
   );
+
+  const onPointerCancel = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (activePointerIdRef.current === e.pointerId) {
+      isPointerAimingRef.current = false;
+      activePointerIdRef.current = null;
+    }
+  }, []);
 
   const specialButtons: Special[] = isSpecialUnlocked('magnet', meta)
     ? ['heavy', 'ball', 'vibrate', 'magnet']
@@ -1359,7 +1415,14 @@ export default function App(): React.ReactElement {
         </aside>
 
         {/* Center Cabinet Playfield */}
-        <div ref={surfaceRef} className="flex-1 h-full max-w-lg min-w-0 relative flex items-center justify-center" onPointerDown={onPointerDown}>
+        <div
+          ref={surfaceRef}
+          className="flex-1 h-full max-w-lg min-w-0 relative flex items-center justify-center touch-none"
+          onPointerMove={onPointerMove}
+          onPointerDown={onPointerDown}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerCancel}
+        >
           <GameCanvas
             stateRef={stateRef}
             chuteXRef={chuteXRef}
@@ -1371,6 +1434,7 @@ export default function App(): React.ReactElement {
             feverActive={fever.active}
             feverRemainingSec={fever.remainingSec}
             feverRatio={fever.charge / 100}
+            fiendPush={fiendPush}
           />
 
           {paused && (
@@ -1382,6 +1446,7 @@ export default function App(): React.ReactElement {
                   <button
                     type="button"
                     onPointerDown={(event) => event.stopPropagation()}
+                    onPointerUp={(event) => event.stopPropagation()}
                     onClick={() => setPaused(false)}
                     className="rounded-xl border border-cyan-400/60 bg-slate-900 px-6 py-3 text-base font-bold text-cyan-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300 touch-manipulation"
                   >
@@ -1390,6 +1455,7 @@ export default function App(): React.ReactElement {
                   <button
                     type="button"
                     onPointerDown={(event) => event.stopPropagation()}
+                    onPointerUp={(event) => event.stopPropagation()}
                     onClick={() => {
                       setPaused(false);
                       setScreen('menu');

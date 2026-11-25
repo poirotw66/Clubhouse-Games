@@ -129,6 +129,7 @@ export function createInitialState(
     overdriveRemaining: 0,
     overdriveCount: 0,
     totalWindings: 0,
+    mainspringCooldown: 0,
     currentCombo: 0,
     comboTimer: 0,
     maxCombo: 0,
@@ -568,6 +569,10 @@ export function step(state: GameState, dt: number): GameState {
 
   const next = cloneState(state);
   next.elapsedTime += dt;
+  if (next.mainspringCooldown > 0) {
+    next.mainspringCooldown = Math.max(0, next.mainspringCooldown - dt);
+    if (next.mainspringCooldown < 1e-9) next.mainspringCooldown = 0;
+  }
 
   if (next.phase === 'prep') {
     next.prepTimer -= dt;
@@ -710,15 +715,28 @@ export function triggerOverdrive(state: GameState): CommandResult {
   return { state: next, ok: true };
 }
 
+export const MAINSPRING_COOLDOWN_SEC = 8;
+
 /**
  * Manually winds the clockwork mainspring to build steam pressure (+15% tension per wind).
+ * Restricted to active wave combat with an 8-second cooldown so enemy-kill steam stays meaningful.
  */
 export function windMainspring(state: GameState): CommandResult {
-  if (state.phase !== 'prep' && state.phase !== 'wave') {
+  if (state.phase === 'won' || state.phase === 'lost') {
     return { state, ok: false, reason: '遊戲已結束' };
+  }
+  if (state.phase !== 'wave') {
+    return { state, ok: false, reason: '戰鬥波次進行中才能手動上發條！' };
   }
   if (state.overdriveRemaining > 0) {
     return { state, ok: false, reason: '發條超頻高速運轉中！' };
+  }
+  if ((state.mainspringCooldown || 0) > 0) {
+    return {
+      state,
+      ok: false,
+      reason: `發條冷卻中（剩餘 ${state.mainspringCooldown.toFixed(1)} 秒）`,
+    };
   }
   if (state.steamPressure >= 100) {
     return { state, ok: false, reason: '發條壓力已達極限，隨時可啟動超頻（按 F 鍵）！' };
@@ -726,5 +744,6 @@ export function windMainspring(state: GameState): CommandResult {
   const next = cloneState(state);
   next.steamPressure = Math.min(100, (next.steamPressure || 0) + 15);
   next.totalWindings = (next.totalWindings || 0) + 1;
+  next.mainspringCooldown = MAINSPRING_COOLDOWN_SEC;
   return { state: next, ok: true };
 }

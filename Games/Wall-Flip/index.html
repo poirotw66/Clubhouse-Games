@@ -228,7 +228,7 @@ const STR = {
     win: '著陸成功', lose: '克拉希…',
     rFall: '從牆上剝離了。反翹段要一直按住吸附。', rWall: '撞上牆壁了。',
     rHard: (k) => `落地速度 ${k} km/h——要更早用雙鍵減速。`, rTilt: (d) => `以傾斜 ${d}° 的姿態觸地了。`,
-    rowRolls: (n) => `翻滾 ${n} 回`, rowSoft: '柔軟 SOFT', rowLevel: '水準 LEVEL', pts: '點',
+    rowRolls: (n) => `翻滾 ${n} 回`, rowSoft: '柔軟 SOFT', rowLevel: '水準 LEVEL', rowStunt: (m) => `空中特技 (×${m})`, pts: '點',
     subWin: (n, d, t2, rec) => `翻滾 ${n} 回 · 飛行距離 ${d} m · 完賽 ${t2} s${rec ? ' · 最快' : ''}`,
     newRecord: '新紀錄', bestLabel: '最佳',
     shareBtn: '複製成績',
@@ -304,7 +304,7 @@ const STR = {
     win: 'NAILED IT!!', lose: 'CRASHED…',
     rFall: 'You peeled off the wall. Keep holding Stick on the overhang.', rWall: 'You hit the wall.',
     rHard: (k) => `You hit the ground at ${k} km/h. Brake earlier with both thrusters.`, rTilt: (d) => `You touched down tilted ${d}°.`,
-    rowRolls: (n) => `${n} rolls`, rowSoft: 'SOFT', rowLevel: 'LEVEL', pts: 'pts',
+    rowRolls: (n) => `${n} rolls`, rowSoft: 'SOFT', rowLevel: 'LEVEL', rowStunt: (m) => `STUNTS (×${m})`, pts: 'pts',
     subWin: (n, d, t2, rec) => `${n} roll(s) · ${d} m flight · time ${t2} s${rec ? ' · best' : ''}`,
     newRecord: 'New record', bestLabel: 'Best',
     shareBtn: 'COPY RESULT',
@@ -714,9 +714,10 @@ const car = {
   events: [],
   spinTotal: 0, rollsAccum: 0, spinRight: 0, spinLeft: 0,
   hasSwitchedDir: false, phase: 'upright',
+  comboMult: 1.0, hasSkimmed: false, skimTime: 0, hasInverted: false, invertTime: 0, stallWarn: false,
 };
 const inp = { drive: false, stick: false, left: false, right: false, brake:false };
-const stats = { rolls: 0, soft: 0, level: 0, total: 0, fall: 0, tilt: 0, dist: 0, reason: '', win: false };
+const stats = { rolls: 0, rollPts: 0, soft: 0, level: 0, stuntPts: 0, comboMult: 1, hasSkimmed: false, hasInverted: false, hasSwitchedDir: false, total: 0, fall: 0, tilt: 0, dist: 0, reason: '', win: false };
 let best = 0, rankOn = false, rankHi = -1, boardView = [];
 function bestKey() { return vehicleRecordKey('wallflip2.best.' + (courseIdx === 0 ? 'A' : 'B')); }
 function boardKey() { return vehicleRecordKey('wallflip2.board.' + (courseIdx === 0 ? 'A' : 'B')); }
@@ -1307,6 +1308,7 @@ function toAir(kind) {
   car.phi = k.phi; car.phiL = k.phi; car.rw = 0; car.stuntRolls = 0;
   car.spinTotal = 0; car.rollsAccum = 0; car.spinRight = 0; car.spinLeft = 0;
   car.hasSwitchedDir = false;
+  car.comboMult = 1.0; car.hasSkimmed = false; car.skimTime = 0; car.hasInverted = false; car.invertTime = 0;
   car.phase = over ? 'inverted' : 'upright';
   launchX = car.x;
   car.peeled = kind === 'detach'; car.lifted = kind === 'lift'; car.launched = kind === 'launch';
@@ -1573,6 +1575,7 @@ function stepAir(dt) {
     car.mode = 'road'; car.u = Math.max(-RUNUP, car.x); car.v = car.vx; car.rw = 0;
     car.spinTotal = 0; car.rollsAccum = 0; car.spinRight = 0; car.spinLeft = 0;
     car.hasSwitchedDir = false; car.phase = 'upright';
+    car.comboMult = 1.0; car.hasSkimmed = false; car.skimTime = 0; car.hasInverted = false; car.invertTime = 0;
     const p2 = bodyPose(car.u);
     car.x = p2.x; car.y = p2.y; car.th = p2.th;
     return;
@@ -1588,7 +1591,13 @@ function stepAir(dt) {
   stats.soft = Math.round(30 * clamp(1 - fall / LAND_SPEED, 0, 1));
   stats.level = Math.round(20 * clamp(1 - tilt / LAND_TILT, 0, 1));
   stats.rollPts = 50 * stats.rolls;
-  stats.total = Math.round(stats.rollPts + stats.soft + stats.level);
+  const stuntBase = (car.hasSkimmed ? 25 : 0) + (car.hasInverted ? 20 : 0) + (car.hasSwitchedDir ? 20 : 0);
+  stats.comboMult = car.comboMult || 1;
+  stats.hasSkimmed = !!car.hasSkimmed;
+  stats.hasInverted = !!car.hasInverted;
+  stats.hasSwitchedDir = !!car.hasSwitchedDir;
+  stats.stuntPts = stuntBase > 0 ? Math.round(stuntBase * stats.comboMult) : 0;
+  stats.total = Math.round(stats.rollPts + stats.soft + stats.level + stats.stuntPts);
   stats.win = true;
   stats.time = car.time;
   stats.newTimeRecord = false;
@@ -1679,7 +1688,7 @@ function showResult() {
     }
 
   } else {
-    stats.soft = 0; stats.level = 0; stats.rollPts = 0; stats.total = 0;
+    stats.soft = 0; stats.level = 0; stats.rollPts = 0; stats.stuntPts = 0; stats.total = 0;
   }
   flightCoach.finish({...stats, air:car.air}, !botOn);
   state = ST.RESULT; stateT = 0;
@@ -2369,6 +2378,7 @@ function drawResult() {
     [t('rowRolls', stats.rolls), '+' + stats.rollPts],
     [t('rowSoft'), stats.soft + ' / 30'],
     [t('rowLevel'), stats.level + ' / 20'],
+    ...(stats.stuntPts > 0 ? [[t('rowStunt', stats.comboMult.toFixed(1)), '+' + stats.stuntPts]] : []),
   ] : [];
   const ph = 24 + 28 + subLines.length * 18 + (stats.win ? 36 + 16 + rows.length * 28 + 28 : 56) + 20;
   const py = -ph + (Math.max(64, H() * 0.12) + ph) * slide;

@@ -7,6 +7,7 @@ interface ChromaStarMapProps {
   dailyColors?: Color[];
   recentScores?: number[];
   onApplyHue?: (hue: number) => void;
+  disableHarmonySnap?: boolean;
   streak?: number;
 }
 
@@ -15,6 +16,7 @@ export function ChromaStarMap({
   dailyColors = [],
   recentScores = [],
   onApplyHue,
+  disableHarmonySnap = false,
   streak = 0,
 }: ChromaStarMapProps) {
   // Constellation nodes on polar coordinates
@@ -143,14 +145,14 @@ export function ChromaStarMap({
                 fontFamily="ui-monospace, monospace"
                 opacity="0.8"
               >
-                {node.score != null ? `${node.score}分` : `H${node.color.h}`}
+                {node.score != null ? `${node.score}分` : dailyColors.length === 0 ? '當前' : ''}
               </text>
             </g>
           ))}
         </svg>
 
         <span className="text-[10px] font-mono text-fuchsia-300/80 -mt-2">
-          {dailyColors.length > 0 ? '每日挑戰色譜星圖軌道' : '當前色度引力星圖'}
+          {dailyColors.length > 0 ? '已提交回合色譜星圖' : '當前色度引力星圖'}
         </span>
       </div>
 
@@ -159,30 +161,36 @@ export function ChromaStarMap({
         <span className="text-[11px] font-mono font-semibold text-white/70 block">
           光波共振錦囊（點擊快速調諧色相）：
         </span>
-        <div className="grid grid-cols-2 gap-2">
-          {harmonies.map((harm) => (
-            <button
-              key={harm.name}
-              type="button"
-              onClick={() => onApplyHue?.(harm.hue)}
-              className="flex items-center gap-2 p-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 hover:border-fuchsia-500/30 transition-all text-left group"
-              title={`${harm.name} (${harm.desc})`}
-            >
-              <span
-                className="w-5 h-5 rounded-md shrink-0 border border-white/20 group-hover:scale-110 transition-transform"
-                style={{ backgroundColor: `hsl(${harm.hue}, 80%, 55%)` }}
-              />
-              <div className="overflow-hidden">
-                <div className="text-[11px] font-medium text-white/90 leading-tight">
-                  {harm.name}
+        {disableHarmonySnap ? (
+          <div className="p-2.5 rounded-lg bg-white/5 border border-white/10 text-[11px] text-amber-200/80 leading-relaxed">
+            互補色／類似色作答期間已停用一鍵角度跳轉，請依記憶與色相盤手動調校。
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            {harmonies.map((harm) => (
+              <button
+                key={harm.name}
+                type="button"
+                onClick={() => onApplyHue?.(harm.hue)}
+                className="flex items-center gap-2 p-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 hover:border-fuchsia-500/30 transition-all text-left group"
+                title={`${harm.name} (${harm.desc})`}
+              >
+                <span
+                  className="w-5 h-5 rounded-md shrink-0 border border-white/20 group-hover:scale-110 transition-transform"
+                  style={{ backgroundColor: `hsl(${harm.hue}, 80%, 55%)` }}
+                />
+                <div className="overflow-hidden">
+                  <div className="text-[11px] font-medium text-white/90 leading-tight">
+                    {harm.name}
+                  </div>
+                  <div className="text-[9px] font-mono text-fuchsia-300/70">
+                    {harm.hue}° ({harm.angle})
+                  </div>
                 </div>
-                <div className="text-[9px] font-mono text-fuchsia-300/70">
-                  {harm.hue}° ({harm.angle})
-                </div>
-              </div>
-            </button>
-          ))}
-        </div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Tactical Keyboard Guide */}
@@ -205,7 +213,7 @@ export function ChromaStarMap({
         </div>
         <div className="flex justify-between">
           <span className="text-white/40">H / P</span>
-          <span className="text-white/90">長按透視目標色</span>
+          <span className="text-white/90">透視提示（每局 1 次 -150 分）</span>
         </div>
         <div className="flex justify-between">
           <span className="text-white/40">R</span>

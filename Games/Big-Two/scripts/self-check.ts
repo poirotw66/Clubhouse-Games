@@ -1366,6 +1366,106 @@ function expectAntiCollusionDingDa(): void {
   const dingDaSeat2 = enforceDingDaPenalty(mockOutcome, 2);
   assert.deepEqual(dingDaSeat2.deltas, [68, 0, -68, 0]);
   assert.equal(dingDaSeat2.deltas.reduce((a, b) => a + b, 0), 0);
+
+  // End-to-end engine settlement: seat 0 violates Ding Da and seat 1 (1 card) goes out immediately.
+  const baseDeal = deal('ding-da-e2e', 'hard');
+  const liveViolationState: GameState = {
+    ...baseDeal,
+    phase: 'playing',
+    turn: 0,
+    hands: [
+      hand('♣3', '♠2'),
+      hand('♥A'),
+      hand('♦4', '♣5', '♥6', '♠7'),
+      hand('♣8', '♦9', '♥10', '♠J', '♣Q'),
+    ],
+    table: null,
+    tableOwner: null,
+    passed: [],
+    log: [{ seat: 3, play: detectPlay([card('♣4')]) }], // past opening play
+    winner: null,
+    pendingDingDaViolator: null,
+    dingDaViolator: null,
+  };
+  // Seat 0 plays ♣3 while holding ♠2 and seat 1 has 1 card -> violation recorded as pending
+  const afterViolation = play(liveViolationState, hand('♣3'));
+  assert.equal(afterViolation.pendingDingDaViolator, 0);
+  // Seat 1 immediately plays ♥A and goes out -> seat 0 is settled as dingDaViolator
+  const afterSeat1Win = play(afterViolation, hand('♥A'));
+  assert.equal(afterSeat1Win.phase, 'over');
+  assert.equal(afterSeat1Win.winner, 1);
+  assert.equal(afterSeat1Win.dingDaViolator, 0);
+
+  const settledOutcome = outcome(afterSeat1Win)!;
+  assert.equal(settledOutcome.dingDaViolator, 0);
+  const settledDeltas = handDeltas(settledOutcome);
+  assert.equal(settledDeltas[1], settledOutcome.pot, 'winner receives entire pot');
+  assert.equal(settledDeltas[0], -settledOutcome.pot, 'violator pays entire pot');
+  assert.equal(settledDeltas[2], 0, 'innocent seat 2 pays 0');
+  assert.equal(settledDeltas[3], 0, 'innocent seat 3 pays 0');
+  assert.equal(settledDeltas.reduce((a, b) => a + b, 0), 0);
+
+  const settledMatch = applyHandResult(
+    createMatch({
+      mode: 'hands',
+      hands: 4,
+      target: 100,
+      difficulty: 'hard',
+      rules: { straights: 'topCard', sizeLadder: true, deuceDouble: true },
+      seedCode: 'ding-da-e2e',
+    }),
+    settledOutcome,
+    'ding-da-e2e',
+    afterSeat1Win,
+  );
+  assert.deepEqual(settledMatch.balances, settledDeltas);
+  const review = buildHandReview(afterSeat1Win, settledOutcome);
+  assert.equal(review.dingDaViolator, 0);
+  assert.ok(review.lessons.some((l) => l.title.includes('頂大包賠')));
+
+  // If seat 1 cannot beat seat 0's single and passes, pending violation clears and normal settlement applies.
+  const nonLethalState: GameState = {
+    ...liveViolationState,
+    hands: [
+      hand('♦K', '♠2'),
+      hand('♣4'),
+      hand('♦4', '♣5', '♥6', '♠7'),
+      hand('♣8', '♦9', '♥10', '♠J', '♣Q'),
+    ],
+  };
+  const afterKing = play(nonLethalState, hand('♦K'));
+  assert.equal(afterKing.pendingDingDaViolator, 0);
+  const afterSeat1Pass = pass(afterKing);
+  assert.equal(afterSeat1Pass.pendingDingDaViolator, null);
+
+  // CPU across all difficulties must obey Ding Da when next seat holds 1 card.
+  for (const diff of ['easy', 'normal', 'hard'] as const) {
+    const cpuDingDaLead: GameState = {
+      ...baseDeal,
+      difficulty: diff,
+      phase: 'playing',
+      turn: 1,
+      hands: [
+        hand('♣5', '♦6'),
+        hand('♣4', '♦9', '♠2'),
+        hand('♣A'),
+        hand('♣8', '♦10', '♥J'),
+      ],
+      table: detectPlay(hand('♣3')),
+      tableOwner: 0,
+      passed: [],
+      log: [{ seat: 0, play: detectPlay(hand('♣3')) }],
+      winner: null,
+    };
+    const cpuReply = chooseMove(cpuDingDaLead);
+    if (cpuReply !== null) {
+      assert.equal(
+        isDingDaViolation(cpuDingDaLead.hands[1], cpuReply, 1),
+        false,
+        `${diff} CPU must not violate Ding Da when next seat holds 1 card`,
+      );
+    }
+  }
 }
 
 /**

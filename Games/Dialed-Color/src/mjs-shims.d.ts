@@ -17,6 +17,9 @@ declare module './score.mjs' {
   export function scoreEmoji(score: number): string;
   export function scoreBandLabel(score: number): string;
   export function scoreToAccuracy(score: number): number;
+  export const MAX_PEEKS_PER_RUN: number;
+  export const PEEK_PENALTY: number;
+  export function applyPeekPenalty(score: number, usedPeek: boolean): number;
 }
 
 declare module './rng.mjs' {

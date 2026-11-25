@@ -19,15 +19,20 @@ import {
   getTimingWindows,
   getAttackDelayRange,
   getProjectileDurationScale,
+  getEffectiveProjectileDurationMs,
+  DURATION_KUNAI,
+  MIN_KUNAI_FLIGHT_MS,
   SCENARIO_WEIGHTS,
   SCENARIO_DEFAULT_INTENSITY,
   pickProjectileType,
   SCORE_PERFECT,
   SCORE_GOOD,
+  SCORE_GUARD,
   SCORE_FEINT_PATIENCE,
   SCORE_EARLY_PENALTY,
   DAMAGE_PLAYER_HIT,
   DAMAGE_PLAYER_BLOCK,
+  DAMAGE_GUARD,
   HEAL_PERFECT,
   DAMAGE_ENEMY_PERFECT,
   DAMAGE_ENEMY_GOOD,
@@ -44,7 +49,8 @@ import {
 import { DAN_RANKS, computeDanRankStatus } from './danRank.ts';
 import { OPPONENTS, getOpponent, opponentCount, opponentByIndex, opponentById, opponentIndexOf } from './opponents.ts';
 import { computeReactionRank, betterRank, RANK_LABELS, rankSortKey } from './ranks.ts';
-import { resolveCounter, BASELINE_WINDOWS } from './resolveCounter.ts';
+import { resolveCounter, resolveVersusRelease, BASELINE_WINDOWS } from './resolveCounter.ts';
+import { createPatternState, nextAttackEvent } from './patterns.ts';
 import { dailySeedNumber, dailyOpponent, dailyOpponentIndex, dateKey, computeStreak } from './daily.ts';
 import { CounterResult } from './types.ts';
 import { isOpponentUnlocked, applyLadderResult, mergeLadder, EMPTY_LADDER } from './storage.ts';
@@ -173,6 +179,53 @@ assert.equal(tooEarly.result, CounterResult.EARLY);
 
 const tooLate = resolveCounter({ ...baseResolve, timingDiffMs: 350 });
 assert.equal(tooLate.result, CounterResult.LATE);
+
+// Neutral guard (Space/J): partial block only — never PERFECT, no wrong-side, still punished by feint/early/late
+const guardExact = resolveCounter({ ...baseResolve, timingDiffMs: 0, playerSide: 'guard', attackSide: 'right' });
+assert.equal(guardExact.result, CounterResult.GUARD, 'Neutral guard must not award PERFECT');
+const guardFeint = resolveCounter({ ...baseResolve, timingDiffMs: 0, playerSide: 'guard', isFeint: true });
+assert.equal(guardFeint.result, CounterResult.FEINT, 'Neutral guard still punished on feints');
+const guardLate = resolveCounter({ ...baseResolve, timingDiffMs: 350, playerSide: 'guard' });
+assert.equal(guardLate.result, CounterResult.LATE, 'Neutral guard still punished when late');
+assert.equal(SCORE_GUARD, 100);
+assert.equal(DAMAGE_GUARD, 8);
+
+// Versus release validation: late releases & feints must foul rather than scoring
+assert.deepEqual(
+  resolveVersusRelease({ attacking: true, isFeint: false, timingDiffMs: 40, goodWindowMs: 300, alreadyFouled: false }),
+  { outcome: 'point' },
+);
+assert.deepEqual(
+  resolveVersusRelease({ attacking: true, isFeint: false, timingDiffMs: 320, goodWindowMs: 300, alreadyFouled: false }),
+  { outcome: 'foul', reason: 'late' },
+  'Versus late release must be a foul, not a point',
+);
+assert.deepEqual(
+  resolveVersusRelease({ attacking: true, isFeint: true, timingDiffMs: 0, goodWindowMs: 300, alreadyFouled: false }),
+  { outcome: 'foul', reason: 'feint' },
+  'Versus release on feint must be a foul, not a point',
+);
+assert.deepEqual(
+  resolveVersusRelease({ attacking: false, isFeint: false, timingDiffMs: -9999, goodWindowMs: 300, alreadyFouled: false }),
+  { outcome: 'foul', reason: 'early' },
+);
+assert.deepEqual(
+  resolveVersusRelease({ attacking: true, isFeint: false, timingDiffMs: 0, goodWindowMs: 300, alreadyFouled: true }),
+  { outcome: 'ignore' },
+);
+
+// Kunai minimum duration scale stays fair for directional reading
+assert.ok(
+  getEffectiveProjectileDurationMs(DURATION_KUNAI, 0.55, 32000, 4, 'KUNAI') >= MIN_KUNAI_FLIGHT_MS,
+  'Effective kunai duration must respect MIN_KUNAI_FLIGHT_MS floor',
+);
+const surgeOpp = getOpponent('surge');
+assert.ok(surgeOpp != null);
+const patState = createPatternState();
+patState.strikeIndex = 20;
+const surgeEvt = nextAttackEvent(surgeOpp, patState, () => 0.1, 'kunai');
+assert.equal(surgeEvt.projectile, 'KUNAI');
+assert.ok(surgeEvt.durationScale >= 0.85, `Kunai pattern durationScale must stay >= 0.85, got ${surgeEvt.durationScale}`);
 
 // Visual and feedback constants
 assert.equal(HIT_STOP_DURATION, 150, 'Hit stop duration must be 150ms');

@@ -66,9 +66,11 @@ import {
   buildDeck,
   clampPairCount,
   cpuCapacityFor,
+  defaultAssistForMode,
   gridColsClass,
   gridGapClass,
   hintPairIndices,
+  invalidateSwappedMemory,
   isMatchGroup,
   loadBestMoves,
   loadBestScore,
@@ -83,7 +85,9 @@ import {
   saveVersusWin,
   scoreForMatch,
   sprintLimitSec,
-  swapTwoHiddenCards,
+  swapTwoHiddenCardsWithMeta,
+  versusPenaltyForMiss,
+  versusPointsForMatch,
   type CpuDifficulty,
   type MemoryCard,
   type PairCount,
@@ -240,7 +244,14 @@ export default function App() {
   const [turnOwner, setTurnOwner] = useState<TurnOwner>('player');
   const [playerPairs, setPlayerPairs] = useState(0);
   const [cpuPairs, setCpuPairs] = useState(0);
+  const [playerVersusScore, setPlayerVersusScore] = useState(0);
+  const [cpuVersusScore, setCpuVersusScore] = useState(0);
+  const [playerVersusStreak, setPlayerVersusStreak] = useState(0);
+  const [cpuVersusStreak, setCpuVersusStreak] = useState(0);
+  const [versusGamble, setVersusGamble] = useState(false);
   const [versusOutcome, setVersusOutcome] = useState<'win' | 'lose' | 'draw' | null>(null);
+  const [assistMode, setAssistMode] = useState<boolean>(() => defaultAssistForMode('classic'));
+  const [runAssisted, setRunAssisted] = useState(false);
   const [cpuMemory, setCpuMemory] = useState<CpuMemory>(() => emptyCpuMemory());
   const [settingsOpen, setSettingsOpen] = useState(true);
   const [showTip, setShowTip] = useState(() => !loadTipsDismissed());
@@ -267,6 +278,12 @@ export default function App() {
   const cpuSecondFlipRef = useRef<number | null>(null);
   const playerPairsRef = useRef(0);
   const cpuPairsRef = useRef(0);
+  const playerVersusScoreRef = useRef(0);
+  const cpuVersusScoreRef = useRef(0);
+  const playerVersusStreakRef = useRef(0);
+  const cpuVersusStreakRef = useRef(0);
+  const versusGambleRef = useRef(false);
+  const runAssistedRef = useRef(false);
   const comboRef = useRef(0);
   const scoreRef = useRef(0);
   const movesRef = useRef(0);
@@ -333,6 +350,20 @@ export default function App() {
     setFlashKey((k) => k + 1);
   }, []);
 
+  const toggleAssistMode = useCallback(() => {
+    setAssistMode((prev) => {
+      const next = !prev;
+      if (next) {
+        runAssistedRef.current = true;
+        setRunAssisted(true);
+        showFlash('已開啟輔助提示（標記為輔助局）', 'neutral');
+      } else {
+        showFlash('已關閉輔助提示', 'neutral');
+      }
+      return next;
+    });
+  }, [showFlash]);
+
   const resetTransient = useCallback(() => {
     setFlipped([]);
     setLocks(false);
@@ -353,6 +384,11 @@ export default function App() {
     setTurnOwner('player');
     setPlayerPairs(0);
     setCpuPairs(0);
+    setPlayerVersusScore(0);
+    setCpuVersusScore(0);
+    setPlayerVersusStreak(0);
+    setCpuVersusStreak(0);
+    setVersusGamble(false);
     setVersusOutcome(null);
     setCpuMemory(emptyCpuMemory());
     setLastStars(null);
@@ -372,6 +408,11 @@ export default function App() {
     }
     playerPairsRef.current = 0;
     cpuPairsRef.current = 0;
+    playerVersusScoreRef.current = 0;
+    cpuVersusScoreRef.current = 0;
+    playerVersusStreakRef.current = 0;
+    cpuVersusStreakRef.current = 0;
+    versusGambleRef.current = false;
     comboRef.current = 0;
     scoreRef.current = 0;
     movesRef.current = 0;
@@ -416,6 +457,10 @@ export default function App() {
       setCards(
         buildDeck(opts.faceCount, opts.nextTheme, opts.rand ?? Math.random, opts.deckOptions ?? {}),
       );
+      const nextAssist = defaultAssistForMode(opts.nextMode);
+      setAssistMode(nextAssist);
+      setRunAssisted(nextAssist);
+      runAssistedRef.current = nextAssist;
       resetTransient();
       const freeMode: PlayMode =
         opts.nextMode === 'special'
@@ -570,18 +615,26 @@ export default function App() {
     }
   }, [elapsed, mode, pairCount, won, lost, versusOutcome, timeLimitSec]);
 
-  // Campaign swap mechanic — periodically swap two face-down cards.
+  // Campaign swap mechanic — periodically swap two face-down cards and invalidate stale memory sightings.
   useEffect(() => {
     if (mode !== 'campaign' || swapEverySec == null) return;
     if (won || lost) return;
     const id = window.setInterval(() => {
       if (endedRef.current || resolvingRef.current) return;
       if (flippedRef.current.length > 0) return;
-      setCards((prev) => swapTwoHiddenCards(prev, flippedRef.current, Math.random));
+      const { cards: nextCards, swapped } = swapTwoHiddenCardsWithMeta(
+        cardsRef.current,
+        flippedRef.current,
+        Math.random,
+      );
+      if (!swapped) return;
+      setCards(nextCards);
+      setSeenIndices((prev) => invalidateSwappedMemory(prev, new Map(), swapped).seenIndices);
+      setSightings((prev) => invalidateSwappedMemory(new Set(), prev, swapped).sightings);
       showFlash('牌位互換！', 'neutral');
     }, swapEverySec * 1000);
     return () => window.clearInterval(id);
-  }, [mode, swapEverySec, won, lost, cards, showFlash]);
+  }, [mode, swapEverySec, won, lost, showFlash]);
 
   useEffect(() => {
     if ((flipped.length > 0 || moves > 0) && settingsOpen) setSettingsOpen(false);
@@ -616,6 +669,7 @@ export default function App() {
     (finalMoves: number, finalScore: number, finalElapsed: number) => {
       setWon(true);
       playWin();
+      const assisted = runAssistedRef.current;
       let record = false;
 
       if (mode === 'daily') {
@@ -625,13 +679,16 @@ export default function App() {
           elapsedSec: finalElapsed,
           score: finalScore,
           pairCount,
+          assisted,
         });
         setDailyRecords(next);
         const prev = todayRecord;
         record =
-          !prev ||
-          finalMoves < prev.moves ||
-          (finalMoves === prev.moves && finalElapsed < prev.elapsedSec);
+          !assisted &&
+          (!prev ||
+            Boolean(prev.assisted) ||
+            finalMoves < prev.moves ||
+            (finalMoves === prev.moves && finalElapsed < prev.elapsedSec));
         setNewRecord(record);
         return;
       }
@@ -640,9 +697,18 @@ export default function App() {
         const stage = CAMPAIGN_STAGES[stageIndex];
         const earned = stage ? starsEarned(stage, finalMoves, finalElapsed) : 1;
         setLastStars(earned);
-        const next = clearStageAndPersist(stageIndex, finalMoves, finalElapsed);
-        setCampaign(next);
-        setNewRecord(earned >= (campaign.stars[stage?.id ?? ''] ?? 0));
+        if (!assisted) {
+          const next = clearStageAndPersist(stageIndex, finalMoves, finalElapsed);
+          setCampaign(next);
+          setNewRecord(earned >= (campaign.stars[stage?.id ?? ''] ?? 0));
+        } else {
+          setNewRecord(false);
+        }
+        return;
+      }
+
+      if (assisted) {
+        setNewRecord(false);
         return;
       }
 
@@ -670,20 +736,25 @@ export default function App() {
   );
 
   const finishVersus = useCallback(
-    (pPairs: number, cPairs: number) => {
+    (pPairs: number, cPairs: number, pScore: number, cScore: number) => {
       let outcome: 'win' | 'lose' | 'draw';
-      if (pPairs > cPairs) outcome = 'win';
-      else if (pPairs < cPairs) outcome = 'lose';
+      if (pScore !== cScore) outcome = pScore > cScore ? 'win' : 'lose';
+      else if (pPairs !== cPairs) outcome = pPairs > cPairs ? 'win' : 'lose';
       else outcome = 'draw';
       setVersusOutcome(outcome);
+      const assisted = runAssistedRef.current;
       if (outcome === 'win') {
         playWin();
-        const wins = saveVersusWin(pairCount, themeId, cpuDifficulty);
-        setVersusWins(wins);
-        const oppIndex = OPPONENTS.findIndex((o) => o.id === opponentId);
-        const nextRoster = recordRosterWin(opponentId, Math.max(0, oppIndex));
-        setRoster(nextRoster);
-        setNewRecord(true);
+        if (!assisted) {
+          const wins = saveVersusWin(pairCount, themeId, cpuDifficulty);
+          setVersusWins(wins);
+          const oppIndex = OPPONENTS.findIndex((o) => o.id === opponentId);
+          const nextRoster = recordRosterWin(opponentId, Math.max(0, oppIndex));
+          setRoster(nextRoster);
+          setNewRecord(true);
+        } else {
+          setNewRecord(false);
+        }
       } else if (outcome === 'lose') {
         playLose();
       } else {
@@ -746,9 +817,27 @@ export default function App() {
           if (actor === 'player') {
             playerPairsRef.current += 1;
             setPlayerPairs(playerPairsRef.current);
+            playerVersusStreakRef.current += 1;
+            setPlayerVersusStreak(playerVersusStreakRef.current);
+            const gambled = versusGambleRef.current;
+            versusGambleRef.current = false;
+            setVersusGamble(false);
+            const vs = versusPointsForMatch(playerVersusStreakRef.current, gambled);
+            playerVersusScoreRef.current += vs.points;
+            setPlayerVersusScore(playerVersusScoreRef.current);
+            if (vs.doubled) {
+              showFlash(`🎲 豪賭命中！+${vs.points} 對戰分`, 'good');
+            } else if (vs.streakBonus > 0) {
+              showFlash(`⚡ 連擊奪分 +${vs.points}（含連擊 +1）`, 'good');
+            }
           } else {
             cpuPairsRef.current += 1;
             setCpuPairs(cpuPairsRef.current);
+            cpuVersusStreakRef.current += 1;
+            setCpuVersusStreak(cpuVersusStreakRef.current);
+            const vs = versusPointsForMatch(cpuVersusStreakRef.current, false);
+            cpuVersusScoreRef.current += vs.points;
+            setCpuVersusScore(cpuVersusScoreRef.current);
           }
         } else if (insightBonus && mode === 'special') {
           setPeekCharges((c) => c + 1);
@@ -763,15 +852,35 @@ export default function App() {
         comboRef.current = 0;
         setCombo(0);
         const hitBomb = indices.some((i) => cards[i].kind === 'bomb');
-        if (hitBomb && bombPenaltySec > 0) {
-          elapsedRef.current += bombPenaltySec;
-          setElapsed(elapsedRef.current);
-          showFlash(`炸彈罰時 +${bombPenaltySec}s`, 'bad');
-        } else {
-          showFlash('未中', 'bad');
-        }
+        let versusMissFlashed = false;
         if (mode === 'versus') {
+          if (actor === 'player') {
+            playerVersusStreakRef.current = 0;
+            setPlayerVersusStreak(0);
+            const gambled = versusGambleRef.current;
+            versusGambleRef.current = false;
+            setVersusGamble(false);
+            const penalty = versusPenaltyForMiss(gambled);
+            if (penalty > 0) {
+              cpuVersusScoreRef.current += penalty;
+              setCpuVersusScore(cpuVersusScoreRef.current);
+              showFlash(`🎲 豪賭失手！對手 +${penalty} 分`, 'bad');
+              versusMissFlashed = true;
+            }
+          } else {
+            cpuVersusStreakRef.current = 0;
+            setCpuVersusStreak(0);
+          }
           setTurnOwner(actor === 'player' ? 'cpu' : 'player');
+        }
+        if (!versusMissFlashed) {
+          if (hitBomb && bombPenaltySec > 0) {
+            elapsedRef.current += bombPenaltySec;
+            setElapsed(elapsedRef.current);
+            showFlash(`炸彈罰時 +${bombPenaltySec}s`, 'bad');
+          } else {
+            showFlash('未中', 'bad');
+          }
         }
       }
       setFlipped([]);
@@ -786,7 +895,12 @@ export default function App() {
         particles('confetti', { el: gridRef.current, strength: 1.1 });
         shake(gridRef.current, 0.95);
         if (mode === 'versus') {
-          finishVersus(playerPairsRef.current, cpuPairsRef.current);
+          finishVersus(
+            playerPairsRef.current,
+            cpuPairsRef.current,
+            playerVersusScoreRef.current,
+            cpuVersusScoreRef.current,
+          );
         } else {
           finishSoloWin(movesRef.current, scoreRef.current, elapsedRef.current);
         }
@@ -978,6 +1092,7 @@ export default function App() {
       streak: computeStreak(dailyRecords, today),
       pairCount: rec.pairCount,
       themeLabel,
+      assisted: rec.assisted,
     });
     const ok = await copyText(text);
     setShareCopied(ok);
@@ -1289,14 +1404,30 @@ export default function App() {
       return (
         <>
           <HudCell label="牌組" value={themeLabel} span />
-          <HudCell label="你" value={playerPairs} tone="good" />
-          <HudCell label={activeOpponent.name} value={cpuPairs} tone="hot" />
+          <HudCell label="你" value={`${playerVersusScore}分 (${playerPairs}對)`} tone="good" />
+          <HudCell
+            label={activeOpponent.name}
+            value={`${cpuVersusScore}分 (${cpuPairs}對)`}
+            tone="hot"
+          />
           <HudCell
             label="回合"
-            value={turnOwner === 'player' ? '你的回合' : `${activeOpponent.name}…`}
+            value={
+              turnOwner === 'player'
+                ? playerVersusStreak > 0
+                  ? `你的回合 · 連擊 ${playerVersusStreak}`
+                  : '你的回合'
+                : cpuVersusStreak > 0
+                  ? `${activeOpponent.name}… · 連擊 ${cpuVersusStreak}`
+                  : `${activeOpponent.name}…`
+            }
             tone={turnOwner === 'cpu' ? 'hot' : 'good'}
           />
-          {versusWins > 0 ? <HudCell label="勝場" value={versusWins} /> : null}
+          {runAssisted ? (
+            <HudCell label="模式" value="輔助局" tone="hot" />
+          ) : versusWins > 0 ? (
+            <HudCell label="勝場" value={versusWins} />
+          ) : null}
         </>
       );
     }
@@ -1330,6 +1461,7 @@ export default function App() {
         {mode === 'special' ? <HudCell label="洞察" value={`×${peekCharges}`} /> : null}
         {activeStage?.mechanic === 'swap' ? <HudCell label="機制" value="互換" /> : null}
         {activeStage?.mechanic === 'bomb' ? <HudCell label="機制" value="炸彈" tone="hot" /> : null}
+        {runAssisted ? <HudCell label="提示" value="輔助局" tone="hot" /> : null}
       </>
     );
   })();
@@ -1359,7 +1491,10 @@ export default function App() {
           feverLabel={feverState.label}
           knownReadyPairs={radar.knownReadyPairs}
           focusedIndex={focusedIndex}
+          assistMode={assistMode}
+          onToggleAssist={toggleAssistMode}
           onSelectCell={(idx) => {
+            if (!assistMode) return;
             setFocusedIndex(idx);
             onCard(idx);
           }}
@@ -1471,6 +1606,17 @@ export default function App() {
                 關卡選單 · {activeStage.name}
               </button>
             )}
+
+            <div className="mm-chip-row" role="group" aria-label="輔助提示">
+              <button
+                type="button"
+                onClick={toggleAssistMode}
+                aria-pressed={assistMode}
+                className={`mm-chip${assistMode ? ' is-mode' : ''}`}
+              >
+                輔助提示：{assistMode ? '開啟（標記輔助局）' : '關閉（純記憶）'}
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -1493,9 +1639,13 @@ export default function App() {
         <span className="text-sky-300 font-bold">留存 {retentionPct}%</span>
         <span className="text-slate-400">·</span>
         <span
-          className={radar.knownReadyPairs > 0 ? 'text-amber-300 font-bold animate-pulse' : 'text-slate-300'}
+          className={
+            assistMode && radar.knownReadyPairs > 0
+              ? 'text-amber-300 font-bold animate-pulse'
+              : 'text-slate-300'
+          }
         >
-          {radar.knownReadyPairs > 0
+          {assistMode && radar.knownReadyPairs > 0
             ? `⚡ 鎖定 ${radar.knownReadyPairs} 組`
             : `探勘 ${radar.explorationPct}%`}
         </span>
@@ -1542,7 +1692,10 @@ export default function App() {
               feverLabel={feverState.label}
               knownReadyPairs={radar.knownReadyPairs}
               focusedIndex={focusedIndex}
+              assistMode={assistMode}
+              onToggleAssist={toggleAssistMode}
               onSelectCell={(idx) => {
+                if (!assistMode) return;
                 setFocusedIndex(idx);
                 setShowMobileTelemetry(false);
                 onCard(idx);
@@ -1580,8 +1733,8 @@ export default function App() {
                 dense={faceLike >= 18 || cards.length >= 30}
                 focused={focusedIndex === i}
                 coordinate={cell?.coordinate ?? `C${i + 1}`}
-                phosphorLevel={cell?.level ?? 0}
-                echoReady={radar.knownReadyIndices.includes(i)}
+                phosphorLevel={assistMode ? (cell?.level ?? 0) : 0}
+                echoReady={assistMode && radar.knownReadyIndices.includes(i)}
                 disabled={
                   locks ||
                   hintFlash.length > 0 ||
@@ -1604,6 +1757,35 @@ export default function App() {
             提示
           </button>
         )}
+        {mode === 'versus' && (
+          <button
+            type="button"
+            onClick={() => {
+              if (turnOwner !== 'player' || locks || flipped.length > 0 || versusOutcome) return;
+              setVersusGamble((prev) => {
+                const next = !prev;
+                versusGambleRef.current = next;
+                playMove();
+                return next;
+              });
+            }}
+            disabled={turnOwner !== 'player' || locks || flipped.length > 0 || Boolean(versusOutcome)}
+            aria-pressed={versusGamble}
+            className={`mm-btn${versusGamble ? ' mm-btn--peek is-armed' : ''}`}
+            title="本回合配對成功可獲雙倍對戰分；失手則對手加 1 分"
+          >
+            {versusGamble ? '🎲 豪賭加倍中 (×2)' : '🎲 豪賭加倍'}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={toggleAssistMode}
+          aria-pressed={assistMode}
+          className={`mm-btn${assistMode ? ' mm-btn--peek is-armed' : ''}`}
+          title="開啟後顯示牌背記憶餘暉、雙牌光環與點擊矩陣提示（會標記為輔助局）"
+        >
+          {assistMode ? '輔助提示：開' : '輔助提示：關'}
+        </button>
         {mode === 'special' && (
           <button
             type="button"
@@ -1631,7 +1813,7 @@ export default function App() {
       )}
       {mode === 'versus' && (
         <p className="mm-meta">
-          對上 {activeOpponent.name}：{activeOpponent.blurb}
+          對上 {activeOpponent.name}：{activeOpponent.blurb}（連擊 +1 分，或啟用豪賭 ×2／失手對手 +1 分）
         </p>
       )}
       {mode === 'campaign' && activeStage && <p className="mm-meta">{activeStage.blurb}</p>}
@@ -1660,8 +1842,14 @@ export default function App() {
               <span>{activeOpponent.tagline}</span>
             </div>
             <div className="mm-wing__row">
-              <span className="mm-wing__label">比分</span>
+              <span className="mm-wing__label">對戰積分</span>
               <span className="mm-wing__value text-amber-300 font-bold">
+                {playerVersusScore} : {cpuVersusScore}
+              </span>
+            </div>
+            <div className="mm-wing__row text-xs text-slate-400">
+              <span>已配對數</span>
+              <span>
                 {playerPairs} : {cpuPairs}
               </span>
             </div>
@@ -1790,17 +1978,20 @@ export default function App() {
           title={mode === 'campaign' ? '關卡通過！' : mode === 'daily' ? '每日通關！' : '全部配對！'}
           variant="win"
           badge={
-            mode === 'campaign' && lastStars
-              ? starGlyphs(lastStars)
-              : newRecord
-                ? '新紀錄'
-                : undefined
+            runAssisted
+              ? '輔助局'
+              : mode === 'campaign' && lastStars
+                ? starGlyphs(lastStars)
+                : newRecord
+                  ? '新紀錄'
+                  : undefined
           }
           stats={[
             { label: '牌組', value: themeLabel },
             { label: '翻牌次數', value: moves },
             { label: '用時', value: `${elapsed}s` },
             { label: '連擊分數', value: score },
+            { label: '記憶模式', value: runAssisted ? '輔助提示（不計紀錄）' : '純記憶' },
             ...(mode === 'campaign' && lastStars
               ? [{ label: '星數', value: starGlyphs(lastStars) }]
               : []),
@@ -1884,17 +2075,25 @@ export default function App() {
           }
           variant={versusOutcome === 'win' ? 'win' : versusOutcome === 'lose' ? 'lose' : 'neutral'}
           badge={
-            versusOutcome === 'win' && newRecord
-              ? roster.unlockedIndex > OPPONENTS.findIndex((o) => o.id === opponentId)
-                ? '解鎖下一位'
-                : '勝場 +1'
-              : undefined
+            versusOutcome === 'win'
+              ? runAssisted
+                ? '輔助練習勝（純記憶才解鎖）'
+                : newRecord
+                  ? roster.unlockedIndex > OPPONENTS.findIndex((o) => o.id === opponentId)
+                    ? '解鎖下一位'
+                    : '勝場 +1'
+                  : undefined
+              : runAssisted
+                ? '輔助局'
+                : undefined
           }
           stats={[
-            { label: '比數', value: `${playerPairs} : ${cpuPairs}` },
+            { label: '對戰積分', value: `${playerVersusScore} : ${cpuVersusScore}` },
+            { label: '配對比數', value: `${playerPairs} : ${cpuPairs}` },
             { label: '對手', value: activeOpponent.name },
             { label: '盤面', value: `${themeLabel} · ${pairCount} 對` },
             { label: '翻牌次數', value: moves },
+            { label: '記憶模式', value: runAssisted ? '輔助提示（不計勝場）' : '純記憶' },
             { label: '累計勝場', value: versusWins },
           ]}
           onPrimary={() => {

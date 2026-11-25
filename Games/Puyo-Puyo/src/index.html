@@ -17,6 +17,7 @@
         <div class="title-group">
           <h1>魔法氣泡 Puyo Puyo</h1>
           <span class="badge" id="mode-badge">1P vs CPU · 6×12 · 連鎖送垃圾</span>
+          <span class="badge margin-badge" id="margin-badge" hidden>⚡ 加時壓力 · 70分=1垃圾</span>
         </div>
         <div class="header-actions">
           <label class="select-field">
@@ -312,7 +313,7 @@
         <div class="damage-matrix-card">
           <div class="radar-subhead">
             <span>連鎖威力傷害算盤</span>
-            <span class="radar-tag">70分 = 1垃圾</span>
+            <span class="radar-tag" id="damage-rate-tag">70分 = 1垃圾</span>
           </div>
           <div class="damage-table-wrap">
             <table class="damage-table" id="damage-matrix-table">

@@ -64,7 +64,9 @@ export const ReactionSpectrumRadar: React.FC<ReactionSpectrumRadarProps> = ({
                     ? 'text-cyan-300 drop-shadow-[0_0_8px_#22d3ee]'
                     : latestRecord.result === CounterResult.GOOD
                       ? 'text-amber-300'
-                      : 'text-rose-400'
+                      : latestRecord.result === CounterResult.GUARD
+                        ? 'text-slate-300'
+                        : 'text-rose-400'
               }`}
             >
               {latestRecord ? Math.abs(latestRecord.timing) : '—'}
@@ -83,7 +85,9 @@ export const ReactionSpectrumRadar: React.FC<ReactionSpectrumRadarProps> = ({
                   ? 'text-cyan-300 border-cyan-500/50 bg-cyan-950/50'
                   : latestRecord.result === CounterResult.GOOD
                     ? 'text-amber-300 border-amber-500/50 bg-amber-950/50'
-                    : 'text-rose-300 border-rose-500/50 bg-rose-950/50'
+                    : latestRecord.result === CounterResult.GUARD
+                      ? 'text-slate-300 border-slate-500/50 bg-slate-900/70'
+                      : 'text-rose-300 border-rose-500/50 bg-rose-950/50'
             }`}
           >
             {latestRecord
@@ -91,7 +95,9 @@ export const ReactionSpectrumRadar: React.FC<ReactionSpectrumRadarProps> = ({
                 ? '完美斬擊'
                 : latestRecord.result === CounterResult.GOOD
                   ? '極速格擋'
-                  : latestRecord.result === CounterResult.FEINT
+                  : latestRecord.result === CounterResult.GUARD
+                    ? '中立架招'
+                    : latestRecord.result === CounterResult.FEINT
                     ? '看破佯攻'
                     : latestRecord.result === CounterResult.WRONG_SIDE
                       ? '斬向錯側'
@@ -132,6 +138,7 @@ export const ReactionSpectrumRadar: React.FC<ReactionSpectrumRadarProps> = ({
             const isLatest = i === recentRecords.length - 1;
             const isPerf = r.result === CounterResult.PERFECT;
             const isGood = r.result === CounterResult.GOOD;
+            const isGuard = r.result === CounterResult.GUARD;
             return (
               <div
                 key={r.id}
@@ -144,7 +151,9 @@ export const ReactionSpectrumRadar: React.FC<ReactionSpectrumRadarProps> = ({
                     ? 'bg-cyan-300 shadow-[0_0_8px_#22d3ee]'
                     : isGood
                       ? 'bg-amber-400 shadow-[0_0_6px_#fbbf24]'
-                      : 'bg-rose-400'
+                      : isGuard
+                        ? 'bg-slate-400'
+                        : 'bg-rose-400'
                 }`}
                 style={{ left: `${x}%` }}
                 title={`${r.timing > 0 ? '+' : ''}${r.timing}ms`}

@@ -156,8 +156,8 @@ export function ChromaWheelDial({
           {showTarget ? '目標色（光學透視提示中）' : '當前調諧猜測色'}
         </span>
         <div className="font-mono text-[11px] text-[var(--color-muted)]">
-          {showTarget && targetColor
-            ? `目標 H${targetColor.h}° S${targetColor.s}% L${targetColor.l}%`
+          {showTarget
+            ? '光學透視中（僅供目視參考）'
             : `H${color.h}° S${color.s}% L${color.l}%`}
         </div>
       </div>

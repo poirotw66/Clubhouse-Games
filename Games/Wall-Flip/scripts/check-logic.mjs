@@ -68,6 +68,50 @@ assert.equal(scoreOf({ rolls: 2, fall: 0, tilt: 0 }).total, 150);
 assert.equal(scoreOf({ rolls: 2, fall: BASE.LAND_SPEED, tilt: BASE.LAND_TILT }).total, 100);
 assert.equal(scoreOf({ rolls: 0, fall: 100, tilt: 100 }).total, 0);
 
+// Aerial stunt flags and comboMult cleanly boost scoreOf total without breaking base scoring.
+{
+  const plain = scoreOf({ rolls: 1, fall: 0, tilt: 0 });
+  assert.equal(plain.stunt, 0);
+  assert.equal(plain.total, 100);
+
+  const skimmed = scoreOf({ rolls: 1, fall: 0, tilt: 0, hasSkimmed: true, comboMult: 1.9 });
+  assert.equal(skimmed.stunt, Math.round(25 * 1.9));
+  assert.equal(skimmed.total, 100 + Math.round(25 * 1.9));
+
+  const allStunts = scoreOf({
+    rolls: 1, fall: 0, tilt: 0,
+    hasSkimmed: true, hasInverted: true, hasSwitchedDir: true, comboMult: 2.6,
+  });
+  assert.equal(allStunts.stunt, Math.round((25 + 20 + 20) * 2.6));
+  assert.equal(allStunts.total, 100 + allStunts.stunt);
+}
+
+// Simulation stepAir detects skim/invert/switch stunts, updates comboMult, and carries them to state.land.
+{
+  const sim = createSim();
+  Object.assign(sim.state, {
+    mode: 'air', x: -50, y: 12, z: 0,
+    vx: -20, vy: 0, vz: 0,
+    roll: Math.PI, roll0: 0, pitch: 0, yaw: 0, rw: 0,
+    air: 80, clear: true,
+  });
+  for (let i = 0; i < Math.ceil(0.4 / BASE.STEP); i++) sim.step(BASE.STEP, idle);
+  assert.equal(sim.state.hasInverted, true, '3D sim stepAir detects sustained inverted flight');
+
+  Object.assign(sim.state, { y: 1.8, vx: -20, vy: 0, roll: 0, rw: 0, spinRight: Math.PI, spinLeft: Math.PI });
+  for (let i = 0; i < Math.ceil(0.15 / BASE.STEP); i++) sim.step(BASE.STEP, idle);
+  assert.equal(sim.state.hasSkimmed, true, '3D sim stepAir detects low-altitude deck skim');
+  assert.equal(sim.state.hasSwitchedDir, true, '3D sim stepAir detects dual-direction switch');
+  assert.ok(sim.state.comboMult >= 2.2, `Expected comboMult >= 2.2, got ${sim.state.comboMult}`);
+
+  Object.assign(sim.state, { x: -80, y: 0.65, vx: -10, vy: -1.0, roll: 0, pitch: 0, rw: 0 });
+  sim.step(BASE.STEP, idle);
+  assert.equal(sim.state.mode, 'landed');
+  const scored = scoreOf(sim.state.land);
+  assert.ok(scored.stunt > 0, 'Aerial stunts yield non-zero stunt bonus in scoreOf');
+  assert.equal(scored.total, Math.round(scored.roll + scored.soft + scored.level + scored.stunt));
+}
+
 // Landing fall decoupling: gentle vertical descent with residual spin preserves soft landing score.
 {
   const sim = createSim();
@@ -112,6 +156,67 @@ for (let i = 0; i < two.COURSES.length; i++) {
 }
 assert.equal(two.rollsCount(0, 0), 0);
 assert.equal(two.rollsCount(Math.PI * 2, 0), 1);
+
+// 2D index.html stepAir wires hasSkimmed, hasInverted, hasSwitchedDir, and comboMult into stats.total identically to simulation.js.
+{
+  const garageSrc = fs.readFileSync(new URL('../vehicle-garage.js', import.meta.url), 'utf8');
+  const garageCtx = {};
+  vm.runInNewContext(garageSrc, garageCtx);
+  const code = block(twoSource, '// ---------- utils ----------', '// ---------- bilingual strings')
+    + block(twoSource, '// ---------- tuning:', '// ---------- state ----------')
+    + block(twoSource, '// ---------- state ----------', 'let best = 0, rankOn')
+    + block(twoSource, 'function toAir(kind)', '// ---------- achievements / share')
+    + block(twoSource, 'const RANKS =', 'const launchHost =')
+    + block(twoSource, '// ---------- physics: attached', '// ---------- physics: landed rollout');
+  const noop = () => {};
+  const ctx2d = {
+    localStorage: { getItem: () => null },
+    window: { WallFlipGarage: garageCtx.WallFlipGarage },
+    botOn: true, skids: [], shakeT: 0, shakeA: 0,
+    t: () => '', say: noop, sayOnce: noop, pop: noop, tireSmoke: noop, dust: noop, smoke: noop, fire: noop,
+    confetti: noop, vib: noop, sfx: { land: noop, crash: noop, peel: noop, stuntWhoosh: noop },
+  };
+  const api2d = vm.runInNewContext(
+    code + '\n({ buildCourse, car, stats, stepAir, STEP });',
+    ctx2d,
+    { timeout: 1000 },
+  );
+  api2d.buildCourse(0);
+  Object.assign(api2d.car, {
+    mode: 'air', x: -50, y: 12, vx: -20, vy: 0,
+    phi: Math.PI, phiL: 0, rw: 0, air: 80, clear: true,
+    spinTotal: Math.PI * 2, spinRight: Math.PI, spinLeft: Math.PI,
+    rollsAccum: 1, stuntRolls: 1,
+  });
+  for (let i = 0; i < Math.ceil(0.4 / api2d.STEP); i++) api2d.stepAir(api2d.STEP);
+  assert.equal(api2d.car.hasInverted, true, '2D stepAir detects inverted flight');
+  assert.equal(api2d.car.hasSwitchedDir, true, '2D stepAir detects direction switch');
+
+  Object.assign(api2d.car, { y: 1.8, vx: -20, vy: 0, phi: 0, rw: 0 });
+  for (let i = 0; i < Math.ceil(0.15 / api2d.STEP); i++) api2d.stepAir(api2d.STEP);
+  assert.equal(api2d.car.hasSkimmed, true, '2D stepAir detects deck skim');
+
+  Object.assign(api2d.car, { x: -80, y: 0.65, vx: -10, vy: -1.0, phi: 0, rw: 0 });
+  api2d.stepAir(api2d.STEP);
+  assert.equal(api2d.car.mode, 'landed');
+  assert.equal(api2d.stats.win, true);
+  assert.equal(api2d.stats.hasSkimmed, true);
+  assert.equal(api2d.stats.hasInverted, true);
+  assert.equal(api2d.stats.hasSwitchedDir, true);
+  assert.equal(api2d.stats.comboMult, api2d.car.comboMult);
+  const expected = scoreOf({
+    rolls: api2d.stats.rolls,
+    fall: api2d.stats.fall / 3.6,
+    tilt: api2d.stats.tilt * Math.PI / 180,
+    hasSkimmed: true,
+    hasInverted: true,
+    hasSwitchedDir: true,
+    comboMult: api2d.car.comboMult,
+  });
+  assert.equal(api2d.stats.stuntPts, expected.stunt);
+  assert.equal(api2d.stats.total, expected.total);
+}
+
 console.log('check-logic: ok (2D courses, 3D simulation, resources and landing scores)');
 
 // Escape must close the display-switch dialog even when its button has focus.

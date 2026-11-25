@@ -58,6 +58,8 @@ export interface PlayerInput {
   special: 'normal' | 'heavy' | 'ball' | 'vibrate' | 'magnet';
   /** Optional Fiend's Push aggressive high-stakes double bet mode. */
   readonly fiendPush?: boolean;
+  /** True while Fever Overdrive (2X fall & cascade multiplier) is active. */
+  readonly feverActive?: boolean;
 }
 
 export interface FallEvent {

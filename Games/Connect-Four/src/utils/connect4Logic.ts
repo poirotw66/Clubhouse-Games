@@ -270,6 +270,44 @@ export function isBoardFull(board: Board, rules: RulesConfig): boolean {
   return true;
 }
 
+export const POPOUT_REPETITION_COUNT = 3;
+
+/** Deterministic board + side-to-move key for PopOut repetition detection. */
+export function positionKey(board: Board, turn: PieceColor): string {
+  const rows = board.map((row) =>
+    row.map((cell) => (cell === 'red' ? 'R' : cell === 'yellow' ? 'Y' : '.')).join(''),
+  );
+  return `${turn[0]}:${rows.join('/')}`;
+}
+
+export function advancePopOutPositionCounts(
+  prevCounts: Record<string, number> | undefined,
+  board: Board,
+  turn: PieceColor,
+  rules: RulesConfig,
+): Record<string, number> {
+  const next = prevCounts ? { ...prevCounts } : {};
+  if (!rules.allowPopOut) return next;
+  const key = positionKey(board, turn);
+  next[key] = (next[key] ?? 0) + 1;
+  return next;
+}
+
+export function isPopOutRepetitionDraw(
+  positionCounts: ReadonlyMap<string, number> | Record<string, number> | undefined,
+  board: Board,
+  turn: PieceColor,
+  rules: RulesConfig,
+): boolean {
+  if (!rules.allowPopOut || !positionCounts) return false;
+  const key = positionKey(board, turn);
+  const count =
+    typeof (positionCounts as ReadonlyMap<string, number>).get === 'function'
+      ? ((positionCounts as ReadonlyMap<string, number>).get(key) ?? 0)
+      : ((positionCounts as Record<string, number>)[key] ?? 0);
+  return count >= POPOUT_REPETITION_COUNT;
+}
+
 const WIN_SCORE = 1_000_000;
 
 export type Personality = {
@@ -462,12 +500,26 @@ export function evaluateBoard(
   );
 }
 
-function orderMoves(moves: Move[], rules: RulesConfig): Move[] {
+function orderMoves(moves: Move[], rules: RulesConfig, pvMove?: Move | null): Move[] {
   const center = (rules.cols - 1) / 2;
   return [...moves].sort((a, b) => {
+    if (pvMove) {
+      const aIsPv = a.kind === pvMove.kind && a.col === pvMove.col;
+      const bIsPv = b.kind === pvMove.kind && b.col === pvMove.col;
+      if (aIsPv !== bIsPv) return aIsPv ? -1 : 1;
+    }
     if (a.kind !== b.kind) return a.kind === 'drop' ? -1 : 1;
     return Math.abs(a.col - center) - Math.abs(b.col - center) || a.col - b.col;
   });
+}
+
+const HARD_TIME_BUDGET_MS = 180;
+const HARD_MIN_UNBUDGETED_DEPTH = 4;
+
+interface SearchBudget {
+  deadline: number;
+  nodes: number;
+  timedOut: boolean;
 }
 
 function terminalLossDepth(
@@ -501,7 +553,15 @@ function negamax(
   previousTurn: PieceColor | null,
   rules: RulesConfig,
   style: Personality,
+  budget?: SearchBudget,
 ): number {
+  if (budget) {
+    if (budget.timedOut) return 0;
+    if (budget.deadline > 0 && (budget.nodes++ & 255) === 0 && Date.now() >= budget.deadline) {
+      budget.timedOut = true;
+      return 0;
+    }
+  }
   if (lastMove && previousTurn) {
     const terminal = terminalLossDepth(
       board,
@@ -537,7 +597,9 @@ function negamax(
       turn,
       rules,
       style,
+      budget,
     );
+    if (budget?.timedOut) return 0;
     if (score > value) value = score;
     if (value > alpha) alpha = value;
     if (alpha >= beta) break;
@@ -557,55 +619,18 @@ function personalityTieBreak(
   return score;
 }
 
-/**
- * Pick a move for the bot. Ties among equal search scores are broken by
- * personality style, then at random so rematches do not replay identically.
- */
-export function pickBotMove(
+function searchRootMoves(
   board: Board,
   color: PieceColor,
-  difficulty: Difficulty = 'normal',
-  personality: PersonalityId = 'architect',
-  rules: RulesConfig = buildRules('classic', '7x6'),
-): Move | null {
-  const legal = getLegalMoves(board, color, rules);
-  if (legal.length === 0) return null;
-  if (legal.length === 1) return legal[0];
-
-  const config = DIFFICULTY[difficulty];
-  const style = PERSONALITIES[personality];
-
-  // Soften hard search on large / PopOut boards so the main thread stays responsive.
-  let depth = config.depth;
-  if (rules.allowPopOut || rules.cols >= 8) {
-    depth = Math.max(1, depth - (rules.allowPopOut ? 1 : 0) - (rules.cols >= 9 ? 1 : 0));
-  }
-
-  if (config.blunderRate > 0 && Math.random() < config.blunderRate) {
-    // True random legal move — personality only steers non-blunder search.
-    return legal[Math.floor(Math.random() * legal.length)];
-  }
-
-  // Immediate wins (especially PopOut gravity wins) — check before deep search
-  // so a softened depth on wide/PopOut boards cannot miss a forced finish.
-  const instantWins: Move[] = [];
-  for (const move of legal) {
-    const dropRow =
-      move.kind === 'drop' ? getDropRow(board, move.col, rules) : null;
-    const next = applyMove(board, move, color, rules);
-    if (!next) continue;
-    if (resolveWinnerAfterMove(next, color, move, dropRow, rules) === color) {
-      instantWins.push(move);
-    }
-  }
-  if (instantWins.length === 1) return instantWins[0];
-  if (instantWins.length > 1) {
-    return instantWins[Math.floor(Math.random() * instantWins.length)];
-  }
-
+  orderedMoves: Move[],
+  depth: number,
+  rules: RulesConfig,
+  style: Personality,
+  budget?: SearchBudget,
+): { best: Move[]; completed: boolean } {
   let best: Move[] = [];
   let bestScore = -Infinity;
-  for (const move of orderMoves(legal, rules)) {
+  for (const move of orderedMoves) {
     const dropRow =
       move.kind === 'drop' ? getDropRow(board, move.col, rules) : null;
     const next = applyMove(board, move, color, rules);
@@ -621,7 +646,11 @@ export function pickBotMove(
       color,
       rules,
       style,
+      budget,
     );
+    if (budget?.timedOut) {
+      return { best, completed: false };
+    }
     // Style nudge among near-equal lines (never overrides a forced win/loss).
     if (Math.abs(score) < WIN_SCORE / 2) {
       score += personalityTieBreak(move, rules, style) * 3;
@@ -633,8 +662,96 @@ export function pickBotMove(
       best.push(move);
     }
   }
-  if (best.length === 0) return legal[0];
-  return best[Math.floor(Math.random() * best.length)];
+  return { best, completed: true };
+}
+
+/**
+ * Pick a move for the bot. Ties among equal search scores are broken by
+ * personality style, then at random so rematches do not replay identically.
+ * Hard difficulty uses iterative deepening with a time budget so wide / PopOut
+ * boards still search deeply without blindly capping at depth 4.
+ */
+export function pickBotMove(
+  board: Board,
+  color: PieceColor,
+  difficulty: Difficulty = 'normal',
+  personality: PersonalityId = 'architect',
+  rules: RulesConfig = buildRules('classic', '7x6'),
+  timeBudgetMs: number = HARD_TIME_BUDGET_MS,
+): Move | null {
+  const legal = getLegalMoves(board, color, rules);
+  if (legal.length === 0) return null;
+  if (legal.length === 1) return legal[0];
+
+  const config = DIFFICULTY[difficulty];
+  const style = PERSONALITIES[personality];
+
+  if (config.blunderRate > 0 && Math.random() < config.blunderRate) {
+    // True random legal move — personality only steers non-blunder search.
+    return legal[Math.floor(Math.random() * legal.length)];
+  }
+
+  // Immediate wins (especially PopOut gravity wins) — check before deep search
+  // so a time-bounded search on wide/PopOut boards cannot miss a forced finish.
+  const instantWins: Move[] = [];
+  for (const move of legal) {
+    const dropRow =
+      move.kind === 'drop' ? getDropRow(board, move.col, rules) : null;
+    const next = applyMove(board, move, color, rules);
+    if (!next) continue;
+    if (resolveWinnerAfterMove(next, color, move, dropRow, rules) === color) {
+      instantWins.push(move);
+    }
+  }
+  if (instantWins.length === 1) return instantWins[0];
+  if (instantWins.length > 1) {
+    return instantWins[Math.floor(Math.random() * instantWins.length)];
+  }
+
+  if (difficulty !== 'hard') {
+    const { best } = searchRootMoves(
+      board,
+      color,
+      orderMoves(legal, rules),
+      config.depth,
+      rules,
+      style,
+    );
+    if (best.length === 0) return legal[0];
+    return best[Math.floor(Math.random() * best.length)];
+  }
+
+  const startMs = Date.now();
+  const minDepth = timeBudgetMs > 0 ? Math.min(HARD_MIN_UNBUDGETED_DEPTH, config.depth) : 2;
+  const startDepth = Math.min(2, minDepth);
+  let bestMoves: Move[] = [];
+  let pvMove: Move | null = null;
+
+  for (let d = startDepth; d <= config.depth; d++) {
+    const enforceBudget = d > minDepth;
+    if (enforceBudget && Date.now() - startMs >= timeBudgetMs) break;
+    const budget: SearchBudget | undefined = enforceBudget
+      ? { deadline: startMs + Math.max(0, timeBudgetMs), nodes: 0, timedOut: false }
+      : undefined;
+    const ordered = orderMoves(legal, rules, pvMove);
+    const { best, completed } = searchRootMoves(
+      board,
+      color,
+      ordered,
+      d,
+      rules,
+      style,
+      budget,
+    );
+    if (!completed) break;
+    if (best.length > 0) {
+      bestMoves = best;
+      pvMove = best[0];
+    }
+  }
+
+  if (bestMoves.length === 0) return legal[0];
+  return bestMoves[Math.floor(Math.random() * bestMoves.length)];
 }
 
 /** Convenience wrapper returning only a drop column (classic boards / hints). */

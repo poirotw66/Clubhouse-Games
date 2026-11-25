@@ -1,22 +1,30 @@
 import type { ReactElement } from 'react';
+import type { GamePhase } from '../game/types.ts';
 
 interface ClockworkOverdriveGaugeProps {
+  phase: GamePhase;
   steamPressure: number;
   overdriveRemaining: number;
+  mainspringCooldown: number;
   currentCombo: number;
   onTriggerOverdrive: () => void;
   onWindMainspring: () => void;
 }
 
 export function ClockworkOverdriveGauge({
+  phase,
   steamPressure,
   overdriveRemaining,
+  mainspringCooldown,
   currentCombo,
   onTriggerOverdrive,
   onWindMainspring,
 }: ClockworkOverdriveGaugeProps): ReactElement {
+  const isWave = phase === 'wave';
   const isOverdrive = overdriveRemaining > 0;
   const isReady = steamPressure >= 100;
+  const onCooldown = mainspringCooldown > 0;
+  const windDisabled = !isWave || isOverdrive || isReady || onCooldown;
   const percent = Math.min(100, Math.floor(steamPressure));
 
   return (
@@ -99,18 +107,28 @@ export function ClockworkOverdriveGauge({
         <div className="flex items-center gap-1.5 shrink-0">
           <button
             type="button"
-            disabled={isOverdrive || isReady}
+            disabled={windDisabled}
             onClick={onWindMainspring}
             className={`min-h-[38px] px-3 py-1.5 rounded-lg border text-xs font-bold transition-all duration-150 touch-manipulation flex items-center gap-1.5 active:scale-95 shadow-sm ${
-              isOverdrive || isReady
+              windDisabled
                 ? 'border-amber-900/30 bg-black/20 text-amber-200/30 cursor-not-allowed'
                 : 'border-amber-600/70 bg-gradient-to-b from-amber-800/60 to-amber-950/80 hover:from-amber-700/70 hover:to-amber-900/90 text-amber-100'
             }`}
-            title="手動上發條蓄壓 +15%（快捷鍵：W）"
+            title={
+              !isWave
+                ? '戰鬥波次進行中才能手動上發條（冷卻 8 秒，快捷鍵：W）'
+                : onCooldown
+                  ? `發條冷卻中，剩餘 ${mainspringCooldown.toFixed(1)} 秒`
+                  : '手動上發條蓄壓 +15%（冷卻 8 秒，快捷鍵：W）'
+            }
             aria-label="手動上發條蓄能"
           >
             <span className="text-amber-400 text-sm">🔩</span>
-            <span>上發條</span>
+            <span>
+              {onCooldown && isWave && !isOverdrive && !isReady
+                ? `冷卻 ${mainspringCooldown.toFixed(1)}s`
+                : '上發條'}
+            </span>
             <span className="hidden sm:inline font-mono text-[10px] text-amber-300/80 bg-black/40 px-1 py-0.5 rounded">
               W
             </span>

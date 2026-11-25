@@ -45,9 +45,9 @@
       id:'mars',hullParts:1,hull:[[-2.12,.64,-.16,.08],[-1.73,.9,-.2,.21],[-.82,.94,-.19,.23],[.7,.91,-.18,.2],[1.76,.8,-.16,.12],[2.13,.61,-.12,.015]],name:'MARS ROYALE',number:'05',
       canopy:[[-1.13,.55,.15,.22],[-.72,.69,.15,.46],[.38,.68,.15,.49],[.95,.48,.14,.21]],
       roof:[[-.92,.51,.475,.495],[-.72,.72,.5,.53],[.39,.71,.5,.535],[.72,.48,.48,.5]],
-      handling:{motor:1,rotation:1.15,damping:1.35,thrust:1.5,airUse:.12,landingAssist:true},
-      tc:{title:'尊榮火星車',role:'輕鬆著陸・超長續航',tip:'六輪尊榮座艙。單側翻滾，B／雙鍵向車頂噴射；放開自動回正著陸，X／↓ 快降並在近地面減速，耗氣僅原版的 12%。',trade:'輔助仍會消耗空氣；太貼近地面才放開翻滾，仍可能來不及救回。'},
-      en:{title:'Royal Mars rover',role:'Easy landing · Long endurance',tip:'Six wheels and a panoramic cabin. One jet rolls; B / both jets push toward the roof. Release for assisted landing. X / down descends faster with braking near the ground. Jets use 12% of the original air.',trade:'Assistance still spends air. Releasing a roll too close to the ground can leave too little time to recover.'},
+      handling:{motor:1,rotation:1.05,damping:1.45,thrust:1.2,airUse:.45},
+      tc:{title:'尊榮火星車',role:'長程續航・阻尼輔助',tip:'六輪尊榮座艙，耗氣僅原版的 45% 並附帶柔和轉速阻尼，方便收斂翻滾；仍需手動對正輪胎與雙鍵減速著地。',trade:'不具自動回正或自動煞車，偏斜過大或過晚減速仍會墜毀。'},
+      en:{title:'Royal Mars rover',role:'Long endurance · Damped',tip:'Six wheels with 45% air burn and gentle spin damping to help settle flips. You still steer level and brake touchdowns manually.',trade:'No auto-leveling or auto-braking; late alignment or late braking still crashes.'},
       parts:[[4.2,.38,1.8,0,-.06,0,'body'],[2.08,.36,1.38,-.08,.32,0,'glass'],[.66,.025,1.13,-1.48,.255,0,'dark']],
     },
   ].map(v => Object.freeze({ ...v, finish:Object.freeze(v.finish), handling: Object.freeze(v.handling), hull:Object.freeze(v.hull.map(Object.freeze)), canopy:v.canopy?Object.freeze(v.canopy.map(Object.freeze)):null, roof:v.roof?Object.freeze(v.roof.map(Object.freeze)):null, parts: Object.freeze(v.parts.map(Object.freeze)) }));
@@ -64,19 +64,10 @@
     if(h.landingAssist)tuned.LANDING_ASSIST=true;
     return tuned;
   }
-  function airControl({angle,spin,y,vy,air,clear},input,{thrust,gravity}) {
-    if(input.left!==input.right||air<=0||(input.left&&input.right&&!input.suck))return input;
-    if(!clear)return {left:false,right:false};
-    // The landing controller can stabilize roll while directing braking thrust upward.
-    const levelRate=12, turn=Math.PI*2;
-    const target=Math.round((angle+spin/(2*levelRate))/turn)*turn;
-    const correction=Math.max(-240,Math.min(240,levelRate**2*(target-angle)-2*levelRate*spin));
-    const rollAccel=Math.abs(correction)>.1?correction:0;
-    const available=2*thrust-gravity;
-    const height=Math.max(0,y-.66-.35);
-    const braking=available*(input.suck ? .65 : .4);
-    const brake=available>0&&vy < -Math.sqrt(1.2**2+2*braking*height);
-    return {left:brake||rollAccel>0,right:brake||rollAccel<0,verticalThrust:brake?2*thrust:0,rollAccel};
+  function airControl({spin,air,clear},input) {
+    if(input.left!==input.right||air<=0||!clear)return input;
+    // Gentle spin-damping assist only; manual leveling and braking remain required.
+    return {left:input.left,right:input.right,rollAccel:-spin*10};
   }
   function recordKey(base, id) {
     const vehicle = get(id);

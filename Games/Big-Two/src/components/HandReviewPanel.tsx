@@ -110,25 +110,48 @@ export function HandReviewPanel({
         </p>
 
         <dl className="mt-4 grid gap-1.5 text-sm">
-          {review.scores.map((entry) => (
-            <div
-              key={entry.seat}
-              className="flex justify-between rounded-lg border border-white/5 bg-slate-800/80 px-3 py-2"
-            >
-              <dt className="text-slate-400">
-                {SEAT_NAMES[entry.seat]}
-                {entry.seat === review.winner ? ' ★' : ''}
-              </dt>
-              <dd className="font-mono font-semibold tabular-nums text-white">
-                {entry.penalty}（剩 {entry.remaining}×
-                {sizeMultiplier(entry.remaining, match.config.rules.sizeLadder)}
-                {entry.deuces > 0 && match.config.rules.deuceDouble
-                  ? `×${2 ** entry.deuces}`
-                  : ''}
-                ）
-              </dd>
-            </div>
-          ))}
+          {review.scores.map((entry) => {
+            const isDingDaActive = review.dingDaViolator != null;
+            const isViolator = isDingDaActive && entry.seat === review.dingDaViolator;
+            const isWinner = entry.seat === review.winner;
+            const delta = review.deltas?.[entry.seat];
+            return (
+              <div
+                key={entry.seat}
+                className={`flex justify-between rounded-lg border px-3 py-2 ${
+                  isViolator
+                    ? 'border-rose-500/40 bg-rose-950/40'
+                    : 'border-white/5 bg-slate-800/80'
+                }`}
+              >
+                <dt className="text-slate-400">
+                  {SEAT_NAMES[entry.seat]}
+                  {isWinner ? ' ★' : ''}
+                  {isViolator ? '（頂大包賠）' : ''}
+                </dt>
+                <dd className="font-mono font-semibold tabular-nums text-white">
+                  {isDingDaActive && delta !== undefined ? (
+                    isWinner ? (
+                      `+${delta}（勝）`
+                    ) : isViolator ? (
+                      `−${Math.abs(delta)}（包賠全場）`
+                    ) : (
+                      `0（免賠 · 原牌分 ${entry.penalty}）`
+                    )
+                  ) : (
+                    <>
+                      {entry.penalty}（剩 {entry.remaining}×
+                      {sizeMultiplier(entry.remaining, match.config.rules.sizeLadder)}
+                      {entry.deuces > 0 && match.config.rules.deuceDouble
+                        ? `×${2 ** entry.deuces}`
+                        : ''}
+                      ）
+                    </>
+                  )}
+                </dd>
+              </div>
+            );
+          })}
         </dl>
 
         {mvp && <MvpBlock mvp={mvp} />}

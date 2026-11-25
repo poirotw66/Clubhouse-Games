@@ -30,7 +30,10 @@
   var BASE_INTERVAL = 820;
   var MIN_INTERVAL = 110;
   var PUYOS_PER_LEVEL = 30;
-  var GARBAGE_RATE = 70;
+  var GARBAGE_RATE = L.GARBAGE_RATE || 70;
+  var QUEUE_SIZE = L.QUEUE_LOOKAHEAD_SIZE || 3;
+  var PREVIEW_VISIBLE_COUNT = 2;
+  var ASYNC_FRAME_BUDGET_MS = 5;
 
   // Hard+ deepen lookahead; Master/Nightmare chunk search so the UI stays responsive.
   var DIFFICULTY_PRESETS = {
@@ -135,6 +138,9 @@
     matchStatus: document.getElementById('match-status'),
     careerStats: document.getElementById('career-stats'),
     modeBadge: document.getElementById('mode-badge'),
+    marginBadge: document.getElementById('margin-badge'),
+    damageRateTag: document.getElementById('damage-rate-tag'),
+    touchUndoButton: document.getElementById('touch-undo'),
     modeSelect: document.getElementById('match-mode'),
     difficultyField: document.getElementById('difficulty-field'),
     missionField: document.getElementById('mission-field'),
@@ -203,6 +209,9 @@
     movesLeft: 0,
     timeLeftMs: 0,
     timeLimitSec: 0,
+    elapsedMs: 0,
+    lastMarginRate: GARBAGE_RATE,
+    lastMarginActive: false,
     lastChainPulse: 0,
   };
 
@@ -248,7 +257,7 @@
     return {
       board: L.createBoard(),
       pair: null,
-      queue: [L.createPair(colorCount), L.createPair(colorCount)],
+      queue: [L.createPair(colorCount), L.createPair(colorCount), L.createPair(colorCount)],
       colorCount: colorCount,
       score: 0,
       chain: 0,
@@ -337,9 +346,48 @@
     hintUntil = 0;
   }
 
+  function isUndoAllowed() {
+    return L.isUndoAllowedForMode(match.mode);
+  }
+
+  function currentGarbageRate() {
+    return L.effectiveGarbageRate(match.elapsedMs / 1000, match.mode);
+  }
+
+  function updateMarginHud(force) {
+    var info = L.marginTimeState(match.elapsedMs, match.mode);
+    if (!force && info.active === match.lastMarginActive && info.garbageRate === match.lastMarginRate) {
+      return;
+    }
+    match.lastMarginActive = info.active;
+    match.lastMarginRate = info.garbageRate;
+    if (ui.marginBadge) {
+      if (info.active) {
+        ui.marginBadge.hidden = false;
+        ui.marginBadge.textContent =
+          (info.garbageRate <= (L.MARGIN_TIME_MIN_RATE || 45) ? '🔥 極限加時 · ' : '⚡ 加時壓力 · ') +
+          info.garbageRate +
+          '分=1垃圾';
+        ui.marginBadge.classList.toggle('is-critical', info.garbageRate <= 52);
+      } else {
+        ui.marginBadge.hidden = true;
+        ui.marginBadge.classList.remove('is-critical');
+      }
+    }
+    if (ui.damageRateTag) {
+      ui.damageRateTag.textContent = info.garbageRate + '分 = 1垃圾';
+    }
+  }
+
   function refreshAssistButtons() {
+    var undoAllowed = isUndoAllowed();
     if (ui.undoButton) {
-      ui.undoButton.disabled = match.over || undoStack.length === 0;
+      ui.undoButton.disabled = !undoAllowed || match.over || undoStack.length === 0;
+      ui.undoButton.title = undoAllowed ? '復原上一步 (U)' : '對戰與 CPU 模式不開放復原';
+    }
+    if (ui.touchUndoButton) {
+      ui.touchUndoButton.disabled = !undoAllowed || match.over || undoStack.length === 0;
+      ui.touchUndoButton.hidden = !undoAllowed;
     }
     if (ui.hintButton) {
       ui.hintButton.disabled = match.over || match.paused || !canControl(players[0]);
@@ -347,6 +395,7 @@
   }
 
   function pushUndoSnapshot() {
+    if (!isUndoAllowed()) return;
     undoStack.push({
       p1: clonePlayerState(players[0].state),
       p2: clonePlayerState(players[1].state),
@@ -356,7 +405,7 @@
   }
 
   function undoLast() {
-    if (match.over || undoStack.length === 0) return false;
+    if (!isUndoAllowed() || match.over || undoStack.length === 0) return false;
     var snap = undoStack.pop();
     players[0].state = snap.p1;
     players[1].state = snap.p2;
@@ -793,6 +842,7 @@
     match.winner = null;
     match.loser = null;
     match.difficulty = currentDifficulty();
+    match.elapsedMs = 0;
     match.lastChainPulse = 0;
     das[0].direction = 0;
     das[0].timer = 0;
@@ -848,6 +898,7 @@
     }
 
     updateMatchStatus();
+    updateMarginHud(true);
     refreshAssistButtons();
     maybeAutoQuestHint();
     if (players[0] && players[0].state) updateTacticalTelemetry(players[0].state);
@@ -888,7 +939,9 @@
       pair = L.createPair(state.colorCount);
     }
     if (!(isSoloMode() && match.quest)) {
-      state.queue.push(L.createPair(state.colorCount));
+      while (state.queue.length < QUEUE_SIZE) {
+        state.queue.push(L.createPair(state.colorCount));
+      }
     } else if (state.queue.length < 1) {
       // Keep a preview slot filled with a neutral upcoming pair for UI.
       state.queue.push(L.createPair(state.colorCount));
@@ -1109,7 +1162,7 @@
   }
 
   function lockCurrent(player) {
-    if (!player.isCpu) pushUndoSnapshot();
+    if (!player.isCpu && isUndoAllowed()) pushUndoSnapshot();
     clearHint();
     var state = player.state;
     state.board = L.lockPair(state.board, state.pair);
@@ -1156,7 +1209,7 @@
       state.totalCleared += step.cleared;
       state.level = 1 + Math.floor(state.totalCleared / PUYOS_PER_LEVEL);
       if (!isSoloMode()) {
-        state.outgoingGarbage += Math.floor(step.score / GARBAGE_RATE);
+        state.outgoingGarbage += Math.floor(step.score / currentGarbageRate());
       }
       A.playPop(state.chain);
       if (J) J.onPop(state.chain, player.field);
@@ -1195,7 +1248,7 @@
     if (state.chain > 0 && L.isBoardEmpty(state.board)) {
       state.score += L.ALL_CLEAR_BONUS;
       if (!isSoloMode()) {
-        state.outgoingGarbage += Math.floor(L.ALL_CLEAR_BONUS / GARBAGE_RATE);
+        state.outgoingGarbage += Math.floor(L.ALL_CLEAR_BONUS / currentGarbageRate());
       }
       A.playAllClear();
       flashAllClear();
@@ -1454,7 +1507,7 @@
       return;
     }
 
-    // Deep lookahead: evaluate placements in batches across frames (no Worker / no CDN).
+    // Deep lookahead: evaluate placements in batches across frames with bounded frame budget.
     if (diff.asyncPlan && diff.lookahead >= 3) {
       state.cpuPlan = null;
       state.cpuSearch = {
@@ -1463,9 +1516,10 @@
         bestPlacement: null,
         bestScore: -Infinity,
         board: state.board,
-        queue: state.queue.slice(),
+        queue: state.queue.slice(0, QUEUE_SIZE),
         depth: diff.lookahead,
         incomingGarbage: state.incomingGarbage,
+        garbageRate: currentGarbageRate(),
         batchSize: Math.max(1, diff.planBatch || 4),
       };
       return;
@@ -1493,21 +1547,31 @@
     var state = player.state;
     var search = state.cpuSearch;
     if (!search) return false;
+    var startMs = global.performance.now();
     var end = Math.min(search.index + search.batchSize, search.placements.length);
-    for (var i = search.index; i < end; i += 1) {
-      var score = evaluatePlacement(
+    var processed = 0;
+    var idx = search.index;
+    while (idx < end) {
+      var score = L.evaluatePlacement(
         search.board,
-        search.placements[i],
+        search.placements[idx],
         search.queue,
         search.depth,
-        search.incomingGarbage
+        search.incomingGarbage,
+        match.difficulty,
+        search.garbageRate
       );
       if (score > search.bestScore) {
         search.bestScore = score;
-        search.bestPlacement = search.placements[i];
+        search.bestPlacement = search.placements[idx];
+      }
+      idx += 1;
+      processed += 1;
+      if (processed >= 1 && (global.performance.now() - startMs) >= ASYNC_FRAME_BUDGET_MS) {
+        break;
       }
     }
-    search.index = end;
+    search.index = idx;
     if (search.index < search.placements.length) return false;
 
     if (search.bestPlacement) {
@@ -1524,93 +1588,15 @@
   }
 
   function bestPlacementFor(board, pair, queue, depth, incomingGarbage) {
-    var placements = L.enumeratePlacements(board, pair);
-    if (placements.length === 0) return null;
-
-    var bestPlacement = placements[0];
-    var bestScore = evaluatePlacement(board, placements[0], queue, depth, incomingGarbage);
-    for (var i = 1; i < placements.length; i += 1) {
-      var score = evaluatePlacement(board, placements[i], queue, depth, incomingGarbage);
-      if (score > bestScore) {
-        bestScore = score;
-        bestPlacement = placements[i];
-      }
-    }
-    return { placement: bestPlacement, score: bestScore };
-  }
-
-  function resolvePlacement(board, placement) {
-    return L.simulateLock(board, placement, GARBAGE_RATE);
-  }
-
-  function evaluatePlacement(board, placement, queue, depth, incomingGarbage) {
-    var diff = match.difficulty;
-    var resolved = resolvePlacement(board, placement);
-    var danger = boardDanger(resolved.board);
-    var incoming = incomingGarbage || 0;
-    var stackPenalty = danger * 11;
-    var attackValue = resolved.attack * 120 * diff.attackWeight;
-    var chainValue = resolved.chain * 180 + (resolved.chain >= 3 ? resolved.chain * 90 : 0);
-    var setupValue = resolved.setup * diff.setupWeight;
-    var triggerValue = L.nearTriggerScore(resolved.board) * (diff.triggerWeight || 0);
-    var flatPenalty = L.heightVariance(resolved.board) * (diff.flatnessWeight || 0);
-    var allClearValue =
-      resolved.chain > 0 && L.isBoardEmpty(resolved.board) ? diff.allClearBonus || 0 : 0;
-
-    // Keep building unless under pressure or already firing a real chain.
-    var panic = danger > 48 || incoming >= 12;
-    var weakPop = resolved.chain === 1 && resolved.attack <= 1;
-    var weakPenalty = (!panic && weakPop) ? diff.weakPopPenalty : 0;
-    var buildBonus = (!panic && resolved.chain === 0) ? resolved.setup * diff.buildBias * 18 : 0;
-
-    // Counter-attack timing: when garbage is queued, prefer chains that cancel or punish.
-    var counterWeight = diff.counterWeight || 0;
-    var counterBonus = 0;
-    if (incoming > 0 && counterWeight > 0) {
-      counterBonus = resolved.attack * 70 * counterWeight;
-      if (resolved.attack >= incoming) counterBonus += 220 * counterWeight;
-      else if (resolved.chain >= 2) counterBonus += 90 * counterWeight;
-      if (panic && resolved.chain === 0) counterBonus -= 140 * counterWeight;
-    }
-
-    var base = resolved.score
-      + attackValue
-      + resolved.cleared * 6
-      + chainValue
-      + setupValue
-      + triggerValue
-      + buildBonus
-      + allClearValue
-      + counterBonus
-      - stackPenalty
-      - flatPenalty
-      - weakPenalty
-      + (Math.random() * 2 - 1) * diff.noise;
-
-    if (depth <= 1 || !queue || queue.length === 0) return base;
-    // Nested search keeps leftover incoming pressure only one ply (after we "spent" a turn).
-    var futureIncoming = Math.max(0, incoming - resolved.attack);
-    var future = bestPlacementFor(
-      resolved.board,
-      queue[0],
-      queue.slice(1),
-      depth - 1,
-      futureIncoming
+    return L.bestPlacementFor(
+      board,
+      pair,
+      queue,
+      depth,
+      incomingGarbage,
+      match.difficulty,
+      currentGarbageRate()
     );
-    return base + (future ? future.score * diff.futureWeight : 0);
-  }
-
-  function boardDanger(board) {
-    var danger = 0;
-    for (var col = 0; col < L.COLS; col += 1) {
-      for (var row = 0; row < L.ROWS; row += 1) {
-        if (board[row][col] !== null) {
-          danger += L.ROWS - row;
-          break;
-        }
-      }
-    }
-    return danger;
   }
 
   function updateCpu(player, dt) {
@@ -1655,6 +1641,11 @@
       refreshAssistButtons();
       if (players[0] && players[0].state) updateTacticalTelemetry(players[0].state);
       return;
+    }
+
+    if (isVersusMode() || match.mode === 'cpu') {
+      match.elapsedMs += dt;
+      updateMarginHud(false);
     }
 
     if (isQuestMode() && match.timeLimitSec > 0 && match.quest) {
@@ -1803,7 +1794,8 @@
   function drawNext(player) {
     player.nextCtx.clearRect(0, 0, player.next.width, player.next.height);
     var gap = PREVIEW_CELL * 0.9;
-    for (var i = 0; i < player.state.queue.length; i += 1) {
+    var visibleCount = Math.min(PREVIEW_VISIBLE_COUNT, player.state.queue.length);
+    for (var i = 0; i < visibleCount; i += 1) {
       R.drawPreviewPair(
         player.nextCtx,
         PREVIEW_CELL * 0.25,

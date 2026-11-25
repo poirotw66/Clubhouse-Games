@@ -68,11 +68,13 @@ export type DailyShareInput = {
   streak: number;
   pairCount: number;
   themeLabel: string;
+  assisted?: boolean;
 };
 
 export function buildDailyShareText(input: DailyShareInput): string {
+  const modeTag = input.assisted ? '（輔助提示）' : '';
   return [
-    `記憶配對 每日 ${input.date}`,
+    `記憶配對 每日 ${input.date}${modeTag}`,
     `✓ ${input.themeLabel} · ${input.pairCount} 對`,
     `翻牌 ${input.moves} · 用時 ${input.elapsedSec}s`,
     `連續 ${input.streak} 天`,

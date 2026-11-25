@@ -11,7 +11,7 @@ import {
   type ScoreSeriesConfig,
 } from '@clubhouse/shared/MatchSession';
 import { DAILY_HANDS } from './daily';
-import { deal, outcome } from './engine';
+import { deal, enforceDingDaPenalty, outcome } from './engine';
 import { ladderSeatPersonalities, opponentById } from './opponents';
 import { normalizeSeedCode, seedFromCode, streamRng } from './rng';
 import { HUMAN, SEATS } from './types';
@@ -139,6 +139,9 @@ export function dealHand(match: MatchState): GameState {
  * Net across the table is always zero.
  */
 export function handDeltas(result: Outcome): number[] {
+  if (result.dingDaViolator !== undefined && result.dingDaViolator !== null) {
+    return enforceDingDaPenalty(result, result.dingDaViolator).deltas;
+  }
   const deltas = result.scores.map((entry) => -entry.penalty);
   deltas[result.winner] = result.pot;
   return deltas;
@@ -180,6 +183,7 @@ export function applyHandResult(
     deltas,
     bombs: extras.bombs,
     winnerPlayCount: extras.winnerPlayCount,
+    ...(result.dingDaViolator != null ? { dingDaViolator: result.dingDaViolator } : {}),
   };
   return applyScoreHandResult(match, deltas, record, { dailyHands: DAILY_HANDS });
 }

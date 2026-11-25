@@ -161,6 +161,7 @@ function createSim(hooks = {}, consts = null) {
     events: [],
     spinTotal: 0, rollsAccum: 0, spinRight: 0, spinLeft: 0,
     hasSwitchedDir: false, phase: 'upright',
+    comboMult: 1.0, hasSkimmed: false, skimTime: 0, hasInverted: false, invertTime: 0,
   };
   const snap = () => { const q = bodyPose(s.u); s.x = q.x; s.y = q.y; s.th = q.th; };
   const toAir = kind => {
@@ -176,6 +177,7 @@ function createSim(hooks = {}, consts = null) {
     s.rw = 0; s.launchV = s.v;
     s.spinTotal = 0; s.rollsAccum = 0; s.spinRight = 0; s.spinLeft = 0;
     s.hasSwitchedDir = false;
+    s.comboMult = 1.0; s.hasSkimmed = false; s.skimTime = 0; s.hasInverted = false; s.invertTime = 0;
     s.phase = over ? 'inverted' : 'upright';
     s.launched = kind === 'launch'; s.peeled = kind === 'detach'; s.lifted = kind === 'lift';
     s.clear = false;
@@ -267,6 +269,31 @@ function createSim(hooks = {}, consts = null) {
       s.hasSwitchedDir = true;
       hooks.onDirSwitch?.();
     }
+    const curRolls = Math.max(rollsCount(s.roll, s.roll0), s.rollsAccum || 0);
+    const altM = Math.max(0, s.y - CAR.H);
+    const forwardSpd = Math.hypot(s.vx, s.vy);
+    if (altM <= 2.2 && forwardSpd >= 16.5) {
+      s.skimTime = (s.skimTime || 0) + dt;
+      if (s.skimTime >= 0.12 && !s.hasSkimmed) {
+        s.hasSkimmed = true;
+        hooks.onSkim?.();
+      }
+    }
+    const levelCos = tcos(s.roll) * tcos(s.pitch);
+    if (levelCos <= -0.55 && altM > 3.0) {
+      s.invertTime = (s.invertTime || 0) + dt;
+      if (s.invertTime >= 0.35 && !s.hasInverted) {
+        s.hasInverted = true;
+        hooks.onInvert?.();
+      }
+    }
+    const rotTotal = Math.max(Math.abs(s.roll - s.roll0), s.spinTotal || 0);
+    let mult = 1.0 + curRolls * 0.4;
+    if (rotTotal >= 1260 * (Math.PI / 180)) mult = Math.max(mult, 3.0);
+    if (s.hasSkimmed) mult += 0.5;
+    if (s.hasInverted) mult += 0.4;
+    if (s.hasSwitchedDir) mult += 0.3;
+    s.comboMult = mult;
     if (Math.abs(s.x) > I.WORLD_X) { s.x = Math.sign(s.x) * I.WORLD_X; s.vx = 0; }
     if (Math.abs(s.z) > 18) { s.z = Math.sign(s.z) * 18; s.vz = 0; }
     if (s.y > I.WORLD_Y) { s.y = I.WORLD_Y; s.vy = Math.min(0, s.vy); }
@@ -308,7 +335,11 @@ function createSim(hooks = {}, consts = null) {
     const spinDamp = Math.abs(s.rw) <= (I.LAND_SPIN ?? BASE.LAND_SPIN) ? 0.35 : 1.0;
     const fall = -(s.vy + s.rw * spinTerm * spinDamp);
     const completedRolls = Math.max(rollsCount(s.roll, s.roll0), s.rollsAccum || 0);
-    s.land = { x: s.x, z: s.z, fall, tilt, spin: Math.abs(s.rw), rolls: completedRolls, vx: s.vx };
+    s.land = {
+      x: s.x, z: s.z, fall, tilt, spin: Math.abs(s.rw), rolls: completedRolls, vx: s.vx,
+      hasSkimmed: !!s.hasSkimmed, hasInverted: !!s.hasInverted, hasSwitchedDir: !!s.hasSwitchedDir,
+      comboMult: s.comboMult || 1,
+    };
     if (low.pt[3] !== 'wheel' || tilt > I.LAND_TILT) { doCrash('tilt', low.w[0], 0); return; }
     if (fall > I.LAND_SPEED || Math.abs(s.rw) > I.LAND_SPIN) { doCrash('hard', low.w[0], 0); return; }
     if (!I.LANDING_ASSIST && s.lifted && s.x <= 0 && Math.abs(s.z) < ROAD_W / 2) {
@@ -317,6 +348,7 @@ function createSim(hooks = {}, consts = null) {
       s.z = 0; s.vz = 0; s.rw = 0;
       s.spinTotal = 0; s.rollsAccum = 0; s.spinRight = 0; s.spinLeft = 0;
       s.hasSwitchedDir = false; s.phase = 'upright';
+      s.comboMult = 1.0; s.hasSkimmed = false; s.skimTime = 0; s.hasInverted = false; s.invertTime = 0;
       snap();
       s.events.push({ type: 'touch', x: s.x, y: 0 });
       return;
@@ -384,7 +416,10 @@ function scoreOf(land) {
   const roll = 50 * land.rolls;
   const soft = 30 * c(1 - land.fall / BASE.LAND_SPEED);
   const level = 20 * c(1 - land.tilt / BASE.LAND_TILT);
-  return { roll, soft, level, total: Math.round(roll + soft + level) };
+  const stuntBase = (land.hasSkimmed ? 25 : 0) + (land.hasInverted ? 20 : 0) + (land.hasSwitchedDir ? 20 : 0);
+  const comboMult = land.comboMult ?? 1;
+  const stunt = stuntBase > 0 ? Math.round(stuntBase * comboMult) : 0;
+  return { roll, soft, level, stunt, total: Math.round(roll + soft + level + stunt) };
 }
 
 

@@ -63,3 +63,12 @@ export function scoreBandLabel(score) {
 export function scoreToAccuracy(score) {
   return Math.round((score / 999) * 100);
 }
+
+export const MAX_PEEKS_PER_RUN = 1;
+export const PEEK_PENALTY = 150;
+
+/** Apply score penalty when the player used a peek hint on this round. */
+export function applyPeekPenalty(score, usedPeek) {
+  if (!usedPeek) return score;
+  return Math.max(0, score - PEEK_PENALTY);
+}
