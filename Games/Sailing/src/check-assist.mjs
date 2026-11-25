@@ -134,25 +134,56 @@ const assist = createAssist();
   }
 }
 
-// Easy arcade: cruise without boost, faster when holding ↑.
+// Wind-driven Easy Mode physics:
+// - Beam reach accelerates with authentic wind propulsion and beats irons.
+// - Gentle steerage floor (~2.5 m/s) when out of irons or actively tacking.
+// - Pointing into irons slows the boat down naturally (no motor override).
 {
   const idle = createBoatState(Math.PI / 2);
   idle.surge = 0;
   for (let i = 0; i < 600; i++) {
     stepSailing(idle, wind, { rudder: 0, trimDelta: 0, autoTrim: true, holdCourse: false }, 1 / 60, i / 60, 0, true);
   }
-  assert(idle.surge > 6.5, `arcade cruise too slow: ${idle.surge.toFixed(2)}`);
-  assert(idle.surge < 12, `arcade cruise too fast without boost: ${idle.surge.toFixed(2)}`);
+  assert(idle.surge > 7.0, `wind-driven beam reach should develop solid speed: ${idle.surge.toFixed(2)}`);
+  assert(idle.surge < 12, `beam reach without boost should stay under 12 m/s: ${idle.surge.toFixed(2)}`);
 
   const boost = createBoatState(Math.PI / 2);
   boost.surge = 0;
   for (let i = 0; i < 600; i++) {
     stepSailing(boost, wind, { rudder: 0, trimDelta: 0, autoTrim: true, holdCourse: true }, 1 / 60, i / 60, 0, true);
   }
-  assert(boost.surge > idle.surge + 4,
-    `boost should clearly beat cruise: ${boost.surge.toFixed(2)} vs ${idle.surge.toFixed(2)}`);
-  assert(boost.surge < 22, `boost too fast: ${boost.surge.toFixed(2)}`);
+  assert(boost.surge > idle.surge + 0.8,
+    `boost should beat cruise: ${boost.surge.toFixed(2)} vs ${idle.surge.toFixed(2)}`);
+  assert(boost.surge < 20, `boost too fast: ${boost.surge.toFixed(2)}`);
 
+  // Easy mode in irons: must decelerate without a motor override holding 9 m/s!
+  const easyIrons = createBoatState(Math.PI);
+  easyIrons.surge = 8.0;
+  for (let i = 0; i < 600; i++) {
+    stepSailing(easyIrons, wind, { rudder: 0, trimDelta: 0, autoTrim: true }, 1 / 60, i / 60, 0, true);
+  }
+  assert(easyIrons.surge < 0.6, `easy mode must bleed speed in irons, got ${easyIrons.surge.toFixed(2)}`);
+  assert(idle.surge > easyIrons.surge + 6.0,
+    `beam reach must clearly beat irons in easy mode: ${idle.surge.toFixed(2)} vs ${easyIrons.surge.toFixed(2)}`);
+
+  // Minimum steerage floor (~2.5 m/s) when out of irons or actively tacking
+  const floorTest = createBoatState(Math.PI / 2);
+  floorTest.surge = 0;
+  for (let i = 0; i < 90; i++) {
+    stepSailing(floorTest, wind, { rudder: 0, trimDelta: 0, autoTrim: true }, 1 / 60, i / 60, 0, true);
+  }
+  assert(floorTest.surge >= 2.0, `steerage floor should raise low surge when out of irons, got ${floorTest.surge.toFixed(2)}`);
+
+  // Actively tacking in irons maintains steerage floor to carry through the turn
+  const tackingIrons = createBoatState(Math.PI);
+  tackingIrons.surge = 0;
+  for (let i = 0; i < 90; i++) {
+    stepSailing(tackingIrons, wind, { rudder: 1, trimDelta: 0, autoTrim: true }, 1 / 60, i / 60, 0, true);
+  }
+  assert(tackingIrons.surge >= 1.8 && tackingIrons.surge <= 2.8,
+    `tacking in irons should keep steerage floor, got ${tackingIrons.surge.toFixed(2)}`);
+
+  // Pro mode: goes dead in irons
   const hard = createBoatState(Math.PI);
   hard.surge = 0;
   for (let i = 0; i < 600; i++) {

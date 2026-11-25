@@ -85,4 +85,34 @@ function steadySpeed(twaDeg) {
     `dead band at TWA 150: ${polar[150].toFixed(2)} vs run ${polar[180].toFixed(2)}`);
 }
 
+// --- Easy Mode wind-driven propulsion and gentle steerage floor -------------
+{
+  // 1. Beam reach accelerates strongly with wind in Easy Mode.
+  const easyBeam = createBoatState(Math.PI / 2);
+  easyBeam.surge = 2;
+  for (let i = 0; i < 300; i++) {
+    stepSailing(easyBeam, wind, { rudder: 0, trimDelta: 0, autoTrim: true }, 1 / 60, i / 60, 0, true);
+  }
+  assert(easyBeam.surge > 7.0, `expected wind-driven beam reach speed > 7 m/s, got ${easyBeam.surge}`);
+
+  // 2. Entering irons slows the boat down naturally (no motor holding high speed).
+  const easyIrons = createBoatState(Math.PI);
+  easyIrons.surge = 8.0;
+  for (let i = 0; i < 600; i++) {
+    stepSailing(easyIrons, wind, { rudder: 0, trimDelta: 0, autoTrim: true }, 1 / 60, i / 60, 0, true);
+  }
+  assert(easyIrons.surge < 0.5, `expected boat in irons to slow down, got ${easyIrons.surge}`);
+  assert(easyBeam.surge > easyIrons.surge + 6.0,
+    `beam reach should clearly beat irons in easy mode: ${easyBeam.surge} vs ${easyIrons.surge}`);
+
+  // 3. Gentle minimum steerage floor (~2.5 m/s) when tacking through irons.
+  const easyFloor = createBoatState(Math.PI);
+  easyFloor.surge = 0.5;
+  for (let i = 0; i < 90; i++) {
+    stepSailing(easyFloor, wind, { rudder: 1, trimDelta: 0, autoTrim: true }, 1 / 60, i / 60, 0, true);
+  }
+  assert(easyFloor.surge >= 1.9 && easyFloor.surge <= 2.8,
+    `expected gentle steerage floor (~2.5 m/s) during tack, got ${easyFloor.surge}`);
+}
+
 console.log('check-sailing: ok');

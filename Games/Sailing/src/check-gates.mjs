@@ -1,7 +1,7 @@
 // Gate / round-mark self-check (no test framework).
 
 import { createCourse, startTrueWindAngle, listCourses } from './courses.js';
-import { createMarkTracker, gateLocal, markKind } from './marks.js';
+import { createMarkTracker, gateLocal, markKind, getRoundingRingGeometry } from './marks.js';
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);
@@ -93,6 +93,22 @@ assert(marks.nextIndex === 1, 'should advance to checkpoint 1');
     b.z = mark.z + Math.cos(a) * r;
     assert(tracker.tryClear(b) === null, 'starboard loop must not clear port mark');
   }
+}
+
+// Rounding ring geometry and direction logic for world-space clarity.
+{
+  const beat = createCourse('beat');
+  const roundMark = beat.gates.find((g) => markKind(g) === 'round');
+  assert(roundMark, 'expected at least one round mark');
+  const geom = getRoundingRingGeometry(roundMark);
+  assert(geom.radius === roundMark.radius, `expected ring radius ${roundMark.radius}, got ${geom.radius}`);
+  assert(geom.isPort === true, 'default round mark should be port rounding');
+  assert(geom.angularDirection === 1, 'port rounding chevrons must point counterclockwise (positive angle direction)');
+
+  const starboardMark = { ...roundMark, leaveTo: 'starboard' };
+  const stGeom = getRoundingRingGeometry(starboardMark);
+  assert(stGeom.isPort === false, 'starboard mark must be recognized as non-port');
+  assert(stGeom.angularDirection === -1, 'starboard rounding chevrons must point clockwise (negative angle direction)');
 }
 
 assert(listCourses().length >= 3, 'expected at least 3 courses');
