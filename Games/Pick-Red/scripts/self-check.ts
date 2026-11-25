@@ -27,6 +27,7 @@ import {
   handSize,
   outcome,
   playCard,
+  discardCard,
   score,
   settleChips,
 } from '../src/game/engine.js';
@@ -35,6 +36,7 @@ import {
   PERSONALITIES,
   SEAT_PERSONALITIES,
   chooseMove,
+  chooseDiscard,
   difficultyInfo,
   getDifficultyConfig,
   leaderFor,
@@ -1828,6 +1830,139 @@ function expectAiOptimizationDangerRadarAndProjections(): void {
   assert.equal(trailing.status, 'trailing');
 }
 
+function expectStrategicDiscardAndHardAiSafeCounting(): void {
+  // 1. Optional Strategic Discard House Rule
+  // Classic forced capture: with allowStrategicDiscard: false, playCard must capture
+  const c9: Card = { id: 'clubs-9', suit: 'clubs', rank: 9 };
+  const hA: Card = { id: 'hearts-1', suit: 'hearts', rank: 1 };
+  const s2: Card = { id: 'spades-2', suit: 'spades', rank: 2 };
+  const sK: Card = { id: 'spades-13', suit: 'spades', rank: 13 };
+
+  const classicState: GameState = {
+    seedCode: 'test-classic',
+    rules: { ...rules(2), allowStrategicDiscard: false },
+    difficulty: 'normal',
+    leader: 0,
+    phase: 'play',
+    turn: 0,
+    hands: [[c9, s2], [sK]],
+    captured: [[], []],
+    table: [hA],
+    pile: [],
+    pending: null,
+    log: [],
+    spotlight: [],
+  };
+
+  // Even with forceDiscard requested, classic rule enforces capture
+  const playedClassic = playCard(classicState, c9.id, true);
+  assert.equal(playedClassic.captured[0].length, 2, 'classic rules must force capture');
+  assert.equal(playedClassic.table.length, 0, 'captured card should be removed from table');
+
+  // With allowStrategicDiscard: true, intentional discard places the matching card on the table
+  const strategicState: GameState = {
+    ...classicState,
+    rules: { ...classicState.rules, allowStrategicDiscard: true },
+  };
+
+  // Normal play still captures
+  const capturedStrat = playCard(strategicState, c9.id, false);
+  assert.equal(capturedStrat.captured[0].length, 2, 'normal play captures when matching');
+
+  // Strategic discard: card is placed on table without capturing
+  const discardedStrat = playCard(strategicState, c9.id, true);
+  assert.equal(discardedStrat.captured[0].length, 0, 'strategic discard must not capture');
+  assert.equal(discardedStrat.table.length, 2, 'strategic discard leaves card on table');
+  assert.ok(discardedStrat.table.some((c) => c.id === c9.id), 'discarded card must be on table');
+  assert.ok(discardedStrat.table.some((c) => c.id === hA.id), 'table card remains on table');
+  assert.equal(discardedStrat.phase, 'flip', 'phase advances to flip after strategic discard');
+
+  // Strategic discard via discardCard helper
+  const discardedViaHelper = discardCard(strategicState, c9.id);
+  assert.equal(discardedViaHelper.captured[0].length, 0);
+  assert.equal(discardedViaHelper.table.length, 2);
+
+  // Strategic discard during pick_play
+  const hA2: Card = { id: 'diamonds-1', suit: 'diamonds', rank: 1 };
+  const multiMatchState: GameState = {
+    ...strategicState,
+    table: [hA, hA2],
+  };
+  const pickPlayState = playCard(multiMatchState, c9.id, false);
+  assert.equal(pickPlayState.phase, 'pick_play');
+  assert.equal(pickPlayState.pending?.id, c9.id);
+  const discardDuringPick = choosePick(pickPlayState, null);
+  assert.equal(discardDuringPick.captured[0].length, 0, 'cancelling pick strategically discards');
+  assert.equal(discardDuringPick.phase, 'flip');
+  assert.equal(discardDuringPick.table.length, 3);
+
+  // 2. Hard AI Card-Counting Safe Discard
+  // Scenario: CPU has no moves that capture table cards.
+  // CPU hand has:
+  // - clubs-9 (0 pts, matches 1: hearts-1/diamonds-1 are NOT accounted for, risk of feeding 20pt Red Ace)
+  // - spades-3 (0 pts, matches 7: all 7s are already accounted for in log/captured, 100% SAFE discard)
+  const allSevens: Card[] = [
+    { id: 'spades-7', suit: 'spades', rank: 7 },
+    { id: 'hearts-7', suit: 'hearts', rank: 7 },
+    { id: 'clubs-7', suit: 'clubs', rank: 7 },
+    { id: 'diamonds-7', suit: 'diamonds', rank: 7 },
+  ];
+
+  const hardCpuState: GameState = {
+    seedCode: 'test-hard-counting',
+    rules: rules(2),
+    difficulty: 'hard',
+    leader: 1,
+    phase: 'play',
+    turn: 1,
+    hands: [
+      [{ id: 'spades-5', suit: 'spades', rank: 5 }],
+      [
+        { id: 'clubs-9', suit: 'clubs', rank: 9 }, // matches 1, but Red Ace (20pts) is unseen!
+        { id: 'spades-3', suit: 'spades', rank: 3 }, // matches 7, all 7s are accounted for!
+      ],
+    ],
+    captured: [
+      [allSevens[0], allSevens[1]],
+      [allSevens[2], allSevens[3]],
+    ],
+    table: [{ id: 'spades-4', suit: 'spades', rank: 4 }], // Neither 9 nor 3 can capture 4
+    pile: [],
+    pending: null,
+    log: [],
+    spotlight: [],
+  };
+
+  const hardMove = chooseMove(hardCpuState, 'sharp');
+  assert.equal(
+    hardMove.card.id,
+    'spades-3',
+    'Hard AI must count cards and prefer safe rank (spades-3) over feeding exposed red Ace on table (clubs-9)',
+  );
+
+  // Also verify chooseDiscard directly
+  const discardedCard = chooseDiscard(hardCpuState, 'sharp', null);
+  assert.equal(discardedCard.id, 'spades-3');
+
+  // Verify that between a 20-point Red Ace and a 0-point Black card, Hard AI never discards Red Ace
+  const hardAvoidDumpingAceState: GameState = {
+    ...hardCpuState,
+    hands: [
+      [{ id: 'spades-5', suit: 'spades', rank: 5 }],
+      [
+        { id: 'hearts-1', suit: 'hearts', rank: 1 }, // Red Ace (20 pts)
+        { id: 'clubs-9', suit: 'clubs', rank: 9 },   // 0 pts
+      ],
+    ],
+  };
+  const moveAvoidingRedAce = chooseMove(hardAvoidDumpingAceState, 'sharp');
+  assert.equal(
+    moveAvoidingRedAce.card.id,
+    'clubs-9',
+    'Hard AI must never dump high-value red Ace when a 0-point card is available',
+  );
+}
+
 const CHECKS: [string, () => void][] = [
   ['matching rule', expectMatchingRule],
   ['scoring table (210, red 9 = 10)', expectScoringTable],
@@ -1858,6 +1993,7 @@ const CHECKS: [string, () => void][] = [
   ['double red five bonus and scoring invariants', expectDoubleRedFiveBonusAndScoring],
   ['multiplayer deal and balance invariants (2p/3p/4p)', expectMultiplayerBalanceInvariants],
   ['ai eat/discard optimization, radar and projections', expectAiOptimizationDangerRadarAndProjections],
+  ['hard AI safe discard and strategic discard', expectStrategicDiscardAndHardAiSafeCounting],
 ];
 
 let failed = 0;

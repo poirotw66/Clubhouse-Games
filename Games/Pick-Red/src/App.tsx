@@ -164,13 +164,14 @@ export default function App(): React.ReactElement {
   const [dailyProgress, setDailyProgress] = useState(EMPTY_DAILY);
   const [shareCopied, setShareCopied] = useState(false);
   const [dailyDate] = useState(() => taipeiDateKey());
+  const [showPairingTip, setShowPairingTip] = useState(true);
   const handRecorded = useRef(false);
   const matchRecorded = useRef(false);
   const resultSoundPlayed = useRef(false);
   const prevLogLen = useRef(0);
   const comboRef = useRef(0);
   const feltRef = useRef<HTMLElement | null>(null);
-  /** Shake intensity queued until after `.pr-felt` remounts on captureBurst. */
+  /** Shake intensity queued on captureBurst. */
   const pendingFeltShake = useRef(0);
 
   const seatNames = useMemo(() => {
@@ -194,6 +195,7 @@ export default function App(): React.ReactElement {
         doubleRedFive: saved.lastDoubleRedFive,
         zeroScoreBonus: saved.lastZeroScoreBonus,
         rotateLeader: saved.lastRotateLeader,
+        allowStrategicDiscard: saved.lastAllowStrategicDiscard ?? false,
       }),
       mode: saved.lastMatchMode === 'daily' ? 'hands' : saved.lastMatchMode,
       hands: saved.lastMatchHands,
@@ -418,7 +420,7 @@ export default function App(): React.ReactElement {
       if (flashy || nextCombo >= 2) {
         haptic(nextCombo >= 2 ? 'combo' : 'impact');
         particles('burst', { el: feltEl(), strength: flashy ? 1 : 0.75 });
-        // Felt remounts via captureBurst key; apply shake in the effect below.
+        // Trigger felt shake on capture burst without remounting the felt node.
         pendingFeltShake.current = 0.45;
       } else {
         haptic('place');
@@ -438,7 +440,7 @@ export default function App(): React.ReactElement {
     }
   }, [state]);
 
-  // Apply queued felt shake after captureBurst remounts the `.pr-felt` node.
+  // Apply felt shake smoothly without remounting the `.pr-felt` node.
   useEffect(() => {
     if (!captureBurst || pendingFeltShake.current <= 0) return;
     const intensity = pendingFeltShake.current;
@@ -537,10 +539,13 @@ export default function App(): React.ReactElement {
   }, []);
 
   const commit = useCallback(
-    (card: Card, target?: Card) => {
+    (card: Card, target?: Card, forceDiscard = false) => {
       setState((current) => {
         if (!current) return current;
         pushHistory(current);
+        if (forceDiscard) {
+          return playHandCard(current, card.id, true);
+        }
         const played = playHandCard(current, card.id);
         if (played.phase === 'pick_play' && target) return choosePick(played, target.id);
         return played;
@@ -1064,14 +1069,37 @@ export default function App(): React.ReactElement {
                   ),
                 )}
 
+                {stats.wins + stats.losses + stats.draws === 0 && showPairingTip && (
+                  <div className="flex items-center justify-between gap-2 px-3.5 py-1.5 rounded-xl bg-emerald-950/70 border border-emerald-500/30 text-xs text-emerald-200 shadow-sm">
+                    <div className="flex items-center gap-1.5">
+                      <span>💡</span>
+                      <span>新手秘訣：9 配 A、10 起同點對，黑牌無分純作工具</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowPairingTip(false)}
+                      className="text-emerald-400 hover:text-emerald-200 text-sm px-1 leading-none touch-manipulation"
+                      aria-label="關閉提示"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+
                 <section
                   ref={feltRef}
                   data-pr-felt="1"
-                  className={`pr-felt rounded-2xl p-3 sm:p-4 relative ${captureBurst ? 'pr-felt-flash' : ''}`}
+                  className={`pr-felt rounded-2xl p-3 sm:p-4 relative overflow-hidden ${captureBurst ? 'pr-felt-flash' : ''}`}
                   style={feltBackgroundStyle()}
                   aria-label="桌面"
-                  key={`felt-${captureBurst}`}
                 >
+                  {captureBurst > 0 && (
+                    <div
+                      key={captureBurst}
+                      className="pr-felt-flash pointer-events-none absolute inset-0 rounded-2xl z-0"
+                      aria-hidden="true"
+                    />
+                  )}
                   {callout && (
                     <div key={callout.key} className="pr-callout pointer-events-none absolute inset-x-0 top-2 z-10 flex justify-center">
                       <span className="rounded-full bg-amber-400/95 px-4 py-1 text-sm font-black text-slate-900 shadow-lg">
@@ -1159,11 +1187,40 @@ export default function App(): React.ReactElement {
                   <button
                     type="button"
                     onClick={() => commit(selected)}
-                    className="mx-auto min-h-[44px] rounded-xl bg-amber-600 hover:bg-amber-500 px-5 font-bold shadow-lg flex items-center gap-2"
+                    className="mx-auto min-h-[44px] rounded-xl bg-amber-600 hover:bg-amber-500 px-5 font-bold shadow-lg flex items-center gap-2 touch-manipulation"
                   >
                     <span>打出 {cardLabel(selected)}（撿不到，留在桌上）</span>
                     <kbd className="px-1.5 py-0.5 rounded bg-amber-700/80 text-amber-100 text-xs font-mono">Space</kbd>
                   </button>
+                )}
+
+                {selected && targets.length > 0 && humanTurn && state.phase === 'play' && state.rules.allowStrategicDiscard && (
+                  <div className="flex justify-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => commit(selected, undefined, true)}
+                      className="min-h-[44px] rounded-xl bg-amber-700/80 hover:bg-amber-600/90 text-amber-100 px-4 py-2 text-sm font-bold shadow-lg border border-amber-500/40 flex items-center gap-2 touch-manipulation"
+                    >
+                      <span>策略棄牌（不吃牌，直接留在桌上）</span>
+                    </button>
+                  </div>
+                )}
+
+                {pickPending && state.phase === 'pick_play' && humanTurn && state.rules.allowStrategicDiscard && (
+                  <div className="flex justify-center mt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        pushHistory(state);
+                        setState((current) => (current ? choosePick(current, null) : current));
+                        setSelected(null);
+                        setHint(null);
+                      }}
+                      className="min-h-[44px] rounded-xl bg-amber-700/80 hover:bg-amber-600/90 text-amber-100 px-4 py-2 text-sm font-bold shadow-lg border border-amber-500/40 flex items-center gap-2 touch-manipulation"
+                    >
+                      <span>策略棄牌（放棄吃牌，直接留在桌上）</span>
+                    </button>
+                  </div>
                 )}
 
                 <Pile
@@ -1477,6 +1534,10 @@ function Setup({
           <p className="text-emerald-200/60 text-sm mt-1">
             單局・系列賽・每日牌桌 · 湊十撿牌，只有紅牌算分
           </p>
+          <div className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-950/70 border border-emerald-500/30 text-xs text-emerald-300 shadow-sm">
+            <span>💡</span>
+            <span>新手秘訣：9 配 A、10 起同點對，黑牌無分純作工具</span>
+          </div>
           <div className="mt-3 flex justify-center">
             <button
               type="button"
@@ -1778,6 +1839,12 @@ function Setup({
               onClick={() => patchRules({ zeroScoreBonus: !rules.zeroScoreBonus })}
               title={`拼零分${rules.zeroScoreBonus ? '（開）' : '（關）'}`}
               detail="整局一分未得，向其餘各家各收標準分籌碼。"
+            />
+            <Toggle
+              on={Boolean(rules.allowStrategicDiscard)}
+              onClick={() => patchRules({ allowStrategicDiscard: !rules.allowStrategicDiscard })}
+              title={`策略棄牌${rules.allowStrategicDiscard ? '（開）' : '（關）'}`}
+              detail="允許不強迫吃牌，可選擇直接打出棄牌至桌面保留組合或控分。"
             />
             {isSeriesMode(config.mode) && (
               <Toggle

@@ -140,8 +140,16 @@ function advanceTurn(state: GameState): void {
  * card the state parks in 'pick_play' instead of choosing for them — which of
  * two equal-ranked cards you take is a real decision, because the one you leave
  * behind stays available to everyone else.
+ *
+ * If `forceDiscard` is true, the card is intentionally discarded to the table
+ * without capturing, permitted when the house rule `allowStrategicDiscard` is on
+ * (or when no table cards match).
  */
-export function playCard(state: GameState, cardId: CardId): GameState {
+export function playCard(
+  state: GameState,
+  cardId: CardId,
+  forceDiscard = false,
+): GameState {
   if (state.phase !== 'play') return state;
   const seat = state.turn;
   const card = state.hands[seat].find((c) => c.id === cardId);
@@ -151,6 +159,13 @@ export function playCard(state: GameState, cardId: CardId): GameState {
   next.hands[seat] = next.hands[seat].filter((c) => c.id !== cardId);
 
   const options = capturableBy(card, next.table);
+
+  if (forceDiscard && (next.rules.allowStrategicDiscard || options.length === 0)) {
+    resolve(next, seat, card, null, 'hand');
+    next.phase = 'flip';
+    return next;
+  }
+
   if (options.length > 1) {
     next.pending = card;
     next.phase = 'pick_play';
@@ -161,6 +176,11 @@ export function playCard(state: GameState, cardId: CardId): GameState {
   resolve(next, seat, card, options[0] ?? null, 'hand');
   next.phase = 'flip';
   return next;
+}
+
+/** Convenience helper for intentional strategic discard. */
+export function discardCard(state: GameState, cardId: CardId): GameState {
+  return playCard(state, cardId, true);
 }
 
 /**
@@ -191,10 +211,19 @@ export function flip(state: GameState): GameState {
   return next;
 }
 
-/** Resolve an outstanding pick against the chosen table card. */
-export function choosePick(state: GameState, tableCardId: CardId): GameState {
+/** Resolve an outstanding pick against the chosen table card (or null to intentionally discard). */
+export function choosePick(state: GameState, tableCardId: CardId | null): GameState {
   if (state.phase !== 'pick_play' && state.phase !== 'pick_flip') return state;
   if (!state.pending) return state;
+
+  if (tableCardId === null) {
+    if (state.phase !== 'pick_play' || !state.rules.allowStrategicDiscard) return state;
+    const next = clone(state);
+    resolve(next, next.turn, next.pending!, null, 'hand');
+    next.pending = null;
+    next.phase = 'flip';
+    return next;
+  }
 
   const taken = state.table.find((c) => c.id === tableCardId);
   if (!taken || !capturableBy(state.pending, [taken]).length) return state;

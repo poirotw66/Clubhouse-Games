@@ -9,7 +9,9 @@ import type {
   GameState,
   Personality,
   PersonalityId,
+  Rank,
   Seat,
+  Suit,
 } from './types';
 
 export interface CpuMove {
@@ -122,12 +124,64 @@ export function leaderFor(id: DifficultyId, players: number): Seat {
   return difficultyInfo(id).humanLast ? (HUMAN + 1) % players : HUMAN;
 }
 
+function matchingRankOf(rank: Rank): Rank {
+  if (rank >= 10) return rank;
+  return (10 - rank) as Rank;
+}
+
+interface DiscardRisk {
+  card: Card;
+  points: number;
+  unseenMatchingCount: number;
+  maxUnseenMatchPoints: number;
+  isSafe: boolean;
+}
+
+function evaluateDiscardRisk(
+  card: Card,
+  accountedCards: ReadonlySet<string>,
+  blackAces: boolean,
+): DiscardRisk {
+  const m = matchingRankOf(card.rank);
+  const suits: Suit[] = ['spades', 'hearts', 'clubs', 'diamonds'];
+  const allMatching = suits.map((suit) => ({
+    id: `${suit}-${m}`,
+    suit,
+    rank: m,
+  }));
+
+  const unseenMatching = allMatching.filter((target) => !accountedCards.has(target.id));
+  const unseenMatchingCount = unseenMatching.length;
+  const maxUnseenMatchPoints =
+    unseenMatching.length > 0
+      ? Math.max(...unseenMatching.map((c) => pointsOf(c, blackAces)))
+      : 0;
+  const isSafe = unseenMatchingCount === 0;
+
+  return {
+    card,
+    points: pointsOf(card, blackAces),
+    unseenMatchingCount,
+    maxUnseenMatchPoints,
+    isSafe,
+  };
+}
+
 /**
  * Which card to give up when nothing on the table can be taken. Roughly a
  * quarter of all hand plays are this decision, so it is the one place the two
  * brains actually differ — and where personalities show on the felt.
+ *
+ * On Hard AI, inspects state.log, captured piles, table cards, and CPU's own hand
+ * to perform smart card counting:
+ * - Prioritizes safe discards (whose matching pairs are already completely accounted for).
+ * - Avoids feeding high-value cards (red Ace 20pts, red 5, red 9..K 10pts).
  */
-function chooseDiscard(state: GameState, brain: CpuBrain, personality: PersonalityId | null): Card {
+export function chooseDiscard(
+  state: GameState,
+  brain: CpuBrain,
+  personality: PersonalityId | null,
+): Card {
   const hand = state.hands[state.turn];
   const blackAces = state.rules.blackAces;
 
@@ -149,7 +203,63 @@ function chooseDiscard(state: GameState, brain: CpuBrain, personality: Personali
     return hand[Math.floor(r() * hand.length)];
   }
 
-  // Sharp: never hand over a scoring card while a zero-point one will do.
+  // Hard AI: Smart Card Counting Discard
+  if (state.difficulty === 'hard') {
+    const accountedCards = new Set<string>();
+    for (const pile of state.captured) {
+      for (const c of pile) accountedCards.add(c.id);
+    }
+    for (const entry of state.log) {
+      accountedCards.add(entry.played.id);
+      if (entry.taken) accountedCards.add(entry.taken.id);
+    }
+    for (const c of state.table) {
+      accountedCards.add(c.id);
+    }
+    for (const c of hand) {
+      accountedCards.add(c.id);
+    }
+
+    const risks = new Map<string, DiscardRisk>(
+      hand.map((card) => [card.id, evaluateDiscardRisk(card, accountedCards, blackAces)]),
+    );
+
+    return [...hand].sort((a, b) => {
+      const ra = risks.get(a.id)!;
+      const rb = risks.get(b.id)!;
+
+      // 1. Never hand over a scoring card while a zero-point one will do.
+      if (ra.points !== rb.points) return ra.points - rb.points;
+
+      // 2. Safe discard: all pairs accounted for (no opponent can capture this rank).
+      if (ra.isSafe !== rb.isSafe) return ra.isSafe ? -1 : 1;
+
+      // 3. Avoid feeding high-value red cards (red Ace 20pts, red 5, red 9..K 10pts).
+      if (ra.maxUnseenMatchPoints !== rb.maxUnseenMatchPoints) {
+        return ra.maxUnseenMatchPoints - rb.maxUnseenMatchPoints;
+      }
+
+      // 4. Prefer fewer unaccounted matching cards in circulation.
+      if (ra.unseenMatchingCount !== rb.unseenMatchingCount) {
+        return ra.unseenMatchingCount - rb.unseenMatchingCount;
+      }
+
+      // 5. Personality tie-breakers
+      if (personality === 'aceChaser') {
+        const key = (c: Card) => (c.rank === 1 || c.rank === 9 ? 1 : 0);
+        return key(a) - key(b) || a.rank - b.rank;
+      }
+      if (personality === 'miser') {
+        return a.rank - b.rank;
+      }
+      if (personality === 'feeder') {
+        return b.rank - a.rank;
+      }
+      return a.rank - b.rank;
+    })[0];
+  }
+
+  // Sharp (Normal): never hand over a scoring card while a zero-point one will do.
   // Personality only reorders equal-value discards (ties), matching Big-Two.
   return [...hand].sort((a, b) => {
     const pa = pointsOf(a, blackAces);

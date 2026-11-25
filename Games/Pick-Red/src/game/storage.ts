@@ -49,6 +49,7 @@ export interface Stats {
   lastDoubleRedFive: boolean;
   lastZeroScoreBonus: boolean;
   lastRotateLeader: boolean;
+  lastAllowStrategicDiscard?: boolean;
   lastMatchMode: MatchMode;
   lastMatchHands: MatchLength;
   lastMatchTarget: TargetScore;
@@ -101,6 +102,7 @@ export const EMPTY_STATS: Stats = {
   lastDoubleRedFive: true,
   lastZeroScoreBonus: true,
   lastRotateLeader: true,
+  lastAllowStrategicDiscard: false,
   lastMatchMode: 'single',
   lastMatchHands: 4,
   lastMatchTarget: 100,
@@ -180,6 +182,7 @@ export function loadStats(): Stats {
       lastDoubleRedFive: bool(parsed.lastDoubleRedFive, true),
       lastZeroScoreBonus: bool(parsed.lastZeroScoreBonus, true),
       lastRotateLeader: bool(parsed.lastRotateLeader, true),
+      lastAllowStrategicDiscard: bool(parsed.lastAllowStrategicDiscard, false),
       lastMatchMode:
         MODES.has(lastMode) && lastMode !== 'daily'
           ? (lastMode as MatchMode)
@@ -281,6 +284,7 @@ export function rememberSetup(stats: Stats, config: MatchConfig): Stats {
     lastDoubleRedFive: config.rules.doubleRedFive,
     lastZeroScoreBonus: config.rules.zeroScoreBonus,
     lastRotateLeader: config.rules.rotateLeader,
+    lastAllowStrategicDiscard: Boolean(config.rules.allowStrategicDiscard),
     lastMatchMode: config.mode === 'daily' ? stats.lastMatchMode : config.mode,
     lastMatchHands: config.hands,
     lastMatchTarget: config.target,

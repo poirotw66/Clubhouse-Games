@@ -61,6 +61,7 @@ export const DEFAULT_HOUSE_RULES: HouseRules = {
   doubleRedFive: true,
   zeroScoreBonus: true,
   rotateLeader: true,
+  allowStrategicDiscard: false,
 };
 
 export function defaultMatchConfig(
