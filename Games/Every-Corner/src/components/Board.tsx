@@ -534,6 +534,97 @@ export function Board({
         );
       })}
 
+      {/* Structural Waypoints (Mandatory Turn / Straight) */}
+      {puzzle.waypoints &&
+        Object.entries(puzzle.waypoints).map(([cellKey, kind]) => {
+          const cell = Number(cellKey);
+          const { x, y } = centre(cell);
+          const pathIdx = path.indexOf(cell);
+          const isInterior = pathIdx > 0 && pathIdx < path.length - 1;
+          let isViolated = false;
+          let isSatisfied = false;
+          if (isInterior) {
+            const prev = path[pathIdx - 1];
+            const next = path[pathIdx + 1];
+            const dr1 = rowOf(size, cell) - rowOf(size, prev);
+            const dc1 = colOf(size, cell) - colOf(size, prev);
+            const dr2 = rowOf(size, next) - rowOf(size, cell);
+            const dc2 = colOf(size, next) - colOf(size, cell);
+            const isStraight = dr1 === dr2 && dc1 === dc2;
+            const actual = isStraight ? 'straight' : 'turn';
+            if (actual === kind) {
+              isSatisfied = true;
+            } else {
+              isViolated = true;
+            }
+          }
+
+          if (kind === 'turn') {
+            return (
+              <g key={`wp-${cell}`} className="select-none pointer-events-none">
+                <rect
+                  x={x - 14}
+                  y={y - 14}
+                  width={28}
+                  height={28}
+                  rx={6}
+                  transform={`rotate(45, ${x}, ${y})`}
+                  fill={
+                    isViolated
+                      ? 'rgba(239, 68, 68, 0.45)'
+                      : isSatisfied
+                        ? 'rgba(16, 185, 129, 0.4)'
+                        : 'rgba(245, 158, 11, 0.25)'
+                  }
+                  stroke={isViolated ? '#ef4444' : isSatisfied ? '#10b981' : '#f59e0b'}
+                  strokeWidth={2}
+                />
+                <text
+                  x={x}
+                  y={y + 4.5}
+                  textAnchor="middle"
+                  fontSize={14}
+                  fontWeight="bold"
+                  fill={isViolated ? '#fca5a5' : isSatisfied ? '#6ee7b7' : '#fde68a'}
+                >
+                  ⤹
+                </text>
+              </g>
+            );
+          }
+
+          return (
+            <g key={`wp-${cell}`} className="select-none pointer-events-none">
+              <rect
+                x={x - 15}
+                y={y - 13}
+                width={30}
+                height={26}
+                rx={6}
+                fill={
+                  isViolated
+                    ? 'rgba(239, 68, 68, 0.45)'
+                    : isSatisfied
+                      ? 'rgba(16, 185, 129, 0.4)'
+                      : 'rgba(14, 165, 233, 0.25)'
+                }
+                stroke={isViolated ? '#ef4444' : isSatisfied ? '#10b981' : '#0ea5e9'}
+                strokeWidth={2}
+              />
+              <text
+                x={x}
+                y={y + 4.5}
+                textAnchor="middle"
+                fontSize={12}
+                fontWeight="bold"
+                fill={isViolated ? '#fca5a5' : isSatisfied ? '#6ee7b7' : '#7dd3fc'}
+              >
+                ══
+              </text>
+            </g>
+          );
+        })}
+
       {/* Checkpoints (Relay Cores with Target Beacons) */}
       {Object.entries(puzzle.checkpoints).map(([cellKey, number]) => {
         const cell = Number(cellKey);

@@ -10,7 +10,9 @@ import {
 import {
   canMultiSlide,
   emptyIndex,
+  goalIndex,
   multiSlide,
+  OBSTACLE_TILE,
   slideByDirection,
   tileManhattan,
   type Board,
@@ -45,6 +47,7 @@ type Props = {
   pictureUrl: string;
   showGhost?: boolean;
   onTileHover?: (tile: number | null) => void;
+  obstacleIndex?: number | null;
 };
 
 function prefersReducedMotion(): boolean {
@@ -68,9 +71,9 @@ export function PuzzleBoard({
   pictureUrl,
   showGhost = false,
   onTileHover,
+  obstacleIndex = null,
 }: Props): ReactElement {
   const boardRef = useRef<HTMLDivElement>(null);
-  const [animating, setAnimating] = useState(false);
   const pointerStart = useRef<{ x: number; y: number; index: number | null } | null>(null);
   const reduced = useRef(false);
 
@@ -140,23 +143,17 @@ export function PuzzleBoard({
 
   const trySlideTile = useCallback(
     (tileIndex: number) => {
-      if (disabled || animating) return;
+      if (disabled) return;
       const res = multiSlide(board, tileIndex, size);
       if (!res) return;
-      if (reduced.current) {
-        onSlide(res.nextBoard, tileIndex, res.movedCount);
-        return;
-      }
-      setAnimating(true);
       onSlide(res.nextBoard, tileIndex, res.movedCount);
-      window.setTimeout(() => setAnimating(false), SLIDE_MS);
     },
-    [animating, board, disabled, onSlide, size],
+    [board, disabled, onSlide, size],
   );
 
   const trySlideDir = useCallback(
     (dir: SlideDir) => {
-      if (disabled || animating) return;
+      if (disabled) return;
       const next = slideByDirection(board, size, dir);
       if (!next) return;
       const e = emptyIndex(board);
@@ -165,19 +162,13 @@ export function PuzzleBoard({
       else if (dir === 'down') tileIndex = e - size;
       else if (dir === 'left') tileIndex = e + 1;
       else tileIndex = e - 1;
-      if (reduced.current) {
-        onSlide(next, tileIndex, 1);
-        return;
-      }
-      setAnimating(true);
       onSlide(next, tileIndex, 1);
-      window.setTimeout(() => setAnimating(false), SLIDE_MS);
     },
-    [animating, board, disabled, onSlide, size],
+    [board, disabled, onSlide, size],
   );
 
   const onPointerDown = (index: number, e: ReactPointerEvent) => {
-    if (disabled) return;
+    if (disabled || board[index] === OBSTACLE_TILE) return;
     pointerStart.current = { x: e.clientX, y: e.clientY, index };
     (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
   };
@@ -316,17 +307,46 @@ export function PuzzleBoard({
           if (tile === null) return null;
         const row = Math.floor(i / size);
         const col = i % size;
-        const goal = tile - 1;
-        const gRow = Math.floor(goal / size);
-        const gCol = goal % size;
         const left = `calc(${col} * (${cell} + ${gap}px))`;
         const top = `calc(${row} * (${cell} + ${gap}px))`;
+
+        if (tile === OBSTACLE_TILE) {
+          return (
+            <div
+              key="bolted-obstacle"
+              role="gridcell"
+              className="absolute rounded-xl font-bold border-2 border-stone-600/90 overflow-hidden bg-gradient-to-br from-stone-800 via-stone-900 to-stone-950 text-stone-200 select-none shadow-inner flex flex-col items-center justify-center pointer-events-auto cursor-not-allowed z-10"
+              style={{
+                width: cell,
+                height: cell,
+                left,
+                top,
+              }}
+              aria-label="釘死石柱（固定障礙）"
+            >
+              <span className="absolute top-1.5 left-1.5 w-2 h-2 rounded-full bg-stone-400 border border-stone-200 shadow" />
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-stone-400 border border-stone-200 shadow" />
+              <span className="absolute bottom-1.5 left-1.5 w-2 h-2 rounded-full bg-stone-400 border border-stone-200 shadow" />
+              <span className="absolute bottom-1.5 right-1.5 w-2 h-2 rounded-full bg-stone-400 border border-stone-200 shadow" />
+              <div className="flex flex-col items-center justify-center pointer-events-none">
+                <span className="text-xl sm:text-2xl drop-shadow">🔩</span>
+                <span className="text-[10px] sm:text-xs font-mono font-bold tracking-widest text-stone-300 uppercase mt-0.5 drop-shadow">
+                  釘死石柱
+                </span>
+              </div>
+            </div>
+          );
+        }
+
+        const goal = goalIndex(tile, obstacleIndex);
+        const gRow = Math.floor(goal / size);
+        const gCol = goal % size;
         const isHint = hintIndex === i;
         const canMove = canMultiSlide(board, i, size);
-        const isInPlace = tile === i + 1;
+        const isInPlace = goal === i;
         const isMultiPush = canMove && (Math.abs(row - eRow) > 1 || Math.abs(col - eCol) > 1);
         const isSpotlight = highlightedTile === tile;
-        const dist = tileManhattan(tile, i, size);
+        const dist = tileManhattan(tile, i, size, obstacleIndex);
         const isSnapped = snappedTiles.has(tile);
 
         // Heatmap class
@@ -357,7 +377,7 @@ export function PuzzleBoard({
             key={tile}
             type="button"
             role="gridcell"
-            disabled={!canMove || disabled || animating}
+            disabled={!canMove || disabled}
             onPointerDown={(ev) => onPointerDown(i, ev)}
             onClick={(ev) => {
               // Pointer taps are handled on release; keyboard/assistive clicks have no pointer.

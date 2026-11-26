@@ -1,5 +1,5 @@
 import { cellCount, playableCount } from './grid';
-import type { CellId, Size } from './types';
+import type { CellId, Size, WaypointKind } from './types';
 
 export interface SolveInput {
   size: Size;
@@ -14,6 +14,8 @@ export interface SolveInput {
   prune?: boolean;
   /** Abort after this many nodes; the result is then not exhaustive. */
   nodeLimit?: number;
+  /** Optional structural waypoint constraints on the path traversal: 'turn' or 'straight'. */
+  waypoints?: Record<CellId, WaypointKind>;
 }
 
 export interface SolveResult {
@@ -61,6 +63,8 @@ export function solve(input: SolveInput): SolveResult {
 
   const start = startCell(input.checkpoints);
   const finish = endCell(input.checkpoints, input.checkpointCount);
+  const waypoints = input.waypoints ?? {};
+  const cols = input.size.cols;
   const solutions: CellId[][] = [];
   if (start < 0 || finish < 0) return { solutions, exhausted: true, nodes: 0 };
   if (blocked.includes(start) || blocked.includes(finish)) {
@@ -149,6 +153,21 @@ export function solve(input: SolveInput): SolveResult {
       if (number !== undefined && number !== expected) continue;
       // Reaching the final number early would strand the remaining cells.
       if (next === finish && path.length + 1 !== total) continue;
+
+      // Waypoint constraint on current cell when exiting to next
+      const required = waypoints[current];
+      if (required !== undefined && path.length >= 2) {
+        const prev = path[path.length - 2];
+        const rPrev = Math.floor(prev / cols);
+        const cPrev = prev % cols;
+        const rCur = Math.floor(current / cols);
+        const cCur = current % cols;
+        const rNext = Math.floor(next / cols);
+        const cNext = next % cols;
+        const isStraight = rCur - rPrev === rNext - rCur && cCur - cPrev === cNext - cCur;
+        if (required === 'straight' && !isStraight) continue;
+        if (required === 'turn' && isStraight) continue;
+      }
 
       visited[next] = true;
       path.push(next);

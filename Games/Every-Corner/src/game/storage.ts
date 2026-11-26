@@ -13,6 +13,7 @@ const SAVE_KEY = `${KEY}:save`;
 const DAILY_KEY = `${KEY}:daily`;
 const WEEKLY_KEY = `${KEY}:weekly`;
 const STATS_KEY = `${KEY}:stats`;
+const STRICT_MODE_KEY = `${KEY}:strict_mode`;
 
 const DIFFICULTIES: DifficultyId[] = ['easy', 'normal', 'hard', 'expert'];
 
@@ -261,6 +262,22 @@ export function loadStats(): PlayerStats {
 export function saveStats(stats: PlayerStats): void {
   try {
     window.localStorage.setItem(STATS_KEY, JSON.stringify(stats));
+  } catch {
+    // Best effort only.
+  }
+}
+
+export function loadStrictMode(): boolean {
+  try {
+    return window.localStorage.getItem(STRICT_MODE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+export function saveStrictMode(enabled: boolean): void {
+  try {
+    window.localStorage.setItem(STRICT_MODE_KEY, String(enabled));
   } catch {
     // Best effort only.
   }

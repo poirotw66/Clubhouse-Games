@@ -1,5 +1,5 @@
-import { cellCount, isHamiltonianPath, snakePath } from './grid';
-import type { CellId, Size } from './types';
+import { cellCount, colOf, isHamiltonianPath, rowOf, snakePath } from './grid';
+import type { CellId, Size, WaypointKind } from './types';
 
 /**
  * Backbite: the move that makes random Hamiltonian paths cheap.
@@ -146,6 +146,42 @@ export function randomHamiltonianPathWithHoles(
 
   if (!isHamiltonianPath(size, neighbours, path, holeSet)) return null;
   return path;
+}
+
+/**
+ * Determine whether a path moves straight or turns at an interior cell `curr`.
+ */
+export function motionAtCell(
+  size: Size,
+  prev: CellId,
+  curr: CellId,
+  next: CellId,
+): WaypointKind {
+  const dr1 = rowOf(size, curr) - rowOf(size, prev);
+  const dc1 = colOf(size, curr) - colOf(size, prev);
+  const dr2 = rowOf(size, next) - rowOf(size, curr);
+  const dc2 = colOf(size, next) - colOf(size, curr);
+  return dr1 === dr2 && dc1 === dc2 ? 'straight' : 'turn';
+}
+
+/**
+ * Validate that a path respects all waypoint turn/straight constraints.
+ */
+export function validateWaypoints(
+  size: Size,
+  path: CellId[],
+  waypoints: Record<CellId, WaypointKind>,
+): boolean {
+  if (path.length < 3) return true;
+  for (let i = 1; i < path.length - 1; i++) {
+    const cell = path[i];
+    const required = waypoints[cell];
+    if (required !== undefined) {
+      const motion = motionAtCell(size, path[i - 1], cell, path[i + 1]);
+      if (motion !== required) return false;
+    }
+  }
+  return true;
 }
 
 export { isHamiltonianPath };
