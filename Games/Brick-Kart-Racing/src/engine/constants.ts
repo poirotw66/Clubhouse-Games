@@ -37,6 +37,16 @@ export const SURFACE_BOOST = 2;
 export const LAP_TOTAL = 3;
 export const RACER_COUNT = 4;
 
+/** Homing missile kinematics and lock-on warning distance */
+export const HOMING_SPEED = 470;
+export const HOMING_WARNING_DIST = 480;
+
+/** Track boundary limits and soft curbs */
+export const BOUNDARY_SHOULDER_LATERAL = 220;
+export const BOUNDARY_BARRIER_LATERAL = 280;
+export const EMERGENCY_RESPAWN_LATERAL = 360;
+export const MAX_LATERAL = EMERGENCY_RESPAWN_LATERAL;
+
 /** Sprite billboards are pre-rendered at this many yaw steps. */
 export const SPRITE_ANGLES = 24;
 export const SPRITE_SIZE = 128;

@@ -173,13 +173,13 @@ const BOSSES: Boss[] = [
         em({ count: 5, spread: 1.0, speed: 135, waveform: 'reverse', interval: 1.25, delay: 2, hue: 50 }),
       ]),
       {
-        ...card('frost-3', '凍符「靜止的雨」', 2100, 40, [
-          em({ count: 14, spread: Math.PI * 2, speed: 68, waveform: 'reverse', interval: 1.5, hue: 195, lifetime: 10 }),
-          em({ count: 4, spread: 0.6, speed: 175, aim: 'aimed', interval: 0.85, delay: 1, hue: 350 }),
+        ...card('frost-3', '凍符「靜止的雨」', 1800, 36, [
+          em({ count: 12, spread: Math.PI * 2, speed: 66, waveform: 'reverse', interval: 1.6, hue: 195, lifetime: 8 }),
+          em({ count: 3, spread: 0.65, speed: 150, aim: 'aimed', interval: 1.15, delay: 1, hue: 350 }),
         ]),
         phases: [
-          { belowHpFrac: 0.55, emitters: [wall({ speed: 96, interval: 2.4, gap: 3, hue: 195 })] },
-          { belowHpFrac: 0.25, emitters: [em({ count: 5, spread: 0.8, speed: 160, aim: 'aimed', interval: 0.9, hue: 20, bulletR: 3.2 })] },
+          { belowHpFrac: 0.55, emitters: [wall({ speed: 88, interval: 2.6, gap: 4, hue: 195 })] },
+          { belowHpFrac: 0.25, emitters: [em({ count: 3, spread: 0.7, speed: 140, aim: 'aimed', interval: 1.25, hue: 20, bulletR: 3.0 })] },
         ],
       },
       // New pattern: twin counter-rotating rings that force a weave, not a hold.

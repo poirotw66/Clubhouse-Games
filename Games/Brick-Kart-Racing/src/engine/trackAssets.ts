@@ -1,5 +1,6 @@
 import {TRACKS, trackControlPoints, type PropKind, type TrackDef} from '../data/tracks';
 import {
+  BOUNDARY_BARRIER_LATERAL,
   CURB_WIDTH,
   ROAD_WIDTH,
   STUD_PX,
@@ -215,6 +216,19 @@ function buildTexture(def: TrackDef, line: Centerline): HTMLCanvasElement {
 
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
+
+  // Visible outer boundary curbs / warning rumble markings
+  tracePath(ctx, line.points, 2);
+  ctx.lineWidth = BOUNDARY_BARRIER_LATERAL * 2;
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+  ctx.stroke();
+
+  ctx.save();
+  ctx.setLineDash([36, 36]);
+  ctx.lineWidth = 8;
+  ctx.strokeStyle = th.curbA;
+  ctx.stroke();
+  ctx.restore();
 
   // Curb band, then the alternating stripe, then the road on top.
   tracePath(ctx, line.points, 2);

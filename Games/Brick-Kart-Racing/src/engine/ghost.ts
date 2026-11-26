@@ -1,5 +1,7 @@
 /** Time-trial ghost recording / playback (best-lap path). */
 
+import {indexDelta, nearestIndex, type Centerline} from './spline.ts';
+
 export interface GhostSample {
   t: number;
   x: number;
@@ -167,5 +169,81 @@ export function deserializeGhostLap(raw: string): GhostLap | null {
   } catch {
     return null;
   }
+}
+
+interface GhostSplineProgressMap {
+  centerlineLength: number;
+  progress: number[];
+}
+
+const ghostProgressCache = new WeakMap<GhostLap, GhostSplineProgressMap>();
+
+export function getGhostSplineProgress(ghost: GhostLap, line: Centerline): number[] {
+  let cached = ghostProgressCache.get(ghost);
+  const n = line.points.length;
+  if (!cached || cached.centerlineLength !== n) {
+    const samples = ghost.samples;
+    const progress: number[] = new Array(samples.length);
+    let accum = 0;
+    let lastIdx = 0;
+    for (let i = 0; i < samples.length; i++) {
+      const s = samples[i];
+      const idx = nearestIndex(line, s.x, s.y, lastIdx);
+      if (i > 0) {
+        const delta = indexDelta(lastIdx, idx, n);
+        accum += delta;
+      } else {
+        accum = idx;
+      }
+      lastIdx = idx;
+      progress[i] = accum;
+    }
+    cached = {centerlineLength: n, progress};
+    ghostProgressCache.set(ghost, cached);
+  }
+  return cached.progress;
+}
+
+export function ghostTimeAtProgress(ghost: GhostLap, line: Centerline, lapProgress: number): number {
+  const samples = ghost.samples;
+  if (samples.length < 2) return 0;
+  const n = line.points.length;
+  const p = Math.max(0, Math.min(n, ((lapProgress % n) + n) % n));
+  const progMap = getGhostSplineProgress(ghost, line);
+
+  const startProg = progMap[0];
+  const endProg = progMap[progMap.length - 1];
+  const totalProg = Math.max(1, endProg - startProg);
+
+  const targetProg = startProg + (p / n) * totalProg;
+
+  let lo = 0;
+  let hi = progMap.length - 1;
+  while (lo < hi - 1) {
+    const mid = (lo + hi) >> 1;
+    if (progMap[mid] <= targetProg) lo = mid;
+    else hi = mid;
+  }
+
+  const p0 = progMap[lo];
+  const p1 = progMap[Math.min(lo + 1, progMap.length - 1)];
+  const t0 = samples[lo].t;
+  const t1 = samples[Math.min(lo + 1, samples.length - 1)].t;
+
+  const span = Math.max(1e-4, p1 - p0);
+  const u = Math.max(0, Math.min(1, (targetProg - p0) / span));
+  return t0 + (t1 - t0) * u;
+}
+
+export function calculateContinuousGhostDelta(
+  ghost: GhostLap,
+  line: Centerline,
+  playerLapElapsed: number,
+  playerProgress: number,
+): number {
+  const n = line.points.length;
+  const lapProgress = ((playerProgress % n) + n) % n;
+  const ghostTime = ghostTimeAtProgress(ghost, line, lapProgress);
+  return playerLapElapsed - ghostTime;
 }
 

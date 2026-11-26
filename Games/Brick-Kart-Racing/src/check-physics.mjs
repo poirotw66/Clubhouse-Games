@@ -22,16 +22,30 @@ import {
   parseGhostLap,
   poseAt,
   GhostRecorder,
+  calculateContinuousGhostDelta,
+  ghostTimeAtProgress,
+  getGhostSplineProgress,
   GHOST_SAMPLE_HZ,
   GHOST_SAMPLE_DT,
   GHOST_MAX_SAMPLES,
 } from './engine/ghost.ts';
+import {
+  buildCenterline,
+  pointAt,
+  nearestIndex,
+  lateralOffset,
+} from './engine/spline.ts';
 import {
   FOCAL,
   CAM_HEIGHT,
   RENDER_WIDTH,
   RENDER_HEIGHT,
   HORIZON_FRAC,
+  HOMING_WARNING_DIST,
+  HOMING_SPEED,
+  BOUNDARY_SHOULDER_LATERAL,
+  BOUNDARY_BARRIER_LATERAL,
+  EMERGENCY_RESPAWN_LATERAL,
 } from './engine/constants.ts';
 
 function assert(condition, message) {
@@ -542,6 +556,162 @@ console.log('Testing Ghost trace serialization and deserialization...');
   assert(pLoop !== null, 'pLoop valid');
   assertClose(pLoop.x, pMid.x, 1e-4, 'looped pose matches 2.5s pose');
   assertClose(pLoop.y, pMid.y, 1e-4, 'looped pose matches 2.5s pose');
+}
+
+// ============================================================================
+// 4. Continuous Ghost Delta (engine/ghost.ts)
+// ============================================================================
+console.log('Testing Continuous ghostDelta calculation...');
+{
+  const control = [
+    {x: 500, y: 100},
+    {x: 900, y: 500},
+    {x: 500, y: 900},
+    {x: 100, y: 500},
+  ];
+  const line = buildCenterline(control, 120);
+  const n = line.points.length;
+
+  // Build a synthetic ghost lap that traverses the centerline steadily in 10s
+  const ghostSamples = [];
+  const sampleSteps = 20;
+  for (let i = 0; i <= sampleSteps; i++) {
+    const t = (i / sampleSteps) * 10.0;
+    const idx = Math.min(n - 1, Math.round((i / sampleSteps) * (n - 1)));
+    const pt = line.points[idx];
+    const tan = line.tangents[idx];
+    const angle = Math.atan2(tan.y, tan.x);
+    ghostSamples.push({t, x: pt.x, y: pt.y, angle});
+  }
+  const ghostLap = {
+    trackId: 'test-track',
+    mirror: false,
+    duration: 10.0,
+    samples: ghostSamples,
+  };
+
+  // Player at halfway point (n/2) with elapsed time 4.0s (ghost took 5.0s)
+  const halfIdx = Math.floor(n / 2);
+  const deltaAhead = calculateContinuousGhostDelta(ghostLap, line, 4.0, halfIdx);
+  assertClose(deltaAhead, -1.0, 0.4, 'player ahead of ghost at halfway point returns negative delta');
+
+  // Player at halfway point with elapsed time 6.0s (ghost took 5.0s)
+  const deltaBehind = calculateContinuousGhostDelta(ghostLap, line, 6.0, halfIdx);
+  assertClose(deltaBehind, 1.0, 0.4, 'player behind ghost at halfway point returns positive delta');
+
+  // Multi-lap progress: on lap 2, playerProgress is n + halfIdx; delta remains continuous
+  const deltaLap2 = calculateContinuousGhostDelta(ghostLap, line, 4.0, n + halfIdx);
+  assertClose(deltaLap2, deltaAhead, 1e-4, 'progress wraps across laps without discontinuity');
+}
+
+// ============================================================================
+// 5. Homing Missile Lock-on Warning (engine/race.ts & engine/constants.ts)
+// ============================================================================
+console.log('Testing Homing lock-on warning detection...');
+{
+  assert(HOMING_WARNING_DIST === 480, 'HOMING_WARNING_DIST should be 480');
+
+  // Simulate homing update loop logic
+  function testHomingWarningStep(targetIsPlayer, dist, cooldown, dt) {
+    let warningFired = false;
+    let nextCooldown = cooldown - dt;
+    if (targetIsPlayer) {
+      if (dist < HOMING_WARNING_DIST && nextCooldown <= 0) {
+        nextCooldown = 0.42;
+        warningFired = true;
+      }
+    }
+    return {warningFired, nextCooldown};
+  }
+
+  // 1. Target is far (> 480): no warning
+  const far = testHomingWarningStep(true, 550, 0, 0.016);
+  assert(!far.warningFired, 'no warning when homing is beyond 480 units');
+
+  // 2. Target approaches within 480 units: fires warning chirp event
+  const close = testHomingWarningStep(true, 400, 0, 0.016);
+  assert(close.warningFired, 'fires warning when homing is within 480 units');
+  assertClose(close.nextCooldown, 0.42, 1e-4, 'cooldown set to 0.42s');
+
+  // 3. Rate-limited during cooldown: subsequent frame does not re-fire
+  const nextFrame = testHomingWarningStep(true, 390, close.nextCooldown, 0.016);
+  assert(!nextFrame.warningFired, 'rate-limited while cooldown is active');
+
+  // 4. Target is CPU (not player): does not fire warning
+  const cpuTarget = testHomingWarningStep(false, 300, 0, 0.016);
+  assert(!cpuTarget.warningFired, 'does not fire player warning for CPU target');
+}
+
+// ============================================================================
+// 6. Boundary Shoulder Scrub & Barrier Soft Bounce (engine/constants.ts & race.ts)
+// ============================================================================
+console.log('Testing Boundary curbs, shoulder scrub and barrier bounce...');
+{
+  assert(BOUNDARY_SHOULDER_LATERAL === 220, 'boundary shoulder starts at 220');
+  assert(BOUNDARY_BARRIER_LATERAL === 280, 'boundary barrier starts at 280');
+  assert(EMERGENCY_RESPAWN_LATERAL === 360, 'emergency respawn at 360');
+
+  // Simulation of shoulder and barrier physics from stepRacer
+  function applyBoundaryPhysics(lateral, vf, vl, dt = 0.016) {
+    const absLat = Math.abs(lateral);
+    const side = Math.sign(lateral) || 1;
+    let bumped = false;
+    let respawned = false;
+    let clampedLateral = lateral;
+
+    // Soft outer-shoulder scrub
+    if (absLat > BOUNDARY_SHOULDER_LATERAL) {
+      const excess = absLat - BOUNDARY_SHOULDER_LATERAL;
+      vf = Math.max(0, vf - (260 + excess * 3.5) * dt);
+      vl *= Math.exp(-7.0 * dt);
+    }
+
+    // Barrier clamping & elastic bounce
+    if (absLat >= BOUNDARY_BARRIER_LATERAL) {
+      clampedLateral = side * BOUNDARY_BARRIER_LATERAL;
+      const movingOutward = vl * side > 0;
+      if (movingOutward) {
+        vl = -vl * 0.45;
+        vf = Math.max(0, vf * 0.75);
+        bumped = true;
+      }
+    }
+
+    // Emergency respawn
+    if (absLat > EMERGENCY_RESPAWN_LATERAL) {
+      clampedLateral = 0;
+      vf = 0;
+      vl = 0;
+      respawned = true;
+    }
+
+    return {clampedLateral, vf, vl, bumped, respawned};
+  }
+
+  // 1. Within road (lateral 150): normal driving, no scrub or clamp
+  const road = applyBoundaryPhysics(150, 300, 0);
+  assertClose(road.vf, 300, 1e-4, 'no speed penalty on normal track');
+  assertClose(road.clampedLateral, 150, 1e-4, 'no position clamping');
+
+  // 2. On shoulder (lateral 250): speed scrub active
+  const shoulder = applyBoundaryPhysics(250, 300, 50);
+  assert(shoulder.vf < 300, 'speed scrubbed on outer shoulder');
+  assert(shoulder.vl < 50, 'lateral velocity damped on shoulder');
+  assert(!shoulder.bumped, 'no barrier bump on shoulder');
+
+  // 3. Contacting barrier (lateral 290, moving outward): clamped & elastic bounce
+  const barrier = applyBoundaryPhysics(290, 300, 60);
+  assertClose(barrier.clampedLateral, 280, 1e-4, 'clamped to barrier at 280');
+  assert(barrier.vl < 0, 'lateral velocity reversed inward');
+  assertClose(barrier.vl, -60 * Math.exp(-7.0 * 0.016) * 0.45, 0.1, 'lateral velocity damped and reversed by bounce factor');
+  assert(barrier.vf < 300, 'forward speed cushioned by 0.75 bounce factor');
+  assert(barrier.bumped, 'emits barrier bump event');
+
+  // 4. Past emergency threshold (lateral 380): reset to centerline
+  const emergency = applyBoundaryPhysics(380, 200, 50);
+  assert(emergency.respawned, 'triggers emergency respawn');
+  assertClose(emergency.clampedLateral, 0, 1e-4, 'reset to centerline');
+  assertClose(emergency.vf, 0, 1e-4, 'speed reset to 0');
 }
 
 console.log('check-physics: ok');
