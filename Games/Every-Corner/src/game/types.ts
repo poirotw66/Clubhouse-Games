@@ -18,6 +18,8 @@ export type WallKey = string;
 /** Classic fills every cell; blocked leaves holes the path must never enter. */
 export type PuzzleVariant = 'classic' | 'blocked';
 
+export type WaypointKind = 'turn' | 'straight';
+
 export interface Puzzle {
   seedCode: string;
   difficulty: DifficultyId;
@@ -31,6 +33,8 @@ export interface Puzzle {
   variant: PuzzleVariant;
   /** The generator's own Hamiltonian path; verified to be the unique solution. */
   solution: CellId[];
+  /** Optional structural waypoint constraints on the path traversal: 'turn' or 'straight'. */
+  waypoints?: Record<CellId, WaypointKind>;
 }
 
 export interface Progress {

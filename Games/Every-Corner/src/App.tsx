@@ -33,11 +33,13 @@ import {
   loadDaily,
   loadGame,
   loadStats,
+  loadStrictMode,
   loadWeekly,
   recordDaily,
   recordWeeklyDay,
   saveGame,
   saveStats,
+  saveStrictMode,
 } from './game/storage';
 import type { CellId, DifficultyId, Puzzle } from './game/types';
 import {
@@ -94,6 +96,8 @@ export default function App(): React.ReactElement {
   const [toastIds, setToastIds] = useState<string[]>([]);
   const [showResult, setShowResult] = useState(false);
   const [muted, setMuted] = useState(isAudioMuted);
+  const [strictMode, setStrictMode] = useState<boolean>(() => loadStrictMode());
+  const [waypointTwist, setWaypointTwist] = useState<boolean>(false);
 
   const today = dateKey();
   const currentWeek = weekKey();
@@ -124,16 +128,25 @@ export default function App(): React.ReactElement {
     setMuted(next);
   }, [muted]);
 
+  // Strict Mode toggle
+  const toggleStrictMode = useCallback(() => {
+    setStrictMode((prev) => {
+      const next = !prev;
+      saveStrictMode(next);
+      return next;
+    });
+  }, []);
+
   // Trigger dead-end isolation overload buzzer on the exact step a trap occurs
   useEffect(() => {
     if (!circuit || complete) return;
-    if (circuit.hasDeadEnd && !prevDeadEnd.current) {
+    if (!strictMode && circuit.hasDeadEnd && !prevDeadEnd.current) {
       playOverloadAlarm();
       haptic('error');
       shake(boardRef.current, 0.35);
     }
     prevDeadEnd.current = circuit.hasDeadEnd;
-  }, [circuit?.hasDeadEnd, complete]);
+  }, [circuit?.hasDeadEnd, complete, strictMode]);
 
   // Safe Rollback: 1-click rescue to last known safe prefix before isolation
   const rollbackToSafe = useCallback(() => {
@@ -320,14 +333,17 @@ export default function App(): React.ReactElement {
         weekly?: boolean;
         weeklyDay?: number | null;
         blocked?: number;
+        waypointMode?: boolean;
         restore?: { path: CellId[]; hintsUsed: number; elapsedMs: number };
       } = {},
     ) => {
       const holes = options.blocked ?? 0;
+      const useWaypoints = options.waypointMode ?? (waypointTwist && !options.daily && !options.weekly);
       const built = generate({
         seedCode: code,
         difficulty: level,
         blockedCount: holes,
+        waypointMode: useWaypoints,
       });
       setPuzzle(built);
       setPath(options.restore?.path ?? []);
@@ -696,6 +712,16 @@ export default function App(): React.ReactElement {
               缺口盤變體（部分格子為空洞，不必走）
             </label>
 
+            <label className="mt-2 flex items-center gap-2 text-xs text-slate-300">
+              <input
+                type="checkbox"
+                checked={waypointTwist}
+                onChange={(e) => setWaypointTwist(e.target.checked)}
+                className="h-4 w-4 accent-amber-400"
+              />
+              🧭 方向約束節點（強制轉角 ⤹ 或直行 ══ 特殊節點）
+            </label>
+
             <label className="mt-4 block text-xs font-semibold tracking-wider text-slate-400" htmlFor="seed-input">
               種子碼
             </label>
@@ -721,6 +747,7 @@ export default function App(): React.ReactElement {
               onClick={() =>
                 open(normalizeSeedCode(seedCode), difficulty, {
                   blocked: useBlocked ? blockedCountForDifficulty(difficulty) : 0,
+                  waypointMode: waypointTwist,
                 })
               }
               className="mt-3 w-full rounded-xl border border-violet-400/60 bg-violet-500/20 px-4 text-base font-bold text-violet-100"
@@ -790,6 +817,16 @@ export default function App(): React.ReactElement {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <TouchButton
+              label={strictMode ? '⚖️ 純淨邏輯：開' : '⚖️ 純淨邏輯：關'}
+              ariaLabel="純淨邏輯模式：抑制自動死路紅光提示，回歸純粹紙筆推理"
+              onClick={toggleStrictMode}
+              className={`rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-all ${
+                strictMode
+                  ? 'border-violet-500/80 bg-violet-950/60 text-violet-200 shadow-[0_0_10px_rgba(139,92,246,0.3)]'
+                  : 'border-slate-700 bg-slate-900/80 text-slate-400'
+              }`}
+            />
             <TouchButton
               label={muted ? '🔇 靜音' : '🔊 音效'}
               ariaLabel={muted ? '開啟電路音效' : '關閉電路音效'}
@@ -865,26 +902,40 @@ export default function App(): React.ReactElement {
               </div>
 
               {/* Dead-End Isolation Detector with 1-Click Rescue */}
-              <div className={`mb-3.5 p-2.5 rounded-xl border transition-all ${
-                circuit?.hasDeadEnd
-                  ? 'bg-rose-950/50 border-rose-500/60 text-rose-200 shadow-[0_0_15px_rgba(239,68,68,0.25)]'
-                  : 'bg-slate-900/80 border-emerald-500/30 text-emerald-300'
-              }`}>
+              <div
+                className={`mb-3.5 p-2.5 rounded-xl border transition-all ${
+                  !strictMode && circuit?.hasDeadEnd
+                    ? 'bg-rose-950/50 border-rose-500/60 text-rose-200 shadow-[0_0_15px_rgba(239,68,68,0.25)]'
+                    : 'bg-slate-900/80 border-emerald-500/30 text-emerald-300'
+                }`}
+              >
                 <div className="flex items-center justify-between text-[11px] font-bold mb-1">
                   <span className="flex items-center gap-1.5">
-                    <span>{circuit?.hasDeadEnd ? '⚠️' : '⚡'}</span>
+                    <span>{!strictMode && circuit?.hasDeadEnd ? '⚠️' : '⚡'}</span>
                     <span>孤島斷路診斷</span>
                   </span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
-                    circuit?.hasDeadEnd ? 'bg-rose-500/30 text-rose-200 animate-pulse' : 'bg-emerald-500/20 text-emerald-300'
-                  }`}>
-                    {circuit?.hasDeadEnd ? 'CIRCUIT BREAK' : 'ALL CLEAR'}
+                  <span
+                    className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
+                      !strictMode && circuit?.hasDeadEnd
+                        ? 'bg-rose-500/30 text-rose-200 animate-pulse'
+                        : strictMode
+                          ? 'bg-violet-500/20 text-violet-300'
+                          : 'bg-emerald-500/20 text-emerald-300'
+                    }`}
+                  >
+                    {!strictMode && circuit?.hasDeadEnd
+                      ? 'CIRCUIT BREAK'
+                      : strictMode
+                        ? 'STRICT MODE'
+                        : 'ALL CLEAR'}
                   </span>
                 </div>
                 <p className="text-[10px] leading-relaxed opacity-85">
-                  {circuit?.hasDeadEnd
-                    ? `警告：已有 ${circuit.isolatedCells.size} 格遭封閉形成斷路！線頭無法抵達。`
-                    : '目前全盤所有未走格子均可連通，迴路通暢無阻。'}
+                  {strictMode
+                    ? '純淨邏輯模式啟動中：已隱藏死路自動紅光，手動倒回與復原隨時可用。'
+                    : circuit?.hasDeadEnd
+                      ? `警告：已有 ${circuit.isolatedCells.size} 格遭封閉形成斷路！線頭無法抵達。`
+                      : '目前全盤所有未走格子均可連通，迴路通暢無阻。'}
                 </p>
 
                 {circuit?.hasDeadEnd && circuit.safeRollbackLength !== null && (
@@ -963,7 +1014,7 @@ export default function App(): React.ReactElement {
             </div>
 
             {/* Mobile Dead-end Warning Banner with 1-Click Rescue */}
-            {circuit?.hasDeadEnd && (
+            {!strictMode && circuit?.hasDeadEnd && (
               <div className="lg:hidden mb-2.5 flex items-center justify-between gap-2 p-2 rounded-xl bg-rose-950/80 border border-rose-500/70 text-rose-200 animate-pulse shadow-lg">
                 <div className="flex items-center gap-1.5 text-xs font-bold min-w-0">
                   <span>⚠️</span>
@@ -978,6 +1029,12 @@ export default function App(): React.ReactElement {
                 </button>
               </div>
             )}
+
+            {/* Compact Mobile Gesture Hints Bar (Always visible on mobile & narrow screens) */}
+            <div className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 text-[11px] font-medium text-slate-300 bg-slate-900/80 rounded-xl border border-slate-700/60 text-center select-none shadow-sm mb-2.5">
+              <span className="text-cyan-400 font-bold">💡 操作：</span>
+              <span>點擊數字格回退、拖曳回拉擦除</span>
+            </div>
 
             {/* Board Container */}
             <div ref={boardRef} className="ec-card ec-board-shell p-3 shadow-2xl relative border border-violet-500/30">
@@ -1007,7 +1064,7 @@ export default function App(): React.ReactElement {
                 }}
                 solved={solved}
                 onTraceComplete={onTraceComplete}
-                isolatedCells={circuit?.isolatedCells}
+                isolatedCells={strictMode ? undefined : circuit?.isolatedCells}
                 targetCheckpointCell={circuit?.nextCheckpointCell}
               />
             </div>
@@ -1017,7 +1074,7 @@ export default function App(): React.ReactElement {
               <p className="text-slate-400">
                 導通 <span className="font-mono text-cyan-300 font-bold">{path.length}</span> / {total} 格
                 <span className="ml-2 font-mono text-violet-300">({circuit?.conductedPct ?? 0}%)</span>
-                {circuit?.hasDeadEnd && (
+                {!strictMode && circuit?.hasDeadEnd && (
                   <span className="ml-2 text-rose-400 font-bold animate-pulse">⚠️ 孤島斷路</span>
                 )}
                 {hintsUsed > 0 && <span className="ml-2 text-slate-500">提示 {hintsUsed} 次</span>}

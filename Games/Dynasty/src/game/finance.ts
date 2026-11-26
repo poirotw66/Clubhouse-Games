@@ -21,9 +21,46 @@ export function priceElasticity(price: number): number {
   return clamp(1.5 - price / 650, 0.35, 1.15);
 }
 
+/**
+ * Progressive luxury tax tiers on payroll above SALARY_CAP:
+ * - Up to 5,000 萬 over cap: 50% (LUXURY_RATE = 0.5)
+ * - 5,000 to 9,000 萬 over cap: 100% on this tier
+ * - Over 9,000 萬 over cap: 175% on this tier
+ *
+ * This steep progressive penalty prevents superteams from hoarding high-cost stars
+ * with impunity, breaking the spendMost dominant strategy while keeping moderate
+ * contending payrolls viable.
+ */
+export function calculateLuxuryTax(over: number): number {
+  if (over <= 0) return 0;
+  const TIER1_CAP = 5100;
+  const TIER2_CAP = 8000;
+
+  if (over <= TIER1_CAP) {
+    return Math.round(over * LUXURY_RATE);
+  }
+  const tier1Tax = TIER1_CAP * LUXURY_RATE; // 2,550
+  if (over <= TIER2_CAP) {
+    return Math.round(tier1Tax + (over - TIER1_CAP) * 1.25);
+  }
+  const tier2Tax = tier1Tax + (TIER2_CAP - TIER1_CAP) * 1.25; // 2,550 + 3,625 = 6,175
+  return Math.round(tier2Tax + (over - TIER2_CAP) * 2.0);
+}
+
+/**
+ * Effective heat for stadium attendance. Diminishing returns kick in as
+ * heat approaches saturation (above 65), modeling stadium capacity constraints
+ * and curbing excessive ticket windfalls for payroll-bloated teams.
+ */
+export function effectiveStadiumHeat(heat: number): number {
+  if (heat <= 65) return heat;
+  return 65 + Math.round((heat - 65) * 0.45);
+}
+
 export function attendance(state: GameState, lastWins: number): number {
   // Tuned to a real CPBL gate — a few thousand a night, not a full NPB house.
-  const base = 2000 + state.heat * 55 + lastWins * 30;
+  const effHeat = effectiveStadiumHeat(state.heat);
+  const base = 2000 + effHeat * 55 + lastWins * 30;
   return Math.max(800, Math.round(base * priceElasticity(state.finance.ticketPrice)));
 }
 
@@ -47,7 +84,7 @@ export function settle(input: LedgerInput): SeasonLedger {
 
   const salaries = payroll(team);
   const over = Math.max(0, salaries - SALARY_CAP);
-  const luxuryTax = Math.round(over * LUXURY_RATE);
+  const luxuryTax = calculateLuxuryTax(over);
 
   const spending =
     state.finance.training + state.finance.scouting + state.finance.marketing;
@@ -89,11 +126,12 @@ export function nextHeat(
 ): number {
   const winPct = wins / games;
   const priceAnger = Math.max(0, Math.floor((ticketPrice - 350) / 50)) * 2;
+  const rawGain = (winPct - 0.5) * 90 + (madePlayoffs ? 8 : 0) + (wonTitle ? 20 : 0);
+  // Diminishing returns near saturation (> 70 heat) prevent runaway perpetual popularity
+  const saturationFactor = current > 70 && rawGain > 0 ? Math.max(0.45, 1 - (current - 70) * 0.018) : 1;
   const next =
     current +
-    (winPct - 0.5) * 90 +
-    (madePlayoffs ? 8 : 0) +
-    (wonTitle ? 20 : 0) -
+    rawGain * saturationFactor -
     current * 0.1 -
     priceAnger;
   // A floor of 12, because every club keeps its die-hards. Allowing heat to

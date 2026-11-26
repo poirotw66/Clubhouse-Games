@@ -15,7 +15,7 @@ import {
   snakePath,
   wallKey,
 } from '../src/game/grid.js';
-import { randomHamiltonianPath } from '../src/game/hamiltonian.js';
+import { motionAtCell, randomHamiltonianPath, validateWaypoints } from '../src/game/hamiltonian.js';
 import { divergenceIndex, solve } from '../src/game/solve.js';
 import { HINT_SEQUENCE, analyse, computeHint } from '../src/game/hint.js';
 import {
@@ -26,8 +26,8 @@ import {
   summarise,
 } from '../src/game/daily.js';
 import { createRng, streamRng } from '../src/game/rng.js';
-import { loadStats, saveStats } from '../src/game/storage.js';
-import type { CellId, DifficultyId, Puzzle, Size } from '../src/game/types.js';
+import { loadStats, loadStrictMode, saveStats, saveStrictMode } from '../src/game/storage.js';
+import type { CellId, DifficultyId, Puzzle, Size, WaypointKind } from '../src/game/types.js';
 import {
   WEEKLY_DAYS,
   isWeeklyComplete,
@@ -1119,6 +1119,56 @@ function expectAsiaTaipeiDailyAndWeeklySeedDeterminismAndStreaks(): void {
   assert.deepEqual(pWeekly1, pWeekly2, 'weekly generator must be deterministic');
 }
 
+/** Wave 3b structural waypoint constraints & Strict Mode validation. */
+function expectWaypointsAndStrictMode(): void {
+  const size: Size = { rows: 5, cols: 5 };
+
+  // 1. motionAtCell arithmetic checks
+  // Straight horizontal: (0, 0) -> (0, 1) -> (0, 2)
+  assert.equal(motionAtCell(size, 0, 1, 2), 'straight');
+  // Straight vertical: (0, 1) -> (1, 1) -> (2, 1)
+  assert.equal(motionAtCell(size, 1, 6, 11), 'straight');
+  // Turn: (0, 0) -> (0, 1) -> (1, 1)
+  assert.equal(motionAtCell(size, 0, 1, 6), 'turn');
+  // Turn: (1, 0) -> (0, 0) -> (0, 1)
+  assert.equal(motionAtCell(size, 5, 0, 1), 'turn');
+
+  // 2. validateWaypoints checks
+  const waypoints: Record<CellId, WaypointKind> = { 1: 'straight', 6: 'turn' };
+  assert.equal(validateWaypoints(size, [0, 1, 2, 7, 6, 11], waypoints), true);
+  assert.equal(validateWaypoints(size, [0, 1, 6, 5], waypoints), false); // 1 turned, violated
+
+  // 3. Generation with waypointMode produces unique puzzles obeying constraints
+  const p = generate({
+    seedCode: 'wp-test-unique-1',
+    difficulty: 'hard',
+    waypointMode: true,
+  });
+  assert.ok(p.waypoints, 'puzzle must contain waypoints when waypointMode is requested');
+  const wpKeys = Object.keys(p.waypoints);
+  assert.ok(wpKeys.length >= 2, 'puzzle should have at least 2 waypoints');
+  assert.ok(validateWaypoints(p.size, p.solution, p.waypoints), 'canonical solution must satisfy waypoints');
+
+  // Check unique solvability with waypoints
+  const nb = buildNeighbours(p.size, p.walls, p.blocked);
+  const s = solve({
+    size: p.size,
+    neighbours: nb,
+    checkpoints: p.checkpoints,
+    checkpointCount: p.checkpointCount,
+    blocked: p.blocked,
+    waypoints: p.waypoints,
+    limit: 2,
+  });
+  assert.equal(s.solutions.length, 1, 'puzzle with waypoints must be uniquely solvable');
+  assert.deepEqual(s.solutions[0], p.solution);
+
+  // 4. Strict Mode storage contracts
+  assert.equal(typeof loadStrictMode(), 'boolean');
+  saveStrictMode(true);
+  saveStrictMode(false);
+}
+
 const checks: [string, () => void][] = [
   ['drag routing follows the finger', expectDragRoutingFollowsTheFinger],
   ['backbite preserves the invariant', expectBackbitePreservesInvariant],
@@ -1141,6 +1191,7 @@ const checks: [string, () => void][] = [
   ['large board unique solvability with blocked cells', expectLargeBoardUniqueSolvabilityWithBlockedCells],
   ['four-stage progressive hint logic', expectFourStageProgressiveHintLogic],
   ['Asia/Taipei daily & weekly seed determinism and streaks', expectAsiaTaipeiDailyAndWeeklySeedDeterminismAndStreaks],
+  ['waypoints and Strict Mode validation', expectWaypointsAndStrictMode],
 ];
 
 let failed = 0;

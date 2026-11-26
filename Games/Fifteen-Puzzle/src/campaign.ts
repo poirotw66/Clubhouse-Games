@@ -25,6 +25,7 @@ export type CampaignStage = {
   style: VisualStyle;
   seedCode: string;
   limit: StageLimit;
+  hasObstacle?: boolean;
 };
 
 export const CAMPAIGN_STAGES: readonly CampaignStage[] = [
@@ -107,6 +108,17 @@ export const CAMPAIGN_STAGES: readonly CampaignStage[] = [
     style: 'picture',
     seedCode: 'fp-camp-8',
     limit: { kind: 'moves', slack: 1.45 },
+  },
+  {
+    id: 'bonus-stone-4',
+    name: '釘死石柱 4×4',
+    blurb: '特命加開・繞過中央釘死石柱還原',
+    size: 4,
+    tier: 'easy',
+    style: 'number',
+    seedCode: 'fp-bonus-stone-1',
+    limit: { kind: 'moves', slack: 1.6 },
+    hasObstacle: true,
   },
 ];
 

@@ -9,7 +9,7 @@ import {
   isChallengeCleared,
   isChallengeUnlocked,
 } from '../src/game/challenges.js';
-import { acknowledge, createGame, resolve } from '../src/game/engine.js';
+import { acknowledge, buildDecision, createGame, resolve } from '../src/game/engine.js';
 import {
   BANKRUPTCY,
   CLUBS,
@@ -1565,6 +1565,22 @@ function expectSalaryCapLuxuryTaxAndFanPricingModels(): void {
   const taxDiff = ledgerOver2.luxuryTax - ledgerOver.luxuryTax;
   assert.equal(taxDiff, Math.round(payrollDiff * 0.5), 'marginal luxury tax must scale at 50%');
 
+  // Progressive luxury tax tier 2 (5,100 to 8,000 萬 over cap): 26,000 萬 payroll => over 8,000 萬.
+  // 5,100 * 0.5 + 2,900 * 1.25 = 2,550 + 3,625 = 6,175 萬.
+  const teamOverTier2 = buildTeamWithPayroll(26000);
+  const ledgerTier2 = settle({
+    state, team: teamOverTier2, wins: 60, madePlayoffs: false, wonTitle: false, boardBonus: 0,
+  });
+  assert.equal(ledgerTier2.luxuryTax, 6175, 'tier 2 luxury tax must scale progressively at 125%');
+
+  // Progressive luxury tax tier 3 (over 8,000 萬 over cap): 28,000 萬 payroll => over 10,000 萬.
+  // 6,175 + 2,000 * 2.0 = 10,175 萬 (with 28,002 payroll = 10,179).
+  const teamOverTier3 = buildTeamWithPayroll(28000);
+  const ledgerTier3 = settle({
+    state, team: teamOverTier3, wins: 60, madePlayoffs: false, wonTitle: false, boardBonus: 0,
+  });
+  assert.equal(ledgerTier3.luxuryTax, 10179, 'tier 3 luxury tax must scale progressively at 200%');
+
   // 2. Attendance vs Price Elasticity.
   // Formula: priceElasticity = clamp(1.5 - price / 650, 0.35, 1.15).
   // At 200元 -> clamped to 1.15.
@@ -1759,6 +1775,72 @@ function expectPlayerAgingInjuriesAndPostseasonWinExpectancy(): void {
   );
 }
 
+function expectMultiContractTriage(): void {
+  const state = createGame({ seedCode: 'triage_chk', gmName: '測試', teamId: 'dolphins' });
+  const team = state.teams.find((t) => t.id === state.teamId)!;
+
+  // Set all players to long-term contracts first so only our designated candidates expire
+  for (const p of team.players) p.years = 3;
+
+  // Designate 3 expiring major league players
+  const majors = team.players.filter((p) => p.level === 'major');
+  majors[0].years = 1;
+  majors[1].years = 1;
+  majors[2].years = 1;
+  const sortedExpiring = [majors[0], majors[1], majors[2]].sort((a, b) => tradeValue(b) - tradeValue(a));
+  const p1Id = sortedExpiring[0].id;
+  const p2Id = sortedExpiring[1].id;
+  const p3Id = sortedExpiring[2].id;
+
+  state.phase = 'contracts';
+  state.contractsTriagedCount = 0;
+  state.contractsTriageTotal = 3;
+
+  // Step 1: Decision for player 1 of 3
+  const d1 = buildDecision(state);
+  assert.equal(d1.phase, 'contracts');
+  assert.ok(d1.title.includes('1/3'), 'first triage decision should indicate step 1 of 3');
+  assert.ok(d1.options.some((o) => o.id === 'con-market'));
+  assert.ok(d1.options.some((o) => o.id === 'con-lowball'));
+  assert.ok(d1.options.some((o) => o.id === 'con-let-go'));
+
+  // Settle player 1 with market renewal
+  state.decision = d1;
+  const s1 = resolve(state, 'con-market');
+  assert.equal(s1.phase, 'contracts', 'phase should stay in contracts for multi-player triage');
+  assert.equal(s1.contractsTriagedCount, 1);
+  const team1 = s1.teams.find((t) => t.id === s1.teamId)!;
+  const target1 = team1.players.find((p) => p.id === p1Id);
+  assert.equal(target1?.years, 3, 'player 1 should be renewed for 3 years');
+
+  // Step 2: Decision for player 2 of 3
+  const d2 = buildDecision(s1);
+  assert.equal(d2.phase, 'contracts');
+  assert.ok(d2.title.includes('2/3'), 'second triage decision should indicate step 2 of 3');
+
+  // Settle player 2 with release
+  s1.decision = d2;
+  const s2 = resolve(s1, 'con-let-go');
+  assert.equal(s2.phase, 'contracts', 'phase should stay in contracts for third player');
+  assert.equal(s2.contractsTriagedCount, 2);
+  const team2 = s2.teams.find((t) => t.id === s2.teamId)!;
+  const target2 = team2.players.find((p) => p.id === p2Id);
+  assert.equal(target2, undefined, 'player 2 should be released from team');
+
+  // Step 3: Decision for player 3 of 3
+  const d3 = buildDecision(s2);
+  assert.equal(d3.phase, 'contracts');
+  assert.ok(d3.title.includes('3/3'), 'third triage decision should indicate step 3 of 3');
+
+  // Settle player 3 with market renewal
+  s2.decision = d3;
+  const s3 = resolve(s2, 'con-market');
+  const targetPhase = s3.phase === 'storyline' ? s3.resumePhase : s3.phase;
+  assert.equal(targetPhase, 'budget', 'after top 3 key players are triaged, phase should advance to budget');
+  assert.equal(s3.contractsTriagedCount, 0);
+  assert.equal(s3.contractsTriageTotal, 0);
+}
+
 const checks: [string, () => void][] = [
   ['deterministic tenures', expectDeterministicTenures],
   ['seeds and choices matter', expectSeedsAndChoicesMatter],
@@ -1793,6 +1875,7 @@ const checks: [string, () => void][] = [
   ['tenure expectations and crisis resolution', expectBoardExpectationsNegotiationAndCrisisResolution],
   ['scouting accuracy and fog-of-war estimation', expectScoutingAccuracyFogOfWarAndDevelopmentCeilings],
   ['salary cap elasticity and fan pricing', expectSalaryCapLuxuryTaxAndFanPricingModels],
+  ['multi-player contract triage', expectMultiContractTriage],
   ['player aging, injuries and postseason formulas', expectPlayerAgingInjuriesAndPostseasonWinExpectancy],
 ];
 

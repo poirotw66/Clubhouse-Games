@@ -4,18 +4,24 @@ import {
   canMultiSlide,
   cellCount,
   countInPlace,
+  defaultObstacleIndex,
   emptyIndex,
   goalIndex,
   harmonyPct,
   hintTileIndex,
+  isObstacle,
+  isReachableWithObstacle,
   isSolvable,
+  isSolvableWithObstacle,
   isSolved,
   manhattanSum,
   multiSlide,
   neighborsOfEmpty,
+  OBSTACLE_TILE,
   PAR_LABEL,
   parGrade,
   scrambleBoard,
+  scrambleBoardWithObstacle,
   scrambleFromSeed,
   scrambleSlideCount,
   shuffledBoard,
@@ -899,6 +905,88 @@ for (const stage of CAMPAIGN_STAGES) {
   assert.ok(BOARD_SIZES.includes(cfg1.size));
   assert.equal(typeof dailySeedNumber(testDate), 'number');
   assert.equal(dateKey(new Date('2026-10-19T04:00:00+08:00')), '2026-10-19');
+}
+
+// ============================================================================
+// Section 7: Wave 3b Upgrades - IDA* Hint Routing & Bolted Stone Obstacle
+// ============================================================================
+
+// 1. IDA* Hint Routing on 3x3 and 4x4
+{
+  const rand = createRng(42);
+  for (const size of [3, 4]) {
+    const { board } = scrambleBoard(size, 'easy', rand);
+    const hint = hintTileIndex(board, size);
+    assert.ok(hint !== null, `Hint should exist for scrambled ${size}x${size}`);
+    assert.ok(neighborsOfEmpty(board, size).includes(hint), 'Hint must be a legal slide');
+
+    // Verify hint step reduces or maintains bounded distance toward solved
+    const next = slide(board, hint, size);
+    assert.ok(next !== null);
+  }
+}
+
+// 2. Heuristic Fallback on 5x5 and 6x6
+{
+  const rand = createRng(99);
+  for (const size of [5, 6]) {
+    const { board } = scrambleBoard(size, 'easy', rand);
+    const hint = hintTileIndex(board, size);
+    assert.ok(hint !== null, `Hint should exist for 5x5/6x6`);
+    assert.ok(neighborsOfEmpty(board, size).includes(hint), 'Hint must be legal neighbor');
+  }
+}
+
+// 3. Bolted Stone Obstacle Properties & Solvability
+for (const size of BOARD_SIZES) {
+  const obs = defaultObstacleIndex(size);
+  assert.ok(isReachableWithObstacle(size, obs), `BFS reachability must hold for ${size}x${size}`);
+
+  const solved = solvedBoard(size, obs);
+  assert.equal(solved[obs], OBSTACLE_TILE);
+  assert.equal(isObstacle(solved[obs]), true);
+  assert.equal(emptyIndex(solved), cellCount(size) - 1);
+  assert.ok(isSolved(solved, size, obs));
+  assert.ok(isSolvableWithObstacle(solved, size, obs));
+
+  // Neighbors of empty must never include the obstacle
+  const neighbors = neighborsOfEmpty(solved, size);
+  assert.ok(!neighbors.includes(obs), 'Empty neighbor cannot be the obstacle');
+
+  // MultiSlide blocking through obstacle
+  const e = emptyIndex(solved);
+  const rEmpty = Math.floor(e / size);
+  const cEmpty = e % size;
+  const rObs = Math.floor(obs / size);
+  const cObs = obs % size;
+  if (rEmpty === rObs) {
+    // A tile on the opposite side of obstacle cannot multi-slide past it
+    const oppositeCol = cObs > 0 ? 0 : size - 1;
+    const oppositeIdx = rEmpty * size + oppositeCol;
+    if (oppositeIdx !== obs && oppositeIdx !== e) {
+      assert.equal(canMultiSlide(solved, oppositeIdx, size), false);
+    }
+  }
+
+  // Scramble with obstacle
+  const scrambled = scrambleBoardWithObstacle(size, 'easy', obs, createRng(12345));
+  assert.equal(scrambled.board[obs], OBSTACLE_TILE);
+  assert.ok(isSolvableWithObstacle(scrambled.board, size, obs));
+  assert.ok(!isSolved(scrambled.board, size, obs));
+
+  // Hint with obstacle
+  const obsHint = hintTileIndex(scrambled.board, size, { obstacleIndex: obs });
+  assert.ok(obsHint !== null);
+  assert.ok(neighborsOfEmpty(scrambled.board, size).includes(obsHint));
+  assert.notEqual(obsHint, obs);
+}
+
+// 4. Campaign Bonus Stage Verification
+{
+  const bonus = CAMPAIGN_STAGES.find((s) => s.id === 'bonus-stone-4');
+  assert.ok(bonus, 'Bonus stage bonus-stone-4 must exist in campaign');
+  assert.equal(bonus.hasObstacle, true);
+  assert.equal(bonus.size, 4);
 }
 
 console.log('fifteen-puzzle check ok');

@@ -16,6 +16,7 @@ import {
   HIT_STUN_MIN_MULT,
   JUMP_DURATION,
   LANE_COUNT,
+  LANE_SWITCH_BUFFER_WINDOW,
   LEAD_IN_LEN,
   NO_HIT_BONUS_PER_STREAK,
   PLAYER_BASE_SPEED,
@@ -231,22 +232,26 @@ export function step(state: RunState, input: PlayerInput, dt: number): RunState 
   s.slideTimer = Math.max(0, s.slideTimer - dt);
   s.hitStunTimer = Math.max(0, s.hitStunTimer - dt);
 
-  // 1) Lane change. Locked out while jumping or sliding, per spec.
-  const locked = s.jumpTimer > 0 || s.slideTimer > 0;
+  // 1) Lane change. Permitted during normal running or buffered/canceled in the final ~0.08s of jump/slide.
+  const laneChangeLocked =
+    s.jumpTimer > LANE_SWITCH_BUFFER_WINDOW || s.slideTimer > LANE_SWITCH_BUFFER_WINDOW;
   const laneCooldown = s.laneCooldown ?? 0.1;
-  if (input.laneStep !== 0 && !locked && s.laneChangeCooldown <= 0) {
+  if (input.laneStep !== 0 && !laneChangeLocked && s.laneChangeCooldown <= 0) {
     const next = Math.min(LANE_COUNT - 1, Math.max(0, s.lane + input.laneStep));
     if (next !== s.lane) {
       s.lane = next;
       s.laneChangeCooldown = laneCooldown;
+      // Cancels/completes remaining jump/slide tail into smooth landing lane transition
+      s.jumpTimer = 0;
+      s.slideTimer = 0;
     }
   }
 
-  // 2) Jump / slide. Mutually exclusive; each blocks the other and blocks
-  // lane changes for its own duration.
-  if (input.jump && !locked) {
+  // 2) Jump / slide. Mutually exclusive; each blocks the other for its full duration.
+  const jumpSlideLocked = s.jumpTimer > 0 || s.slideTimer > 0;
+  if (input.jump && !jumpSlideLocked) {
     s.jumpTimer = JUMP_DURATION;
-  } else if (input.slide && !locked) {
+  } else if (input.slide && !jumpSlideLocked) {
     s.slideTimer = SLIDE_DURATION;
   }
 

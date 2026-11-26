@@ -150,14 +150,14 @@ export function tradeValue(player: Player): number {
   const market = marketSalary(abilityValue, player.age);
   const contractFactor = clamp(market / Math.max(40, player.salary), 0.6, 1.4);
   // Prospects are valued off the midpoint of what scouting believes.
-  const upside = player.age <= 22 ? (player.potential - abilityValue) * 0.35 : 0;
+  const upside = player.age <= 23 ? (player.potential - abilityValue) * 0.45 : 0;
   return Math.max(0, (abilityValue + upside) * ageFactor * contractFactor);
 }
 
 const GROWTH_BY_AGE = (age: number): number => {
-  if (age <= 20) return 1.3;
-  if (age <= 23) return 1.0;
-  if (age <= 26) return 0.5;
+  if (age <= 20) return 1.35;
+  if (age <= 23) return 1.05;
+  if (age <= 26) return 0.55;
   if (age <= 29) return 0.2;
   return 0;
 };
@@ -177,7 +177,8 @@ export function agePlayer(player: Player, r: () => number, farmBoost: number): v
   if (player.age <= 29 && current < player.potential) {
     const room = clamp((player.potential - current) / 20, 0.1, 1);
     const boost = player.level === 'farm' ? farmBoost : 1;
-    const gain = GROWTH_BY_AGE(player.age) * room * boost * (2.6 + r() * 2.4);
+    const youthBonus = player.age <= 22 ? 1.2 : 1.0;
+    const gain = GROWTH_BY_AGE(player.age) * room * boost * youthBonus * (2.6 + r() * 2.4);
     keys.forEach((key) => {
       player.attrs[key] = clamp(Math.round(player.attrs[key] + gain), 0, 99);
     });

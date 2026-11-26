@@ -12,6 +12,7 @@ import {
   BRANCH_TEMPLATES,
   TEMPLATE_BY_ID,
   eligibleTemplates,
+  patternGrammarObstacles,
 } from '../src/game/branches.js';
 import {
   EMPTY_CHALLENGE_PROGRESS,
@@ -33,9 +34,11 @@ import {
   JUMP_DURATION,
   LANE_CHANGE_COOLDOWN,
   LANE_COUNT,
+  LANE_SWITCH_BUFFER_WINDOW,
   MAX_BUFFER,
   MIN_SAME_LANE_SPACING,
   NO_HIT_BONUS_PER_STREAK,
+  type ObstacleKind,
   PLAYER_BASE_SPEED,
   RAMP_CAP_SEC,
   ROUTE_SCORE_PER_BRANCH,
@@ -1665,6 +1668,86 @@ function pilotChallengeRun(
   assert.equal(day4.streak, 1, 'clearing after skipped day must reset streak to 1');
 
   ok('Asia/Taipei calendar rollover for daily challenge seed determinism and streak preservation');
+}
+
+// ── 28) Deterministic seed-hashed pattern grammar branch obstacles ─
+{
+  // 1) Verify non-cyclic structure for templates with >= 4 obstacles
+  const complexTemplates = BRANCH_TEMPLATES.filter((t) => t.obstacles.length >= 4);
+  assert.ok(complexTemplates.length > 0, 'should have complex templates');
+  for (const t of complexTemplates) {
+    const isCyclicStaircase = t.obstacles.every((obs, idx) => obs.lane === (idx % LANE_COUNT));
+    assert.equal(
+      isCyclicStaircase,
+      false,
+      `template ${t.id} must not be a naive cyclic staircase i % LANE_COUNT`,
+    );
+  }
+
+  // 2) Verify spacing rule: no obstacles in the same lane closer than MIN_SAME_LANE_SPACING
+  for (const t of BRANCH_TEMPLATES) {
+    for (let i = 0; i < t.obstacles.length; i++) {
+      for (let j = i + 1; j < t.obstacles.length; j++) {
+        const a = t.obstacles[i];
+        const b = t.obstacles[j];
+        if (a.lane === b.lane) {
+          const dist = Math.abs(a.offset - b.offset);
+          assert.ok(
+            dist >= MIN_SAME_LANE_SPACING,
+            `template ${t.id} has obstacles in lane ${a.lane} too close: ${dist} < ${MIN_SAME_LANE_SPACING}`,
+          );
+        }
+      }
+    }
+  }
+
+  // 3) Determinism & divergence across IDs
+  const obsKinds: ObstacleKind[] = ['hurdle', 'beam', 'wall'];
+  const obs1 = patternGrammarObstacles('test-track-1', 400, 3, obsKinds);
+  const obs2 = patternGrammarObstacles('test-track-1', 400, 3, obsKinds);
+  assert.deepEqual(obs1, obs2, 'identical ID, length, and density must produce identical obstacles');
+
+  const obsOther = patternGrammarObstacles('test-track-2', 400, 3, obsKinds);
+  assert.notDeepEqual(obs1, obsOther, 'different IDs must produce different obstacle patterns');
+
+  ok('deterministic seed-hashed pattern grammar branch obstacles with spacing guarantees');
+}
+
+// ── 29) Lane-switch buffering / canceling in final ~0.08s of jump and slide ─
+{
+  assert.equal(LANE_SWITCH_BUFFER_WINDOW, 0.08);
+
+  // 1) Jump buffer test
+  let jumpRun = createRun('jump-buffer-test');
+  assert.equal(jumpRun.lane, 1);
+  jumpRun.laneChangeCooldown = 0;
+  jumpRun.jumpTimer = 0.35; // Above 0.08s window
+  let resJump1 = step(jumpRun, { laneStep: 1, jump: false, slide: false }, FIXED_DT);
+  assert.equal(resJump1.lane, 1, 'lane change must be blocked when jumpTimer > 0.08');
+
+  // Within buffer window (<= 0.08s):
+  jumpRun.jumpTimer = 0.07;
+  jumpRun.laneChangeCooldown = 0;
+  let resJump2 = step(jumpRun, { laneStep: 1, jump: false, slide: false }, FIXED_DT);
+  assert.equal(resJump2.lane, 2, 'lane change must succeed when jumpTimer <= 0.08');
+  assert.equal(resJump2.jumpTimer, 0, 'jump must be canceled when buffered lane change triggers');
+
+  // 2) Slide buffer test
+  let slideRun = createRun('slide-buffer-test');
+  assert.equal(slideRun.lane, 1);
+  slideRun.laneChangeCooldown = 0;
+  slideRun.slideTimer = 0.30; // Above 0.08s window
+  let resSlide1 = step(slideRun, { laneStep: -1, jump: false, slide: false }, FIXED_DT);
+  assert.equal(resSlide1.lane, 1, 'lane change must be blocked when slideTimer > 0.08');
+
+  // Within buffer window (<= 0.08s):
+  slideRun.slideTimer = 0.06;
+  slideRun.laneChangeCooldown = 0;
+  let resSlide2 = step(slideRun, { laneStep: -1, jump: false, slide: false }, FIXED_DT);
+  assert.equal(resSlide2.lane, 0, 'lane change must succeed when slideTimer <= 0.08');
+  assert.equal(resSlide2.slideTimer, 0, 'slide must be canceled when buffered lane change triggers');
+
+  ok('lane switch buffering and canceling during final 0.08s of jump and slide');
 }
 
 console.log(`\nself-check: ok (${passed} checks)`);

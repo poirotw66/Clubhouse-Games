@@ -43,13 +43,13 @@ export function linearConflict(board: Board, size: BoardSize): number {
     for (let c1 = 0; c1 < size; c1++) {
       const i1 = row * size + c1;
       const t1 = board[i1];
-      if (t1 === null) continue;
+      if (t1 === null || t1 <= 0) continue;
       const g1 = t1 - 1;
       if (Math.floor(g1 / size) !== row) continue;
       for (let c2 = c1 + 1; c2 < size; c2++) {
         const i2 = row * size + c2;
         const t2 = board[i2];
-        if (t2 === null) continue;
+        if (t2 === null || t2 <= 0) continue;
         const g2 = t2 - 1;
         if (Math.floor(g2 / size) !== row) continue;
         if (g1 > g2) conflicts++;
@@ -61,13 +61,13 @@ export function linearConflict(board: Board, size: BoardSize): number {
     for (let r1 = 0; r1 < size; r1++) {
       const i1 = r1 * size + col;
       const t1 = board[i1];
-      if (t1 === null) continue;
+      if (t1 === null || t1 <= 0) continue;
       const g1 = t1 - 1;
       if (g1 % size !== col) continue;
       for (let r2 = r1 + 1; r2 < size; r2++) {
         const i2 = r2 * size + col;
         const t2 = board[i2];
-        if (t2 === null) continue;
+        if (t2 === null || t2 <= 0) continue;
         const g2 = t2 - 1;
         if (g2 % size !== col) continue;
         if (g1 > g2) conflicts++;

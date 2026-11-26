@@ -116,6 +116,7 @@ export interface Obstacle {
 export const JUMP_DURATION = 0.32; // sec; blocks lane changes and sliding
 export const SLIDE_DURATION = 0.36; // sec; blocks lane changes and jumping
 export const LANE_CHANGE_COOLDOWN = 0.1; // sec; keys can't be spammed into a stutter
+export const LANE_SWITCH_BUFFER_WINDOW = 0.08; // sec; buffer/cancel window in final ~0.08s of jump/slide
 
 /** A hit costs speed, not a life — the penalty routes entirely through the
  * buffer, per spec: no separate health bar. Sized to actually matter now that

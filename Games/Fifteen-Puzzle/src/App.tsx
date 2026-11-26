@@ -30,6 +30,7 @@ import {
   THEME_CONFIGS,
   cellCount,
   countInPlace,
+  defaultObstacleIndex,
   harmonyPct,
   hintTileIndex,
   isSolved,
@@ -100,6 +101,8 @@ type Session = {
   moveLimit: number | null;
   timeLimitSec: number | null;
   seed: number;
+  hasObstacle?: boolean;
+  obstacleIndex?: number | null;
 };
 
 function buildSession(opts: {
@@ -110,8 +113,11 @@ function buildSession(opts: {
   seed: number;
   stageIndex?: number | null;
   stage?: CampaignStage | null;
+  hasObstacle?: boolean;
 }): Session {
-  const { board, scrambleMoves } = scrambleFromSeed(opts.size, opts.tier, opts.seed);
+  const hasObstacle = Boolean(opts.stage?.hasObstacle || opts.hasObstacle);
+  const obstacleIndex = hasObstacle ? defaultObstacleIndex(opts.size) : null;
+  const { board, scrambleMoves } = scrambleFromSeed(opts.size, opts.tier, opts.seed, obstacleIndex);
   const solved = optimalMoves(board, opts.size, scrambleMoves);
   let moveLimit: number | null = null;
   let timeLimitSec: number | null = null;
@@ -136,6 +142,8 @@ function buildSession(opts: {
     moveLimit,
     timeLimitSec,
     seed: opts.seed,
+    hasObstacle,
+    obstacleIndex,
   };
 }
 
@@ -143,6 +151,7 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>('title');
   const [size, setSize] = useState<BoardSize>(4);
   const [tier, setTier] = useState<ScrambleTier>('normal');
+  const [variant, setVariant] = useState<'classic' | 'stone'>('classic');
   const [style, setStyle] = useState<VisualStyle>('number');
   const [theme, setTheme] = useState<ThemeId>(() => loadUserTheme());
   const [showHeatmap, setShowHeatmap] = useState<boolean>(() => loadHeatmapEnabled());
@@ -246,6 +255,7 @@ export default function App() {
         tier,
         style,
         seed,
+        hasObstacle: variant === 'stone',
       }),
     );
   };
@@ -296,6 +306,7 @@ export default function App() {
         tier: session.tier,
         style: session.style,
         seed: hashString(`reroll-${session.seed}-${Date.now()}`),
+        hasObstacle: session.hasObstacle,
       }),
     );
   };
@@ -334,7 +345,7 @@ export default function App() {
 
   useEffect(() => {
     if (screen !== 'play' || !session || won || lost || settleRef.current) return;
-    if (!isSolved(board, session.size)) return;
+    if (!isSolved(board, session.size, session.obstacleIndex)) return;
 
     settleRef.current = true;
     setWon(true);
@@ -423,7 +434,7 @@ export default function App() {
       if (
         session.moveLimit != null &&
         nextMoves >= session.moveLimit &&
-        !isSolved(next, session.size)
+        !isSolved(next, session.size, session.obstacleIndex)
       ) {
         setLost(true);
         setLoseReason('moves');
@@ -458,7 +469,7 @@ export default function App() {
 
   const handleHint = useCallback(() => {
     if (!session || won || lost) return;
-    const idx = hintTileIndex(board, session.size);
+    const idx = hintTileIndex(board, session.size, { obstacleIndex: session.obstacleIndex });
     setHintIndex(idx);
     if (idx != null) {
       playSpeedCombo(1);
@@ -633,6 +644,23 @@ export default function App() {
             ))}
           </div>
 
+          <div className="flex flex-wrap justify-center gap-2" role="group" aria-label="規則變體">
+            <button
+              type="button"
+              onClick={() => setVariant('classic')}
+              className={chipClass(variant === 'classic', 'amber')}
+            >
+              標準推盤
+            </button>
+            <button
+              type="button"
+              onClick={() => setVariant('stone')}
+              className={chipClass(variant === 'stone', 'amber')}
+            >
+              🔩 釘死石柱
+            </button>
+          </div>
+
           <h2 className="text-xs uppercase tracking-wider text-slate-400 font-bold mt-1">
             展示風格
           </h2>
@@ -759,10 +787,10 @@ export default function App() {
   // Play Screen
   const s = session!;
   const optimalLabel = s.optimalExact ? String(s.optimal) : `≤${s.optimal}`;
-  const totalTiles = cellCount(s.size) - 1;
-  const inPlaceCount = countInPlace(board, s.size);
-  const harmony = harmonyPct(board, s.size);
-  const manhattan = manhattanSum(board, s.size);
+  const totalTiles = s.hasObstacle ? cellCount(s.size) - 2 : cellCount(s.size) - 1;
+  const inPlaceCount = countInPlace(board, s.size, s.obstacleIndex);
+  const harmony = harmonyPct(board, s.size, s.obstacleIndex);
+  const manhattan = manhattanSum(board, s.size, s.obstacleIndex);
   const liveGrade = parGrade(moves, s.optimal);
   const parDelta = moves - s.optimal;
 
@@ -1018,6 +1046,7 @@ export default function App() {
               pictureUrl={s.style === 'picture' ? pictureUrl : tileFaceUrl}
               showGhost={showGhost}
               onTileHover={(t) => setHighlightedTile(t)}
+              obstacleIndex={s.obstacleIndex}
             />
 
             {/* Quick Feature Chips (Ghost & Heatmap & Theme) */}

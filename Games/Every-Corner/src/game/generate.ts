@@ -5,10 +5,14 @@ import {
   playableIsConnected,
   wallKey,
 } from './grid';
-import { randomHamiltonianPath, randomHamiltonianPathWithHoles } from './hamiltonian';
+import {
+  motionAtCell,
+  randomHamiltonianPath,
+  randomHamiltonianPathWithHoles,
+} from './hamiltonian';
 import { streamRng } from './rng';
 import { divergenceIndex, solve } from './solve';
-import type { CellId, DifficultyId, Puzzle, Size, WallKey } from './types';
+import type { CellId, DifficultyId, Puzzle, Size, WallKey, WaypointKind } from './types';
 
 export interface DifficultyInfo {
   id: DifficultyId;
@@ -186,6 +190,8 @@ export interface GenerateOptions {
    * existing seed → board mapping stays bit-identical.
    */
   blockedCount?: number;
+  /** Whether to place mandatory waypoint constraints ('turn' | 'straight'). */
+  waypointMode?: boolean;
 }
 
 /**
@@ -244,6 +250,20 @@ function buildCandidate(options: GenerateOptions, attempt: number): Puzzle | nul
     const target = Math.min(playable, options.checkpointTarget ?? info.checkpoints);
     let indices = checkpointIndices(path, target, r);
 
+    const waypoints: Record<CellId, WaypointKind> = {};
+    if (options.waypointMode) {
+      const candidates: number[] = [];
+      for (let i = 1; i < path.length - 1; i++) {
+        if (!indices.includes(i)) candidates.push(i);
+      }
+      const shuffledCandidates = shuffled(candidates, r);
+      const count = Math.min(shuffledCandidates.length, Math.max(2, Math.floor(playable / 12)));
+      for (let k = 0; k < count; k++) {
+        const idx = shuffledCandidates[k];
+        waypoints[path[idx]] = motionAtCell(size, path[idx - 1], path[idx], path[idx + 1]);
+      }
+    }
+
     for (let refine = 0; refine < playable; refine++) {
       const checkpoints = checkpointsFrom(path, indices);
       const result = solve({
@@ -253,6 +273,7 @@ function buildCandidate(options: GenerateOptions, attempt: number): Puzzle | nul
         checkpointCount: indices.length,
         blocked: holes,
         limit: 2,
+        waypoints,
       });
 
       // A budget overrun means uniqueness is unproven, so the board is unusable.
@@ -270,6 +291,7 @@ function buildCandidate(options: GenerateOptions, attempt: number): Puzzle | nul
           blocked: holes,
           variant: holes.length > 0 ? 'blocked' : 'classic',
           solution: path,
+          waypoints: Object.keys(waypoints).length > 0 ? waypoints : undefined,
         };
       }
 

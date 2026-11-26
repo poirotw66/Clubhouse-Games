@@ -236,7 +236,7 @@ export function StrategicWarRoom({ state, className = '' }: Props): React.ReactE
             </p>
           </div>
           <div className="rounded-lg bg-slate-950/60 p-2 border border-slate-800/80">
-            <p className="text-[10px] text-slate-500">季末預估豪華稅 (50%)</p>
+            <p className="text-[10px] text-slate-500">季末預估累進豪華稅</p>
             <p
               className={`font-mono font-bold mt-0.5 ${
                 capRadar.luxuryTax > 0 ? 'text-rose-400' : 'text-slate-400'
