@@ -116,9 +116,14 @@ export function dealSolvableGame(
   solve?: SolveOptions,
 ): GameState {
   const start = startSeed ?? Math.floor(Math.random() * 0x7fffffff) + 1;
-  const found = findSolvableSeed(start, { drawCount, solve, maxAttempts: 16 });
+  const solveOpts: SolveOptions = solve ?? { maxNodes: 3_000 };
+  const found = findSolvableSeed(start, {
+    drawCount,
+    solve: solveOpts,
+    maxAttempts: solve ? 16 : 3,
+  });
   if (found.kind === 'filtered') return dealGame(found.seed);
-  const built = buildGuaranteedDeal(found.seed);
+  const built = buildGuaranteedDeal(found.seed, drawCount);
   return snapshotToGame(built, found.seed);
 }
 
@@ -126,9 +131,10 @@ export function dealSolvableGame(
 export function dealDailySolvable(seed: number, drawCount: DrawCount): GameState {
   const found = findSolvableSeed(seed, {
     drawCount,
-    maxAttempts: 32,
-    solve: { maxNodes: 14_000 },
+    maxAttempts: 6,
+    solve: { maxNodes: 4_000 },
   });
   if (found.kind === 'filtered') return dealGame(found.seed);
-  return snapshotToGame(buildScriptedSolvable(seed), seed);
+  const built = buildGuaranteedDeal(seed, drawCount);
+  return snapshotToGame(built, seed);
 }

@@ -477,6 +477,34 @@ function card(suit, rank, faceUp = true) {
   });
   assert.equal(stats.vegasBankroll, 147, 'bankroll subtracts -$52 -> +$147');
   assert.equal(stats.currentStreak, 0, 'streak reset on loss');
+
+  // Game 6: Pure skill win increments pureStreak
+  stats = recordGameResult(stats, {
+    won: true,
+    drawCount: 1,
+    scoreMode: 'standard',
+    score: 300,
+    elapsedSec: 120,
+    moves: 60,
+    usedReshuffle: false,
+    clearedChallenges: ['pure-skill'],
+  });
+  assert.equal(stats.currentStreak, 1);
+  assert.equal(stats.pureStreak, 1);
+
+  // Game 7: Win with reshuffle preserves normal streak but resets pureStreak to 0
+  stats = recordGameResult(stats, {
+    won: true,
+    drawCount: 1,
+    scoreMode: 'standard',
+    score: 300,
+    elapsedSec: 120,
+    moves: 60,
+    usedReshuffle: true,
+    clearedChallenges: [],
+  });
+  assert.equal(stats.currentStreak, 2, 'normal win streak advances to 2');
+  assert.equal(stats.pureStreak, 0, 'pureStreak resets to 0 when reshuffle was used');
 }
 
 // ============================================================================
@@ -607,10 +635,16 @@ function card(suit, rank, faceUp = true) {
   assert.equal(scripted.stock.length, 24);
   assert.equal(isSolvable(scripted, 1, { maxNodes: 5_000 }), true, 'scripted layout is proven solvable');
 
-  // Reverse-built guaranteed deal
-  const guaranteed = buildGuaranteedDeal(999);
+  // Reverse-built guaranteed deal validates solvability against active drawCount (1 and 3)
+  const guaranteed = buildGuaranteedDeal(999, 1);
   assert.equal(guaranteed.tableau.reduce((sum, col) => sum + col.length, 0), 28);
   assert.equal(guaranteed.stock.length, 24);
+  assert.equal(isSolvable(guaranteed, 1, { maxNodes: 8_000 }), true, 'guaranteed deal is solvable under Draw-1');
+
+  const guaranteed3 = buildGuaranteedDeal(999, 3);
+  assert.equal(guaranteed3.tableau.reduce((sum, col) => sum + col.length, 0), 28);
+  assert.equal(guaranteed3.stock.length, 24);
+  assert.equal(isSolvable(guaranteed3, 3, { maxNodes: 8_000 }), true, 'guaranteed deal is solvable under Draw-3');
 
   // findSolvableSeed search & determinism
   const foundSearch = findSolvableSeed(100, {
@@ -704,7 +738,7 @@ function card(suit, rank, faceUp = true) {
   assert.equal(todaysBest(dailyHistory, '2026-11-25'), null);
 
   // Daily challenge achievements
-  assert.equal(CHALLENGES.length, 6, '6 defined challenge goals');
+  assert.equal(CHALLENGES.length, 7, '7 defined challenge goals');
   const baseChallenge = {
     won: true,
     usedUndo: false,
@@ -714,10 +748,15 @@ function card(suit, rank, faceUp = true) {
     scoreMode: 'standard',
   };
 
-  // no-undo
+  // no-undo and pure-skill (disqualified by reshuffle)
   assert.equal(isChallengeCleared('no-undo', baseChallenge), true);
   assert.equal(isChallengeCleared('no-undo', { ...baseChallenge, usedUndo: true }), false);
+  assert.equal(isChallengeCleared('no-undo', { ...baseChallenge, usedReshuffle: true }), false, 'reshuffle disqualifies no-undo');
   assert.equal(isChallengeCleared('no-undo', { ...baseChallenge, won: false }), false);
+
+  assert.equal(isChallengeCleared('pure-skill', baseChallenge), true);
+  assert.equal(isChallengeCleared('pure-skill', { ...baseChallenge, usedReshuffle: true }), false, 'reshuffle disqualifies pure-skill');
+  assert.equal(isChallengeCleared('pure-skill', { ...baseChallenge, won: false }), false);
 
   // moves-120 and moves-80
   assert.equal(isChallengeCleared('moves-120', baseChallenge), true);

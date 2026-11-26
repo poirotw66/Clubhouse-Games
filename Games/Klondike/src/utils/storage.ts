@@ -29,6 +29,8 @@ export interface KlondikeStats {
   wins: number;
   currentStreak: number;
   bestStreak: number;
+  pureStreak: number;
+  bestPureStreak: number;
   vegasBankroll: number;
   byMode: Partial<Record<ModeKey, ModeStats>>;
   /** Cumulative clears per challenge id. */
@@ -63,6 +65,8 @@ function emptyStats(): KlondikeStats {
     wins: 0,
     currentStreak: 0,
     bestStreak: 0,
+    pureStreak: 0,
+    bestPureStreak: 0,
     vegasBankroll: 0,
     byMode: {},
     challengesCleared: {},
@@ -121,6 +125,8 @@ export function loadStats(): KlondikeStats {
       wins: Number(parsed.wins) || 0,
       currentStreak: Number(parsed.currentStreak) || 0,
       bestStreak: Number(parsed.bestStreak) || 0,
+      pureStreak: Number(parsed.pureStreak) || 0,
+      bestPureStreak: Number(parsed.bestPureStreak) || 0,
       vegasBankroll: Number(parsed.vegasBankroll) || 0,
       byMode:
         parsed.byMode && typeof parsed.byMode === 'object' ? { ...parsed.byMode } : {},
@@ -154,6 +160,7 @@ export type GameResultInput = {
   score: number;
   elapsedSec: number;
   moves: number;
+  usedReshuffle?: boolean;
   clearedChallenges: ChallengeId[];
 };
 
@@ -171,6 +178,12 @@ export function recordGameResult(prev: KlondikeStats, input: GameResultInput): K
   }
 
   const currentStreak = input.won ? prev.currentStreak + 1 : 0;
+  const usedReshuffle = Boolean(input.usedReshuffle);
+  const prevPureStreak = prev.pureStreak ?? 0;
+  const pureStreak = input.won ? (usedReshuffle ? 0 : prevPureStreak + 1) : 0;
+  const prevBestPure = prev.bestPureStreak ?? 0;
+  const bestPureStreak = Math.max(prevBestPure, pureStreak);
+
   const challengesCleared = { ...prev.challengesCleared };
   for (const id of input.clearedChallenges) {
     challengesCleared[id] = (challengesCleared[id] ?? 0) + 1;
@@ -187,6 +200,8 @@ export function recordGameResult(prev: KlondikeStats, input: GameResultInput): K
     wins: prev.wins + (input.won ? 1 : 0),
     currentStreak,
     bestStreak: Math.max(prev.bestStreak, currentStreak),
+    pureStreak,
+    bestPureStreak,
     vegasBankroll,
     byMode: { ...prev.byMode, [key]: mode },
     challengesCleared,

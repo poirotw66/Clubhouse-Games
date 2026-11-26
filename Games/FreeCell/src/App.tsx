@@ -10,9 +10,10 @@ import {
   playScore,
   playWin,
 } from '@clubhouse/shared/synthAudio';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BarChart3,
+  BookOpen,
   Bot,
   Calendar,
   Info,
@@ -28,6 +29,7 @@ import {
 } from 'lucide-react';
 import { PlayingCard } from './components/PlayingCard';
 import { RulesModal } from './components/RulesModal';
+import { FirstRunGuide, hasSeenFirstRunGuide } from './components/FirstRunGuide';
 import { StatsPanel } from './components/StatsPanel';
 import { CardFlyLayer, type FlyCard } from './components/CardFlyLayer';
 import { WinCascade } from './components/WinCascade';
@@ -61,6 +63,7 @@ import {
 import { computeStreak, dailyBaseSeed, dateKey } from './utils/daily';
 import { CHALLENGES, evaluateChallenges, type ChallengeId } from './utils/challenges';
 import {
+  calibrateParMovesForSlots,
   clampScore,
   classicTimeBonus,
   finishMoveDelta,
@@ -146,7 +149,11 @@ export default function App() {
   );
   const [dealSeed, setDealSeed] = useState(initial.seed);
   const [dealRevision, setDealRevision] = useState(0);
-  const [parMoves, setParMoves] = useState<number | null>(initial.parMoves);
+  const [rawParMoves, setRawParMoves] = useState<number | null>(initial.parMoves);
+  const parMoves = useMemo(
+    () => calibrateParMovesForSlots(rawParMoves, settings.freeCellSlots),
+    [rawParMoves, settings.freeCellSlots],
+  );
   const [dealDifficulty, setDealDifficulty] = useState<Difficulty>(initial.difficulty);
   const [seedDraft, setSeedDraft] = useState(String(initial.seed));
   const [stats, setStats] = useState<FreeCellStats>(loadStats);
@@ -163,6 +170,7 @@ export default function App() {
   const [hasLost, setHasLost] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
   const [isRulesOpen, setIsRulesOpen] = useState(false);
+  const [isFirstRunGuideOpen, setIsFirstRunGuideOpen] = useState(false);
   const [isStatsOpen, setIsStatsOpen] = useState(false);
   const [isKeyboardHelpOpen, setIsKeyboardHelpOpen] = useState(false);
   const [showKeyboardBadges, setShowKeyboardBadges] = useState(true);
@@ -217,7 +225,7 @@ export default function App() {
   // Rate par off the click path so deals stay snappy (CI smoke + touch).
   useEffect(() => {
     // Solver search can take seconds: keep the board responsive while rating the deal.
-    setParMoves(null);
+    setRawParMoves(null);
     setDealDifficulty('any');
     let worker: Worker | undefined;
     let cancelled = false;
@@ -225,7 +233,7 @@ export default function App() {
       worker = new Worker(new URL('./utils/rateDeal.worker.ts', import.meta.url), { type: 'module' });
       worker.onmessage = (event: MessageEvent<{ parMoves: number | null; difficulty: Difficulty }>) => {
         if (cancelled) return;
-        setParMoves(event.data.parMoves);
+        setRawParMoves(event.data.parMoves);
         setDealDifficulty(event.data.difficulty);
         worker?.terminate();
       };
@@ -293,11 +301,17 @@ export default function App() {
     saveSettings(next);
   };
 
+  useEffect(() => {
+    if (!hasSeenFirstRunGuide()) {
+      setIsFirstRunGuideOpen(true);
+    }
+  }, []);
+
   const resetBoard = (bundle: DealBundle, nextSettings: FreeCellSettings = settings) => {
     setDealRevision((revision) => revision + 1);
     setGameState(emptyGame(bundle.tableaus, nextSettings.freeCellSlots));
     setDealSeed(bundle.seed);
-    setParMoves(bundle.parMoves);
+    setRawParMoves(bundle.parMoves);
     setDealDifficulty(bundle.difficulty);
     setSeedDraft(String(bundle.seed));
     setSelectedPos(null);
@@ -371,7 +385,7 @@ export default function App() {
       {
         tableaus: deal.tableaus,
         seed: deal.seed,
-        parMoves,
+        parMoves: rawParMoves,
         difficulty: dealDifficulty,
       },
       next,
@@ -1180,11 +1194,16 @@ export default function App() {
               <span className="hidden sm:inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold border backdrop-blur-md opacity-90 border-white/20 bg-white/10">
                 {activeTheme.name}
               </span>
+              {freeCellSlots === 2 && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border border-amber-400/60 bg-amber-500/25 text-amber-200 backdrop-blur-md shadow-sm">
+                  ⚡ 雙格挑戰模式（標準已校準）
+                </span>
+              )}
             </div>
             <p className="text-sm mt-1 tabular-nums opacity-80">
               分數 {score}
               {' · '}
-              {scoreSummaryLabel(parMoves, moveCount)}
+              {scoreSummaryLabel(parMoves, moveCount, freeCellSlots)}
               {' · '}
               悔棋 {undoCount}
               {' · '}
@@ -1368,6 +1387,16 @@ export default function App() {
             </button>
             <button
               type="button"
+              onClick={() => setIsFirstRunGuideOpen(true)}
+              className="min-h-[44px] min-w-[44px] px-4 py-2 bg-white border border-stone-200 rounded-full text-sm font-medium text-stone-600 hover:bg-stone-50 shadow-sm flex items-center justify-center gap-2 touch-manipulation"
+              aria-label="戰術引導"
+              title="大師戰術首局引導"
+            >
+              <BookOpen size={16} className="text-amber-600" />
+              <span className="hidden sm:inline">引導</span>
+            </button>
+            <button
+              type="button"
               onClick={() => setIsKeyboardHelpOpen(true)}
               className="min-h-[44px] min-w-[44px] px-4 py-2 bg-white border border-stone-200 rounded-full text-sm font-medium text-stone-600 hover:bg-stone-50 shadow-sm flex items-center justify-center gap-2 touch-manipulation"
               aria-label="快捷鍵"
@@ -1540,6 +1569,11 @@ export default function App() {
                     >
                       <div className="flex items-center justify-between px-1 mb-1 text-[10px] sm:text-[11px] font-mono text-stone-400">
                         <span className="hidden sm:inline">暫存{i + 1}</span>
+                        {locked && (
+                          <span className="text-[10px] font-bold text-amber-300 bg-amber-950/80 px-1 rounded border border-amber-500/40">
+                            🔒 鎖定
+                          </span>
+                        )}
                         {showKeyboardBadges && !locked && (
                           <kbd className="px-1.5 py-0.2 rounded bg-stone-100 text-stone-600 font-bold border border-stone-200 shadow-sm text-[10px]">
                             {keyLetter}
@@ -1728,6 +1762,10 @@ export default function App() {
       <WinCascade active={hasWon} foundations={gameState.foundations} />
 
       <RulesModal isOpen={isRulesOpen} onClose={() => setIsRulesOpen(false)} />
+      <FirstRunGuide
+        isOpen={isFirstRunGuideOpen}
+        onClose={() => setIsFirstRunGuideOpen(false)}
+      />
       <KeyboardShortcutsModal
         isOpen={isKeyboardHelpOpen}
         onClose={() => setIsKeyboardHelpOpen(false)}

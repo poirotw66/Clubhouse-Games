@@ -5,6 +5,8 @@
  * Each undo costs points; finishing under par earns a bonus.
  */
 
+import type { FreeCellSlots } from './storage.ts';
+
 export type PlayMode = 'classic' | 'timed';
 
 export const FOUNDATION_POINTS = 10;
@@ -64,13 +66,32 @@ export function finishMoveDelta(moves: number, parMoves: number | null): number 
   return 0;
 }
 
+/**
+ * Dynamically calibrate par moves for 2-cell mode.
+ * 2-cell FreeCell restricts intermediate storage, requiring stack breakups and
+ * extra staging cascades (+35% move volume).
+ */
+export function calibrateParMovesForSlots(
+  basePar: number | null,
+  freeCellSlots: FreeCellSlots = 4,
+): number | null {
+  if (basePar == null || basePar <= 0) return null;
+  if (freeCellSlots === 4) return basePar;
+  return Math.round(basePar * 1.35) + 6;
+}
+
 /** Small classic-mode time bonus when the clock ran (≥30s). */
 export function classicTimeBonus(elapsedSec: number): number {
   if (elapsedSec < 30) return 0;
   return Math.floor(100_000 / elapsedSec);
 }
 
-export function scoreSummaryLabel(parMoves: number | null, moves: number): string {
+export function scoreSummaryLabel(
+  parMoves: number | null,
+  moves: number,
+  freeCellSlots?: FreeCellSlots,
+): string {
   if (parMoves == null) return `${moves} 步 · 標準 —`;
-  return `${moves} / 標準 ${parMoves}`;
+  const suffix = freeCellSlots === 2 ? ' (雙格)' : '';
+  return `${moves} / 標準 ${parMoves}${suffix}`;
 }

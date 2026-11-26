@@ -1,7 +1,7 @@
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
 import { BookOpen, Brain, Puzzle, Swords, Users } from 'lucide-react';
-import type { ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import {
   SERIES_OPTIONS,
   seriesLabel,
@@ -317,12 +317,45 @@ function LadderSetup({
   onBack: () => void;
   onStart: (index: number, side: Piece) => void;
 }): ReactElement {
+  const [ladderSide, setLadderSide] = useState<Piece>('black');
+
   return (
     <div className="w-full max-w-sm flex flex-col gap-3">
       <button type="button" onClick={onBack} className="text-sm text-stone-400 self-start">
         ← 返回
       </button>
       <p className="text-sm text-stone-300">打贏解鎖下一位。每位對手風格不同。</p>
+
+      <div className="flex items-center justify-between gap-2 px-1">
+        <span className="text-xs text-stone-300 font-medium">挑戰執子</span>
+        <div className="flex gap-1.5 rounded-lg bg-stone-900/80 p-1 border border-stone-700">
+          <button
+            type="button"
+            onClick={() => setLadderSide('black')}
+            aria-pressed={ladderSide === 'black'}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold touch-manipulation transition ${
+              ladderSide === 'black'
+                ? 'bg-stone-950 text-white border border-stone-500 shadow-sm'
+                : 'text-stone-400 hover:text-stone-200'
+            }`}
+          >
+            ● 執黑（先手）
+          </button>
+          <button
+            type="button"
+            onClick={() => setLadderSide('white')}
+            aria-pressed={ladderSide === 'white'}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold touch-manipulation transition ${
+              ladderSide === 'white'
+                ? 'bg-stone-100 text-stone-950 shadow-sm'
+                : 'text-stone-400 hover:text-stone-200'
+            }`}
+          >
+            ○ 執白（後手）
+          </button>
+        </div>
+      </div>
+
       <details className="rv-more-modes rounded-xl border border-stone-700/80 bg-stone-900/40 px-3 py-2 mb-1" open={seriesLength > 1}>
         <summary className="min-h-[44px] cursor-pointer list-none touch-manipulation flex items-center justify-between gap-2 text-xs text-stone-300 font-medium">
           <span>更多賽制</span>
@@ -356,7 +389,8 @@ function LadderSetup({
             index={index}
             unlocked={isOpponentUnlocked(index, ladder.clearedCount)}
             cleared={Boolean(ladder.cleared[op.id])}
-            onChallenge={() => onStart(index, 'black')}
+            ladderSide={ladderSide}
+            onChallenge={(side) => onStart(index, side)}
           />
         ))}
       </ul>
@@ -369,13 +403,15 @@ function OpponentCard({
   index,
   unlocked,
   cleared,
+  ladderSide,
   onChallenge,
 }: {
   op: OpponentDef;
   index: number;
   unlocked: boolean;
   cleared: boolean;
-  onChallenge: () => void;
+  ladderSide: Piece;
+  onChallenge: (side: Piece) => void;
 }): ReactElement {
   return (
     <li
@@ -385,7 +421,7 @@ function OpponentCard({
       style={{ borderColor: unlocked ? op.accent : undefined }}
     >
       <div className="flex items-start justify-between gap-2">
-        <div>
+        <div className="min-w-0 flex-1">
           <p className="font-semibold">
             {index + 1}. {op.name}
             {cleared ? ' ✓' : ''}
@@ -393,14 +429,25 @@ function OpponentCard({
           <p className="text-xs text-stone-400">{op.tagline}</p>
           <p className="text-xs text-stone-300 mt-1">{op.blurb}</p>
         </div>
-        <button
-          type="button"
-          disabled={!unlocked}
-          onClick={onChallenge}
-          className="shrink-0 px-3 py-2 rounded-lg bg-emerald-700 disabled:bg-stone-700 text-sm font-medium"
-        >
-          {unlocked ? '挑戰' : '鎖定'}
-        </button>
+        <div className="shrink-0 flex flex-col gap-1.5 items-end">
+          <button
+            type="button"
+            disabled={!unlocked}
+            onClick={() => onChallenge(ladderSide)}
+            className="px-3 py-2 rounded-lg bg-emerald-700 hover:bg-emerald-600 disabled:bg-stone-700 text-xs sm:text-sm font-semibold text-white shadow-sm touch-manipulation"
+          >
+            {unlocked ? `挑戰 (${ladderSide === 'black' ? '先手黑' : '後手白'})` : '鎖定'}
+          </button>
+          {unlocked && (
+            <button
+              type="button"
+              onClick={() => onChallenge(ladderSide === 'black' ? 'white' : 'black')}
+              className="text-[11px] text-stone-400 hover:text-amber-300 transition underline underline-offset-2 touch-manipulation"
+            >
+              換選{ladderSide === 'black' ? '執白（電腦先手）' : '執黑（先手）'}
+            </button>
+          )}
+        </div>
       </div>
     </li>
   );
