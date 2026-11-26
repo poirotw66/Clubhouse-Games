@@ -256,6 +256,10 @@ export interface GameState {
   resumePhase: Phase | null;
   /** Baseball-Life graduate already offered as a draft/FA option this tenure. */
   lifeBridgeOffered: boolean;
+  /** Number of key expiring contracts triaged this offseason. */
+  contractsTriagedCount: number;
+  /** Total number of key expiring contracts to triage this offseason (top 2-3). */
+  contractsTriageTotal: number;
 
   decision: Decision | null;
   report: Report | null;

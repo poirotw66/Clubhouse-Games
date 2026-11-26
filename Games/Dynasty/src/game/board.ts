@@ -67,7 +67,7 @@ export function review(input: ReviewInput): Review {
       met = input.homegrownRegulars >= 3;
       break;
     case 'hold':
-      met = input.wins / input.games >= 0.5;
+      met = input.wins / input.games >= 0.45;
       break;
     case 'playoffs':
       met = input.madePlayoffs;
@@ -80,8 +80,6 @@ export function review(input: ReviewInput): Review {
   // Money and the mood in the stands move the needle on their own, whatever
   // the mandate was.
   const financial = input.net >= 0 ? 4 : -6;
-  // The floor on fan heat is 12, so a threshold of 30 meant a struggling club
-  // took this penalty every single year with no way to escape it.
   const publicMood = input.heat >= 70 ? 3 : input.heat <= 20 ? -4 : 0;
 
   return {
@@ -94,8 +92,9 @@ export function review(input: ReviewInput): Review {
 
 export function applyTrust(state: GameState, delta: number): void {
   state.board.trust = clamp(Math.round(state.board.trust + delta), 0, 100);
+  const dangerFloor = state.board.expectation === 'rebuild' ? 17 : TRUST_DANGER;
   state.board.dangerYears =
-    state.board.trust < TRUST_DANGER ? state.board.dangerYears + 1 : 0;
+    state.board.trust < dangerFloor ? state.board.dangerYears + 1 : 0;
 }
 
 export function shouldFire(state: GameState): boolean {

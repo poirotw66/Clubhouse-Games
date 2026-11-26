@@ -4,6 +4,7 @@ import {
   CLUBS,
   EXPECTATIONS,
   GAMES,
+  POSITION_LABELS,
   SALARY_CAP,
   SCOUT_TIERS,
   formatMoney,
@@ -179,6 +180,8 @@ export function createGame(input: CreateInput): GameState {
     pendingStorylineId: null,
     resumePhase: null,
     lifeBridgeOffered: false,
+    contractsTriagedCount: 0,
+    contractsTriageTotal: 0,
     decision: null,
     report: null,
     over: false,
@@ -227,7 +230,7 @@ function homegrownRegulars(team: Team): number {
   return team.players.filter((p) => p.level === 'major' && p.homegrown && ability(p) >= 50).length;
 }
 
-function buildDecision(state: GameState): Decision {
+export function buildDecision(state: GameState): Decision {
   const team = humanTeam(state);
 
   switch (state.phase) {
@@ -399,20 +402,23 @@ function buildDecision(state: GameState): Decision {
 
     case 'contracts': {
       const expiring = expiringPlayers(team);
-      if (expiring.length === 0) {
+      const triageTotal = state.contractsTriageTotal ?? Math.min(expiring.length, 3);
+      const triageCount = state.contractsTriagedCount ?? 0;
+      if (expiring.length === 0 || triageCount >= triageTotal) {
         return {
           phase: 'contracts',
-          title: `${state.year} 年 續約`,
-          prompt: '今年沒有到期的重要合約。',
+          title: `${state.year} 年 續約審批`,
+          prompt: expiring.length === 0 ? '今年沒有到期的重要合約。' : '本季到期重要合約審批完畢。',
           options: [{ id: 'con-none', label: '繼續', hint: '進入下一步。' }],
         };
       }
       const target = expiring[0];
       const market = marketSalary(ability(target), target.age + 1);
+      const stepLabel = triageTotal > 1 ? `（第 ${triageCount + 1}/${triageTotal} 位主力）` : '';
       return {
         phase: 'contracts',
-        title: `${state.year} 年 續約`,
-        prompt: `${target.name}（${target.age} 歲・能力 ${Math.round(ability(target))}）合約到期，市場行情 ${formatMoney(market)}。`,
+        title: `${state.year} 年 續約審批${stepLabel}`,
+        prompt: `${target.name}（${POSITION_LABELS[target.position]}・${target.age} 歲・能力 ${Math.round(ability(target))}）合約到期，市場行情 ${formatMoney(market)}。`,
         options: [
           {
             id: 'con-market',
@@ -424,8 +430,14 @@ function buildDecision(state: GameState): Decision {
             id: 'con-lowball',
             label: `壓價續約 ${formatMoney(Math.round(market * 0.7))}`,
             hint: '省錢，但有機會談崩，人就走了。',
+            cost: 0,
           },
-          { id: 'con-let-go', label: '放他走', hint: '空出薪資空間；能力夠好的話可拿到補償籤。' },
+          {
+            id: 'con-let-go',
+            label: '放他走',
+            hint: '空出薪資空間；能力夠好的話可拿到補償籤。',
+            cost: 0,
+          },
         ],
       };
     }
@@ -730,6 +742,9 @@ function resolveDraft(state: GameState, optionId: string, report: Report): void 
   }
   state.draftPool = [];
   state.phase = 'contracts';
+  const exp = expiringPlayers(team);
+  state.contractsTriagedCount = 0;
+  state.contractsTriageTotal = Math.min(exp.length, 3);
   maybeQueueStoryline(state);
 }
 
@@ -742,19 +757,42 @@ function resolveStoryline(state: GameState, optionId: string, report: Report): v
   // Do not immediately re-queue another storyline; one card per decision beat.
 }
 
+function autoSettleExpiringFringe(state: GameState, team: Team, report: Report): void {
+  const remaining = expiringPlayers(team);
+  remaining.forEach((player) => {
+    const market = marketSalary(ability(player), player.age + 1);
+    if (payroll(team) + market <= SALARY_CAP * 1.25) {
+      player.salary = market;
+      player.years = randInt(rng(state, `renew:${player.id}`), 2, 4);
+    } else {
+      releasePlayer(state, team, player);
+      report.lines.push(`${player.name} 因薪資空間不足離隊。`);
+    }
+  });
+}
+
 function resolveContracts(state: GameState, optionId: string, report: Report): void {
   const team = humanTeam(state);
   const expiring = expiringPlayers(team);
-  const target = expiring[0];
 
+  if (optionId === 'con-none' || expiring.length === 0) {
+    autoSettleExpiringFringe(state, team, report);
+    rebalance(team);
+    state.contractsTriagedCount = 0;
+    state.contractsTriageTotal = 0;
+    state.phase = 'budget';
+    return;
+  }
+
+  const target = expiring[0];
   if (target) {
     const market = marketSalary(ability(target), target.age + 1);
-    if (optionId === 'con-market') {
+    if (optionId.startsWith('con-market')) {
       target.salary = market;
       target.years = 3;
       report.lines.push(`${target.name} 續約三年，年薪 ${formatMoney(market)}。`);
-    } else if (optionId === 'con-lowball') {
-      const r = rng(state, 'lowball');
+    } else if (optionId.startsWith('con-lowball')) {
+      const r = rng(state, `lowball:${target.id}`);
       if (r() < 0.45) {
         target.salary = Math.round(market * 0.7);
         target.years = 3;
@@ -771,21 +809,20 @@ function resolveContracts(state: GameState, optionId: string, report: Report): v
     }
   }
 
-  // Everyone else who is out of contract simply renews at market rate if the
-  // club can afford it, and walks if it cannot.
-  expiring.slice(1).forEach((player) => {
-    const market = marketSalary(ability(player), player.age + 1);
-    if (payroll(team) + market <= SALARY_CAP * 1.25) {
-      player.salary = market;
-      player.years = randInt(rng(state, `renew:${player.id}`), 2, 4);
-    } else {
-      releasePlayer(state, team, player);
-      report.lines.push(`${player.name} 因薪資空間不足離隊。`);
-    }
-  });
+  state.contractsTriagedCount = (state.contractsTriagedCount ?? 0) + 1;
+  const triageTotal = state.contractsTriageTotal ?? 3;
+  const nextExpiring = expiringPlayers(team);
 
-  rebalance(team);
-  state.phase = 'budget';
+  if (state.contractsTriagedCount >= triageTotal || nextExpiring.length === 0) {
+    autoSettleExpiringFringe(state, team, report);
+    rebalance(team);
+    state.contractsTriagedCount = 0;
+    state.contractsTriageTotal = 0;
+    state.phase = 'budget';
+    maybeQueueStoryline(state);
+  } else {
+    state.phase = 'contracts';
+  }
 }
 
 function releasePlayer(state: GameState, team: Team, player: Player): void {
@@ -992,15 +1029,19 @@ export function buildSummary(state: GameState, fired: boolean): Summary {
   const playoffs = state.history.filter((h) => h.playoffResult !== '未晉級').length;
   const totalNet = state.ledgers.reduce((sum, l) => sum + l.net, 0);
   const team = humanTeam(state);
+  const homegrownRegulars = team.players.filter((p) => p.homegrown && ability(p) >= 50).length;
   const homegrownStars = team.players.filter((p) => p.homegrown && ability(p) >= 70).length;
 
-  // Money divided by 150, not 40: a profitable decade is worth something, but a
-  // club that banked a fortune and never won anything must not out-score one
-  // that won three titles. Trophies are the point.
+  // Sustainable rebuild and financial prudence are rewarded alongside championships.
   const score = Math.max(
     0,
     Math.round(
-      titles * 350 + playoffs * 90 + totalNet / 150 + homegrownStars * 60 + state.heat * 3,
+      titles * 320 +
+      playoffs * 85 +
+      totalNet / 95 +
+      homegrownStars * 80 +
+      homegrownRegulars * 25 +
+      state.heat * 2.5,
     ),
   );
 

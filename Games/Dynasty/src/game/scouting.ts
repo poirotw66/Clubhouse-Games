@@ -58,8 +58,8 @@ export function buildDraftClass(state: GameState, scoutSpend: number): Player[] 
   for (let i = 0; i < CLASS_SIZE; i++) {
     const age = randInt(r, 18, 21);
     // Raw teenagers: low ability now, and the whole decision is the ceiling.
-    const base = randInt(r, 26, 44);
-    const potential = clamp(base + randInt(r, 6, 46), 30, 99);
+    const base = randInt(r, 28, 48);
+    const potential = clamp(base + randInt(r, 10, 48), 36, 99);
     const player = generatePlayer({
       r,
       teamId: '',

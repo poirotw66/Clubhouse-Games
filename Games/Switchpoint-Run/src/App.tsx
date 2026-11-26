@@ -67,6 +67,7 @@ import { RUNNERS, type RunnerId } from './game/profiles';
 import { randomSeedCode } from './game/rng';
 import { THEMES, type ThemeId } from './game/themes';
 import type { PlayerInput, RunConfig, RunState } from './game/types';
+import { FirstRunGuide, hasSeenFirstRunGuide } from './components/FirstRunGuide';
 
 type Screen = 'menu' | 'playing';
 
@@ -105,6 +106,7 @@ export default function App(): React.ReactElement {
   const [blackboxLogs, setBlackboxLogs] = useState<BlackboxLogEntry[]>([]);
   const [showMobileControls, setShowMobileControls] = useState(true);
   const [showMobileDrawer, setShowMobileDrawer] = useState(false);
+  const [showGuide, setShowGuide] = useState(() => !hasSeenFirstRunGuide());
 
   const stateRef = useRef<RunState | null>(null);
   const fxRef = useRef<FxState>(createFx());
@@ -378,14 +380,36 @@ export default function App(): React.ReactElement {
   }, [screen, paused]);
 
   const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const touchHandled = useRef(false);
+
   const onPointerDown = useCallback((e: React.PointerEvent) => {
     if (paused) return;
     touchStart.current = { x: e.clientX, y: e.clientY };
+    touchHandled.current = false;
   }, [paused]);
+
+  const onPointerMove = useCallback((e: React.PointerEvent) => {
+    const start = touchStart.current;
+    if (!start || touchHandled.current || paused) return;
+    const dx = e.clientX - start.x;
+    const dy = e.clientY - start.y;
+    const THRESH = 28;
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > THRESH) {
+      laneStepRef.current = dx > 0 ? 1 : -1;
+      touchHandled.current = true;
+      touchStart.current = null;
+    } else if (Math.abs(dy) > THRESH) {
+      if (dy < 0) jumpRef.current = true;
+      else slideRef.current = true;
+      touchHandled.current = true;
+      touchStart.current = null;
+    }
+  }, [paused]);
+
   const onPointerUp = useCallback((e: React.PointerEvent) => {
     const start = touchStart.current;
     touchStart.current = null;
-    if (!start || paused) return;
+    if (!start || touchHandled.current || paused) return;
     const dx = e.clientX - start.x;
     const dy = e.clientY - start.y;
     const THRESH = 28;
@@ -862,7 +886,16 @@ export default function App(): React.ReactElement {
               <span className="text-emerald-400">❖</span>
               調度運轉規範與核心法則
             </span>
-            <span className="text-[10px] font-mono text-slate-500">OPERATIONAL RULES</span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowGuide(true)}
+                className="rounded-lg border border-cyan-500/40 bg-cyan-950/60 px-2.5 py-1 text-xs font-semibold text-cyan-300 hover:bg-cyan-900/60 transition-colors"
+              >
+                新手指南
+              </button>
+              <span className="text-[10px] font-mono text-slate-500 hidden sm:inline">OPERATIONAL RULES</span>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1056,6 +1089,8 @@ export default function App(): React.ReactElement {
             </div>
           </div>
         )}
+
+        {showGuide && <FirstRunGuide onClose={() => setShowGuide(false)} />}
       </div>
     );
   }
@@ -1142,8 +1177,12 @@ export default function App(): React.ReactElement {
         <div
           className="flex-1 max-w-[500px] h-full relative flex items-center justify-center bg-slate-950/60"
           onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
-          onPointerCancel={() => { touchStart.current = null; }}
+          onPointerCancel={() => {
+            touchStart.current = null;
+            touchHandled.current = false;
+          }}
         >
           <GameCanvas stateRef={stateRef} fxRef={fxRef} paused={paused || challengeWon} />
 
@@ -1181,6 +1220,14 @@ export default function App(): React.ReactElement {
                     className="rounded-xl border border-cyan-400/60 bg-slate-900 px-6 py-3 text-base font-bold text-cyan-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
                   >
                     繼續遊戲
+                  </button>
+                  <button
+                    type="button"
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={() => setShowGuide(true)}
+                    className="rounded-xl border border-cyan-500/40 bg-slate-900 px-5 py-3 text-base font-bold text-cyan-200 hover:bg-cyan-950/80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400"
+                  >
+                    新手指南
                   </button>
                   <button
                     type="button"
@@ -1293,6 +1340,7 @@ export default function App(): React.ReactElement {
           }}
         />
       )}
+      {showGuide && <FirstRunGuide onClose={() => setShowGuide(false)} />}
     </div>
   );
 }

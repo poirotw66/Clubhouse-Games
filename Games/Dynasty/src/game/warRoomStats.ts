@@ -1,11 +1,11 @@
 import {
   BANKRUPTCY,
   EXPECTATIONS,
-  LUXURY_RATE,
   SALARY_CAP,
   TRUST_DANGER,
 } from './config';
 import { humanTeam } from './engine';
+import { calculateLuxuryTax } from './finance';
 import { ability } from './players';
 import { farm, lineupStrength, payroll, pitchingStrength, starCount } from './roster';
 import type { Expectation, GameState, Player, Position, SeasonRecord, Team } from './types';
@@ -210,7 +210,7 @@ export function getSalaryCapRadar(state: GameState): SalaryCapRadar {
   const majorPayroll = payroll(team);
   const cap = SALARY_CAP;
   const overCap = Math.max(0, majorPayroll - cap);
-  const luxuryTax = Math.round(overCap * LUXURY_RATE);
+  const luxuryTax = calculateLuxuryTax(overCap);
   const cash = state.finance.cash;
   const bankruptcyBuffer = cash - BANKRUPTCY;
   const usageRatio = cap > 0 ? majorPayroll / cap : 1;
