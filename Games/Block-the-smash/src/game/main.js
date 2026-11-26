@@ -1345,13 +1345,15 @@ function setTellBanner(text, colorHex, fake) {
   if (!el) return;
   if (!text) {
     el.classList.remove('show');
+    el.classList.remove('fake');
     el.textContent = '';
     return;
   }
-  el.textContent = fake ? `${text}？` : text;
+  // Players read trajectory/trail divergence; do not reveal fake with '？' HUD tag
+  el.textContent = text;
   el.style.color = `#${colorHex.toString(16).padStart(6, '0')}`;
   el.classList.add('show');
-  el.classList.toggle('fake', !!fake);
+  el.classList.remove('fake');
 }
 
 function resetOpponentPose() {
@@ -1458,12 +1460,18 @@ function completeCounter(zone) {
     cover,
     versusWinsPoint: versusReturnWinsPoint,
     rng: state.rng,
+    angleBias: state.angleBias,
   });
 
   state.countersLanded += 1;
   const dirX = zone === 'left' ? -24 : zone === 'right' ? 24 : (state.rng() - 0.5) * 6;
+  const netForwardMul = state.angleBias === 1 ? 1.35 : 1.0;
   if (s && s.visible) {
-    s.userData.velocity.set(dirX, 16, -Math.abs(s.userData.velocity.z) * 1.2 - 24);
+    s.userData.velocity.set(
+      dirX,
+      16 * netForwardMul,
+      (-Math.abs(s.userData.velocity.z) * 1.2 - 24) * netForwardMul,
+    );
   }
 
   showToast(resolved.toast, resolved.wonPoint || state.mode !== 'versus' ? 'perfect' : 'good');
@@ -2038,6 +2046,10 @@ function applyContactResult(s, grade) {
   } else {
     state.stamina = Math.min(100, state.stamina + 5);
   }
+  // Defensive back-lift (S, angleBias = -1) restores +6 stamina
+  if (state.angleBias === -1) {
+    state.stamina = Math.min(100, state.stamina + 6);
+  }
   updateCockpitTelemetry();
 
   if (grade === 'perfect') {
@@ -2067,7 +2079,8 @@ function applyContactResult(s, grade) {
     state.maxCombo = Math.max(state.maxCombo, state.combo);
     createFeatherExplosion(s.position, 10);
     const dirX = aimZone === 'left' ? -14 : aimZone === 'right' ? 14 : (state.rng() - 0.5) * 8;
-    s.userData.velocity.set(dirX, 10, -Math.abs(s.userData.velocity.z) - 12);
+    const forwardMul = state.angleBias === 1 ? 1.3 : 1.0;
+    s.userData.velocity.set(dirX, 10, (-Math.abs(s.userData.velocity.z) - 12) * forwardMul);
     AudioSys.playHit('good', state.combo);
     notifyParentHaptic('impact');
     if (!PREFERS_REDUCED) {
@@ -2643,7 +2656,7 @@ function animate() {
         if (posGrade !== 'out') {
           const tier = phaseTier();
           const bonusMs = opponentHabit()?.goodWindowBonusMs ?? 0;
-          const windows = getTimingWindowsMs(tier, state.combo, bonusMs);
+          const windows = getTimingWindowsMs(tier, state.combo, bonusMs, state.angleBias);
           const timing = state.swinging
             ? gradeTiming(state.swingTime, state.swingDuration, state.swingEtaAtStart, windows)
             : 'late';

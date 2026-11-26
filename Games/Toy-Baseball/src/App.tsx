@@ -62,13 +62,16 @@ import {
 } from './components/FirstRunGuide';
 import {
   MOUND,
+  MIN_STRIKE_Z,
   PITCH_DEFS,
   PITCH_TYPES,
   STEER_WINDOW_SEC,
+  STRIKE_HALF_WIDTH,
   applyPitchFlight,
   chooseCpuPitch,
   cpuReadsPitch,
   initialPitchVelocity,
+  isPlateStrike,
   type PitchLoc,
   type PitchType,
 } from './pitching';
@@ -119,6 +122,7 @@ import {
 } from './telemetry';
 import {
   computeBuntLaunch,
+  resolveHitAndRun,
   resolveStealAttempt,
 } from './tactics';
 import { TelemetryWing } from './components/TelemetryWing';
@@ -967,7 +971,6 @@ class GameEngine {
         hitType = 'fair';
         this.state.lastLanding = { x, y };
         this.state.lastFielderId = '3B';
-        this.advanceRunners(1);
         haptic('win');
       } else {
         result = '犧牲短打推進！(SAC BUNT)';
@@ -1062,9 +1065,22 @@ class GameEngine {
           this.state.derbyBestDist = Math.max(this.state.derbyBestDist, dist);
         }
       }
-
-      if (bases > 0) this.advanceRunners(bases);
     }
+
+    // Resolve or cleanly clear stealAttempt on contact (hit-and-run advance bonus on fair contact)
+    const hnr = resolveHitAndRun({
+      stealAttempt: this.state.stealAttempt,
+      hitType,
+      bases,
+    });
+    if (hnr.clearedSteal) {
+      this.state.stealAttempt = false;
+      if (hnr.blurb) {
+        result = `${result} · ${hnr.blurb}`;
+      }
+    }
+
+    if (bases > 0) this.advanceRunners(bases, hnr.runnerBonus);
 
     this.state.ballPos = null;
     this.state.ballVel = null;
@@ -1090,8 +1106,7 @@ class GameEngine {
 
   processMiss() {
     const loc = this.state.pitchLoc;
-    const isStrike =
-      loc === 'center' || (loc !== null && this.nextRoll('strikeZone') > 0.55);
+    const isStrike = isPlateStrike(this.state.ballPos, loc);
 
     if (this.state.swingTime !== null) {
       this.state.strikes++;
@@ -1228,7 +1243,7 @@ class GameEngine {
     this.state.bases = newBases;
   }
 
-  advanceRunners(num: number) {
+  advanceRunners(num: number, runnerBonus: number = 0) {
     const newBases = [false, false, false];
     let runs = 0;
     const currentRunners = [...this.state.bases];
@@ -1237,7 +1252,7 @@ class GameEngine {
       runs = currentRunners.filter((b) => b).length + 1;
     } else {
       let runners = currentRunners.map((b, i) => (b ? i + 1 : 0)).filter((r) => r > 0);
-      runners = runners.map((r) => r + num);
+      runners = runners.map((r) => r + num + runnerBonus);
       runs += runners.filter((r) => r > 3).length;
       runners
         .filter((r) => r <= 3)
@@ -1410,6 +1425,13 @@ class GameEngine {
     ctx.setLineDash([5, 5]);
     ctx.strokeRect(360, 420, 80, 60);
     ctx.fillRect(360, 420, 80, 60);
+    ctx.setLineDash([]);
+
+    // Subtle home-plate strike zone boundary cues
+    ctx.strokeStyle = 'rgba(251, 191, 36, 0.35)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([3, 3]);
+    ctx.strokeRect(400 - STRIKE_HALF_WIDTH, 422, STRIKE_HALF_WIDTH * 2, 56);
     ctx.setLineDash([]);
 
     ctx.strokeStyle = '#ffffff';

@@ -336,3 +336,45 @@ export function preferredGuardHeight(mem: HabitMemory, habitBias: number): Heigh
   const blended = 0.5 + (ratio - 0.5) * habitBias;
   return blended >= 0.5 ? 'high' : 'low';
 }
+
+// ── Movement & Action Cancel Mechanics ──────────────────────────────────────
+
+export const DEFAULT_MOVE_SPEED = 4;
+export const INPUT_BUFFER_WINDOW = 0.12; // 120ms input buffer during recovery / hitstun
+
+export const GUARD_CANCEL_DODGE_STAMINA = 20;
+export const GUARD_CANCEL_PARRY_STAMINA = 15;
+export const NEUTRAL_DODGE_STAMINA = 15;
+export const NEUTRAL_PARRY_STAMINA = 10;
+
+export const GUARD_CANCEL_DODGE_TIMER = 0.34;
+export const NEUTRAL_DODGE_TIMER = 0.3;
+export const GUARD_CANCEL_PARRY_TIMER = 0.18;
+export const NEUTRAL_PARRY_TIMER = 0.2;
+
+/**
+ * Calculates dt-normalized displacement so 120Hz+ displays match 60Hz movement speed.
+ */
+export function calculateMoveDelta(
+  speed: number,
+  dt: number,
+  baseMoveSpeed = DEFAULT_MOVE_SPEED,
+): number {
+  return baseMoveSpeed * speed * (dt * 60);
+}
+
+/**
+ * Calculates dt-normalized decay for effects like parryEffect.life.
+ */
+export function calculateParryLifeDecay(dt: number, baseDecayPerFrame = 0.03): number {
+  return baseDecayPerFrame * (dt * 60);
+}
+
+export function canGuardCancelDodge(stamina: number): boolean {
+  return stamina >= GUARD_CANCEL_DODGE_STAMINA;
+}
+
+export function canGuardCancelParry(stamina: number): boolean {
+  return stamina >= GUARD_CANCEL_PARRY_STAMINA;
+}
+

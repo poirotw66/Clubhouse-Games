@@ -13,6 +13,20 @@ import {
   tickAttack,
   applyStun,
   STUN_KO_THRESHOLD,
+  DEFAULT_MOVE_SPEED,
+  INPUT_BUFFER_WINDOW,
+  GUARD_CANCEL_DODGE_STAMINA,
+  GUARD_CANCEL_PARRY_STAMINA,
+  NEUTRAL_DODGE_STAMINA,
+  NEUTRAL_PARRY_STAMINA,
+  GUARD_CANCEL_DODGE_TIMER,
+  NEUTRAL_DODGE_TIMER,
+  GUARD_CANCEL_PARRY_TIMER,
+  NEUTRAL_PARRY_TIMER,
+  calculateMoveDelta,
+  calculateParryLifeDecay,
+  canGuardCancelDodge,
+  canGuardCancelParry,
 } from './combat.ts';
 
 function assert(cond, msg) {
@@ -205,6 +219,46 @@ function assert(cond, msg) {
   assert(counterHit.type === 'hit' && counterHit.isCounter === true, 'catching attacking opponent is counter');
   assert(counterHit.damage > normalHit.damage * 1.4, 'counter increases damage by 1.5x');
   assert(counterHit.stunGain > normalHit.stunGain * 1.2, 'counter increases stun gain by 1.25x');
+}
+
+// Frame-rate normalization checks (Sakurai 60Hz/120Hz consistency).
+{
+  const speed = 1.2;
+  // 60 frames at 60Hz (dt = 1/60)
+  let dist60 = 0;
+  for (let i = 0; i < 60; i++) {
+    dist60 += calculateMoveDelta(speed, 1 / 60, DEFAULT_MOVE_SPEED);
+  }
+  // 120 frames at 120Hz (dt = 1/120)
+  let dist120 = 0;
+  for (let i = 0; i < 120; i++) {
+    dist120 += calculateMoveDelta(speed, 1 / 120, DEFAULT_MOVE_SPEED);
+  }
+  assert(Math.abs(dist60 - dist120) < 1e-6, `120Hz movement should match 60Hz, got ${dist60} vs ${dist120}`);
+
+  // Parry effect life decay normalization over 1 second (30 frames at 60Hz = 0.5s)
+  let lifeDecay60 = 0;
+  for (let i = 0; i < 60; i++) {
+    lifeDecay60 += calculateParryLifeDecay(1 / 60, 0.03);
+  }
+  let lifeDecay120 = 0;
+  for (let i = 0; i < 120; i++) {
+    lifeDecay120 += calculateParryLifeDecay(1 / 120, 0.03);
+  }
+  assert(Math.abs(lifeDecay60 - lifeDecay120) < 1e-6, 'parry decay matches between 60Hz and 120Hz');
+}
+
+// Input buffer & Guard-cancel tradeoffs.
+{
+  assert(INPUT_BUFFER_WINDOW >= 0.1 && INPUT_BUFFER_WINDOW <= 0.12, 'input buffer should be 100-120ms');
+  assert(GUARD_CANCEL_DODGE_STAMINA > NEUTRAL_DODGE_STAMINA, 'guard cancel dodge costs more stamina than neutral');
+  assert(GUARD_CANCEL_DODGE_TIMER > NEUTRAL_DODGE_TIMER, 'guard cancel dodge has startup/recovery tradeoff');
+  assert(GUARD_CANCEL_PARRY_STAMINA > NEUTRAL_PARRY_STAMINA, 'guard cancel parry costs more stamina than neutral');
+
+  assert(canGuardCancelDodge(20) === true, 'stamina 20 can guard cancel dodge');
+  assert(canGuardCancelDodge(19) === false, 'stamina 19 cannot guard cancel dodge');
+  assert(canGuardCancelParry(15) === true, 'stamina 15 can guard cancel parry');
+  assert(canGuardCancelParry(14) === false, 'stamina 14 cannot guard cancel parry');
 }
 
 console.log('check-combat: ok');

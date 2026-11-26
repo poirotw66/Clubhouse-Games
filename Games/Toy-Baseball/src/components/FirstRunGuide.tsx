@@ -43,27 +43,33 @@ export function FirstRunGuide({ onClose }: Props): ReactElement {
       >
         <p className="text-center text-xs font-bold tracking-[0.3em] text-amber-300">首局引導</p>
         <h2 id="toy-baseball-first-run-title" className="mt-1 text-center text-2xl font-bold text-white">
-          三步上手
+          戰術上手
         </h2>
-        <p className="mt-2 text-center text-sm text-zinc-400">先記這三件事，細節在選單下方</p>
+        <p className="mt-2 text-center text-sm text-zinc-400">掌握打擊、投球與跑打戰術指令</p>
 
         <ul className="mt-5 space-y-3 text-sm text-zinc-200">
           <li className="rounded-xl border border-white/5 bg-zinc-800/80 px-3 py-2.5">
-            <p className="font-bold text-amber-300">選局數與難度</p>
+            <p className="font-bold text-amber-300">打擊與戰術指令（短打 Ｂ · 盜壘 Ｓ）</p>
             <p className="mt-0.5 text-zinc-400">
-              正規賽可選 3／6／9 局；全壘打大賽限次揮擊拚支數。
+              按 Space 揮棒；按 <kbd className="rounded bg-zinc-700 px-1 py-0.5 font-mono text-xs text-amber-200">B</kbd> 切換短打（突襲安打或犧牲推進），壘上有人時按 <kbd className="rounded bg-zinc-700 px-1 py-0.5 font-mono text-xs text-amber-200">S</kbd> 啟動盜壘或發動打跑戰術。
             </p>
           </li>
           <li className="rounded-xl border border-white/5 bg-zinc-800/80 px-3 py-2.5">
-            <p className="font-bold text-amber-300">打擊：時機 × 讀球 × 空檔</p>
+            <p className="font-bold text-amber-300">防守佈陣與推拉方向</p>
             <p className="mt-0.5 text-zinc-400">
-              球靠近本壘再揮；看彩色尾跡猜球種；← → 往野手間空隙打。
+              留意對手防守佈陣（雙殺佈陣、外野趨前或拉打防守），擊球時用 ← → 方向鍵推打穿越防守空檔。
             </p>
           </li>
           <li className="rounded-xl border border-white/5 bg-zinc-800/80 px-3 py-2.5">
             <p className="font-bold text-amber-300">投球：六種球路＋出手後控球</p>
             <p className="mt-0.5 text-zinc-400">
-              選速／曲／滑／變／伸／叉後進壘；出手瞬間用 ← → 微調拐彎。
+              選速／曲／滑／變／伸／叉後進壘；出手瞬間用 ← → 控球微調邊角，誘使打者出棒。
+            </p>
+          </li>
+          <li className="rounded-xl border border-white/5 bg-zinc-800/80 px-3 py-2.5">
+            <p className="font-bold text-amber-300">選局數與季賽挑戰</p>
+            <p className="mt-0.5 text-zinc-400">
+              正規賽可選 3／6／9 局；另有季賽模式與全壘打大賽限次拚支數。
             </p>
           </li>
         </ul>

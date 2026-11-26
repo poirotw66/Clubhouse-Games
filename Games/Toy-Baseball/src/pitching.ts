@@ -325,6 +325,25 @@ function chooseLoc(
   return rng() < centerChance ? 'center' : pick(rng, locs);
 }
 
+export const STRIKE_HALF_WIDTH = 35;
+export const MIN_STRIKE_Z = 2.0;
+
+/**
+ * Deterministic plate-crossing strike evaluation based on home-plate geometry.
+ * Replaces legacy coin flips with genuine boundary math so late breaks paint/miss corners.
+ */
+export function isPlateStrike(
+  ballPos: { x: number; y: number; z: number } | null,
+  loc: PitchLoc | null,
+  strikeHalfWidth = STRIKE_HALF_WIDTH,
+  minStrikeZ = MIN_STRIKE_Z,
+): boolean {
+  if (ballPos) {
+    return Math.abs(ballPos.x - 400) <= strikeHalfWidth && ballPos.z >= minStrikeZ;
+  }
+  return loc === 'center';
+}
+
 /** CPU batter recognition: true = they "read" the pitch type for aim. */
 export function cpuReadsPitch(
   difficulty: Difficulty,

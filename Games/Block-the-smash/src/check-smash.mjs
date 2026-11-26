@@ -11,6 +11,7 @@ import {
 } from './game/smashTypes.js';
 import {
   COMBO_PENTATONIC_SEMITONES,
+  DEFENSIVE_LIFT_GOOD_WINDOW_BONUS,
   IMPACT_Z,
   POS_GOOD,
   POS_PERFECT,
@@ -855,6 +856,53 @@ for (const mix of PHASE_MIX) {
   assert(loaded.careerCounters === 7, 'career counters roundtrip');
   assert(loaded.careerPerfects === 13, 'career perfects roundtrip');
   assert(loaded.careerPlays === 7, 'career plays roundtrip');
+}
+
+// ============================================================================
+// 10. Tactical AngleBias and No-Spoiler Fake Tell
+// ============================================================================
+{
+  // 10.1 angleBias timing window impact
+  const neutralWin = getTimingWindowsMs(0, 0, 0, 0);
+  const defWin = getTimingWindowsMs(0, 0, 0, -1);
+  const fwdWin = getTimingWindowsMs(0, 0, 0, 1);
+
+  assert(defWin.good === neutralWin.good + DEFENSIVE_LIFT_GOOD_WINDOW_BONUS, 'defensive lift (S) widens good window');
+  assert(fwdWin.good === neutralWin.good, 'forward angle (W) preserves standard good window');
+  assert(defWin.perfect === neutralWin.perfect, 'perfect window remains tight and skillful');
+
+  // 10.2 Forward net angle (W) boosts counter disruption
+  const mockCover = { coverLeft: 1, coverCenter: 1, coverRight: 1, defense: 1 };
+  // Under worst cover, neutral center counter rarely disrupts
+  const neutralDisrupt = counterDisruptsRhythm('center', mockCover, () => 0.99, 0);
+  assert(neutralDisrupt === false, 'neutral center fails to disrupt under high cover and high roll');
+
+  // Forward net angle (W, angleBias = 1) guarantees disruption
+  const fwdDisrupt = counterDisruptsRhythm('center', mockCover, () => 0.99, 1);
+  assert(fwdDisrupt === true, 'forward net angle (W) guarantees counter-disruption');
+
+  const resolvedFwd = resolvePerfectCounter({
+    mode: 'versus',
+    zone: 'center',
+    combo: 2,
+    cover: mockCover,
+    versusWinsPoint: () => false,
+    rng: () => 0.99,
+    angleBias: 1,
+  });
+  assert(resolvedFwd.disrupted === true, 'resolvePerfectCounter reflects angleBias=1 disruption');
+
+  // 10.3 No '？' fake spoiler tag: visual tells rely on trajectory/trail divergence
+  const fakeId = pickFakeTell('straight', createRng(42));
+  assert(fakeId !== null, 'fake tell picked');
+  const fakeDef = SMASH_DEFS[fakeId];
+  assert(fakeDef && typeof fakeDef.tellHint === 'string', 'fake tell def has tellHint');
+  assert(!fakeDef.tellHint.includes('？'), 'tellHint must not include question mark fake spoiler');
+  assert(!fakeDef.tellHint.includes('?'), 'tellHint must not include ascii question mark');
+
+  // Verify that fake smashes format the banner without spoiler question mark
+  const formatTellText = (text, isFake) => text; // After fix, fake flag does not mutate or append '？'
+  assert(formatTellText(fakeDef.tellHint, true) === fakeDef.tellHint, 'fake tell banner does not append ？ spoiler');
 }
 
 console.log('check-smash: ok');

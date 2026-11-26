@@ -8,6 +8,7 @@
 export const IMPACT_Z = 4;
 export const WINDOW_PERFECT_MS = 100;
 export const WINDOW_GOOD_MS = 260;
+export const DEFENSIVE_LIFT_GOOD_WINDOW_BONUS = 40;
 
 /** Position radii (world units) at contact. */
 export const POS_PERFECT = 1.6;
@@ -39,12 +40,14 @@ export function comboPitchMultiplier(combo = 1) {
  * @param {number} waveTier  0–2 drill phase or score-attack wave floor
  * @param {number} [combo]
  * @param {number} [bonusMs]  reaction calibration offset (e.g. mobile touch tolerance)
+ * @param {number} [angleBias] racket tilt angle: +1 forward net angle (W), -1 defensive back-lift (S)
  */
-export function getTimingWindowsMs(waveTier = 0, combo = 0, bonusMs = 0) {
+export function getTimingWindowsMs(waveTier = 0, combo = 0, bonusMs = 0, angleBias = 0) {
   const tier = Math.min(6, Math.max(0, waveTier) + Math.floor(combo / 8));
+  const defensiveBonus = angleBias === -1 ? DEFENSIVE_LIFT_GOOD_WINDOW_BONUS : 0;
   return {
     perfect: Math.max(50, WINDOW_PERFECT_MS - tier * 8),
-    good: Math.max(140, WINDOW_GOOD_MS - tier * 16 + bonusMs),
+    good: Math.max(140, WINDOW_GOOD_MS - tier * 16 + bonusMs + defensiveBonus),
   };
 }
 
