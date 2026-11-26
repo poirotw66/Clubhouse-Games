@@ -101,3 +101,37 @@ export function resolveStealAttempt(opts: {
     blurb,
   };
 }
+
+export interface HitAndRunResolution {
+  runnerBonus: number;
+  clearedSteal: boolean;
+  blurb?: string;
+}
+
+/**
+ * Resolves stealAttempt status and hit-and-run runner advancement on ball contact.
+ * Fair hits award lead runners an advance bonus (+1 base); foul/outs cleanly reset steal status.
+ */
+export function resolveHitAndRun(opts: {
+  stealAttempt: boolean;
+  hitType: 'fair' | 'foul' | null;
+  bases: number;
+}): HitAndRunResolution {
+  if (!opts.stealAttempt) {
+    return { runnerBonus: 0, clearedSteal: false };
+  }
+
+  if (opts.hitType === 'fair' && opts.bases > 0) {
+    return {
+      runnerBonus: 1,
+      clearedSteal: true,
+      blurb: '打跑戰術成功！跑者全力推進！',
+    };
+  }
+
+  return {
+    runnerBonus: 0,
+    clearedSteal: true,
+  };
+}
+

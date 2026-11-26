@@ -19,6 +19,15 @@ import {
   type CharacterId,
 } from './characters';
 import {
+  GUARD_CANCEL_DODGE_STAMINA,
+  GUARD_CANCEL_DODGE_TIMER,
+  GUARD_CANCEL_PARRY_STAMINA,
+  GUARD_CANCEL_PARRY_TIMER,
+  INPUT_BUFFER_WINDOW,
+  NEUTRAL_DODGE_STAMINA,
+  NEUTRAL_DODGE_TIMER,
+  NEUTRAL_PARRY_STAMINA,
+  NEUTRAL_PARRY_TIMER,
   applyStun,
   effectiveStaminaRegen,
   emptyHabit,
@@ -149,6 +158,8 @@ interface Boxer {
   lastHitTaken: Height | null;
   feintLeft: number;
   whooshPlayed: boolean;
+  bufferTimer: number;
+  bufferedKey: string | null;
 }
 
 interface Particle {
@@ -236,6 +247,8 @@ function createBoxer(
     lastHitTaken: null,
     feintLeft: 0,
     whooshPlayed: false,
+    bufferTimer: 0,
+    bufferedKey: null,
   };
 }
 
@@ -434,7 +447,7 @@ export default function ToyBoxing() {
           // Update particles even during hitStop using unscaled dt (rawDt) (Sakurai fx-005)
           eng.particles = updateParticlePhysics(eng.particles, rawDt);
           eng.floatTexts = updateFloatTexts(eng.floatTexts, rawDt);
-          render();
+          render(rawDt);
           animationFrameId = requestAnimationFrame(update);
           return;
         }
@@ -473,7 +486,7 @@ export default function ToyBoxing() {
         syncUi();
       }
 
-      render();
+      render(rawDt);
       animationFrameId = requestAnimationFrame(update);
     };
 
@@ -767,7 +780,7 @@ export default function ToyBoxing() {
     dt: number,
   ): Boxer => {
     let next = { ...boxer };
-    const move = MOVE_SPEED * next.speed;
+    const move = MOVE_SPEED * next.speed * (dt * 60);
     const stanceLow = lowHeld(keys);
     if (next.action === Action.IDLE || next.action === Action.BLOCK) {
       next.height = stanceLow ? 'low' : 'high';
@@ -779,6 +792,35 @@ export default function ToyBoxing() {
     }
     next.bodyFatigue = tickBodyFatigue(next.bodyFatigue, dt);
     next.stunMeter = tickStun(next.stunMeter, dt, false);
+
+    // Buffer action inputs during recovery or hitstun (~100-120ms window)
+    const inHitstun =
+      next.action === Action.HIT || next.action === Action.STAGGER;
+    const inAttackRecovery =
+      next.attack !== null && next.attack.phase === 'recovery';
+    const inActionRecovery =
+      (next.action === Action.DODGE || next.action === Action.PARRY) &&
+      next.actionTimer > 0;
+
+    if (inHitstun || inAttackRecovery || inActionRecovery) {
+      const actionKeys = ['KeyJ', 'KeyK', 'KeyL', 'KeyS', 'KeyW', 'KeyI'];
+      for (const k of actionKeys) {
+        if (keys.has(k)) {
+          next.bufferedKey = k;
+          next.bufferTimer = INPUT_BUFFER_WINDOW;
+          keys.delete(k);
+          break;
+        }
+      }
+    }
+
+    if (next.bufferTimer > 0) {
+      next.bufferTimer -= dt;
+      if (next.bufferTimer <= 0) {
+        next.bufferedKey = null;
+        next.bufferTimer = 0;
+      }
+    }
 
     if (next.attack) {
       const stepped = tickAttack(next.attack, dt);
@@ -812,40 +854,76 @@ export default function ToyBoxing() {
       next.facing = next.x < opponent.x ? 1 : -1;
     }
 
+    const buffered = next.bufferedKey;
+    const wantsKey = (k: string) => keys.has(k) || buffered === k;
+
     if (next.action === Action.IDLE) {
       const height: Height = stanceLow ? 'low' : 'high';
       // Consume discrete action keys so holding does not turbo-fire (feel + anti jab-spam).
-      if (keys.has('KeyJ') && next.stamina >= 10) {
+      if (wantsKey('KeyJ') && next.stamina >= 10) {
         keys.delete('KeyJ');
+        next.bufferedKey = null;
+        next.bufferTimer = 0;
         next = beginAttack(next, 'jab', height);
-      } else if (keys.has('KeyK') && next.stamina >= 25) {
+      } else if (wantsKey('KeyK') && next.stamina >= 25) {
         keys.delete('KeyK');
+        next.bufferedKey = null;
+        next.bufferTimer = 0;
         next = beginAttack(next, 'hook', height);
-      } else if (keys.has('KeyL') && next.superMeter >= 100) {
+      } else if (wantsKey('KeyL') && next.superMeter >= 100) {
         keys.delete('KeyL');
+        next.bufferedKey = null;
+        next.bufferTimer = 0;
         playGoal();
         const sig = getCharacter(next.characterId);
         next = beginAttack(next, 'signature', height, true, undefined, sig.signatureName);
-      } else if (keys.has('KeyS')) {
+      } else if (wantsKey('KeyS')) {
+        next.bufferedKey = null;
+        next.bufferTimer = 0;
         next.action = Action.BLOCK;
         next.guardHeight = height;
         next.height = height;
-      } else if (keys.has('KeyW') && next.stamina >= 15) {
+      } else if (wantsKey('KeyW') && next.stamina >= NEUTRAL_DODGE_STAMINA) {
         keys.delete('KeyW');
+        next.bufferedKey = null;
+        next.bufferTimer = 0;
         next.action = Action.DODGE;
-        next.actionTimer = 0.3;
-        next.stamina -= 15;
+        next.actionTimer = NEUTRAL_DODGE_TIMER;
+        next.stamina -= NEUTRAL_DODGE_STAMINA;
         playDodge();
-      } else if (keys.has('KeyI') && next.stamina >= 10) {
+      } else if (wantsKey('KeyI') && next.stamina >= NEUTRAL_PARRY_STAMINA) {
         keys.delete('KeyI');
+        next.bufferedKey = null;
+        next.bufferTimer = 0;
         next.action = Action.PARRY;
-        next.actionTimer = 0.2;
-        next.stamina -= 10;
+        next.actionTimer = NEUTRAL_PARRY_TIMER;
+        next.stamina -= NEUTRAL_PARRY_STAMINA;
         next.guardHeight = height;
         next.height = height;
       }
     } else if (next.action === Action.BLOCK) {
-      if (!keys.has('KeyS')) {
+      if (wantsKey('KeyW') && next.stamina >= GUARD_CANCEL_DODGE_STAMINA) {
+        // Guard-to-Dodge cancel cleanly with small stamina/startup tradeoff
+        keys.delete('KeyW');
+        next.bufferedKey = null;
+        next.bufferTimer = 0;
+        next.action = Action.DODGE;
+        next.actionTimer = GUARD_CANCEL_DODGE_TIMER;
+        next.stamina -= GUARD_CANCEL_DODGE_STAMINA;
+        next.guardHeight = null;
+        playDodge();
+      } else if (wantsKey('KeyI') && next.stamina >= GUARD_CANCEL_PARRY_STAMINA) {
+        // Guard-to-Parry cancel cleanly with small stamina tradeoff
+        keys.delete('KeyI');
+        next.bufferedKey = null;
+        next.bufferTimer = 0;
+        const height: Height = stanceLow ? 'low' : 'high';
+        next.action = Action.PARRY;
+        next.actionTimer = GUARD_CANCEL_PARRY_TIMER;
+        next.stamina -= GUARD_CANCEL_PARRY_STAMINA;
+        next.guardHeight = height;
+        next.height = height;
+      } else if (!keys.has('KeyS') && buffered !== 'KeyS') {
         next.action = Action.IDLE;
         next.guardHeight = null;
       } else {
@@ -931,7 +1009,13 @@ export default function ToyBoxing() {
     }
     if (!urgent && next.thinkTimer > 0 && next.action === Action.IDLE) {
       if (dist > style.preferredDist + 40) {
-        next.x += (opponent.x > next.x ? 1 : -1) * MOVE_SPEED * next.speed * style.moveSpeed * 0.6;
+        next.x +=
+          (opponent.x > next.x ? 1 : -1) *
+          MOVE_SPEED *
+          next.speed *
+          style.moveSpeed *
+          0.6 *
+          (dt * 60);
       }
       next.x = Math.max(0, Math.min(CANVAS_WIDTH - BOXER_WIDTH, next.x));
       return next;
@@ -953,7 +1037,13 @@ export default function ToyBoxing() {
 
       if (intent.type === 'move') {
         const toward = opponent.x > next.x ? 1 : -1;
-        next.x += toward * intent.dir * MOVE_SPEED * next.speed * intent.speed;
+        next.x +=
+          toward *
+          intent.dir *
+          MOVE_SPEED *
+          next.speed *
+          intent.speed *
+          (dt * 60);
         next.thinkTimer = nextThinkDelay(style, Math.random) * 0.45;
       } else if (intent.type === 'act') {
         if (intent.clearSuper) playGoal();
@@ -1341,7 +1431,7 @@ export default function ToyBoxing() {
     }, 3500);
   };
 
-  const render = () => {
+  const render = (dt = 1 / 60) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -1421,7 +1511,7 @@ export default function ToyBoxing() {
       ctx.scale(s, s);
       ctx.fillText(p.text, p.x / s, (p.y - (1.0 - p.life) * 80) / s);
       ctx.restore();
-      p.life -= 0.03;
+      p.life -= 0.03 * (dt * 60);
       if (p.life <= 0) engineRef.current.parryEffect = null;
     }
 

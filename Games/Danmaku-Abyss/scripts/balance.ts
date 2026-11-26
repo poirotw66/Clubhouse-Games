@@ -17,6 +17,7 @@
  */
 import { FAST_SPEED, FIELD_H, FIELD_W, FIXED_DT, FOCUS_SPEED, STAGE_COUNT } from '../src/game/constants.js';
 import { createRun, hitboxRadius, step, takeUpgrade } from '../src/game/engine.js';
+import { craftById, CRAFTS } from '../src/game/crafts.js';
 import { streamRng } from '../src/game/rng.js';
 import { UPGRADES, effect } from '../src/game/upgrades.js';
 import type { PlayerInput, RunState } from '../src/game/types.js';
@@ -113,13 +114,28 @@ function pilot(s: RunState, bombPolicy: BombPolicy, stance: Stance = 'keepBack')
     }
   }
 
+  let special = false;
+  if (s.specialCd <= 0 && s.specialLeft <= 0) {
+    const craft = craftById(s.craftId);
+    if (craft.special.kind === 'dash') {
+      // Dash: trigger evasive dash when bullets are closing fast and vulnerable
+      special = closestNow < 22 && s.invuln <= 0;
+    } else if (craft.special.kind === 'rift') {
+      // Rift: erase cluster of bullets within expanding graze zone
+      special = (closestNow < 26 || near.length >= 4) && s.invuln <= 0;
+    } else if (craft.special.kind === 'overdrive') {
+      // Overdrive: trigger burst damage on boss when safe or invulnerable
+      const boss = s.enemies.find((e) => e.isBoss);
+      special = Boolean(boss) && (closestNow > 26 || s.invuln > 0);
+    }
+  }
+
   return {
     dx: bestDir[0],
     dy: bestDir[1],
     focus,
     bomb: bombPolicy === 'panic' && closestNow < 8 && s.invuln <= 0,
-    // Balance harness does not exercise craft specials — keep the pilot fair.
-    special: false,
+    special,
   };
 }
 
@@ -138,8 +154,15 @@ interface RunResult {
   offered: string[];
 }
 
-function playRun(seedCode: string, bombPolicy: BombPolicy, pickIndex = 0, startStage = 1, stance: Stance = 'keepBack'): RunResult {
-  let s = createRun(seedCode, startStage);
+function playRun(
+  seedCode: string,
+  bombPolicy: BombPolicy,
+  pickIndex = 0,
+  startStage = 1,
+  stance: Stance = 'keepBack',
+  craftId = 'swift',
+): RunResult {
+  let s = createRun(seedCode, { startStage, craftId });
   const startBombs = s.bombs;
   const offered: string[] = [];
   let guard = 0;
@@ -531,6 +554,24 @@ for (let stage = 1; stage <= STAGE_COUNT; stage++) {
   console.log(`  ${stage}  | 共 ${String(total).padStart(3)} 次  ${shown.join('   ')}`);
 }
 
+
+// ── 6) Craft balance: verify all 3 crafts clear balanced runs with specials ──
+console.log('\n=== 三種機體特技實戰與通關驗證（含特技規則觸發）===\n');
+console.log('機體   | 特技  平均到達  通關率  平均分數   平均時長  Capture');
+for (const craft of CRAFTS) {
+  const rs = SEEDS.slice(0, 8).map((seedCode) =>
+    playRun(seedCode, 'panic', 0, 1, 'keepBack', craft.id),
+  );
+  const clears = rs.filter((r) => r.won).length;
+  console.log(
+    `${craft.name.padEnd(6)} | ${craft.special.name.padEnd(4)}  ` +
+      `${mean(rs.map((r) => r.stage)).toFixed(2)} / ${STAGE_COUNT}   ` +
+      `${((clears / rs.length) * 100).toFixed(0)}%   ` +
+      `${Math.round(mean(rs.map((r) => r.score))).toString().padStart(8)}   ` +
+      `${mean(rs.map((r) => r.seconds)).toFixed(0).padStart(5)}s   ` +
+      `${mean(rs.map((r) => r.captures)).toFixed(1)}`,
+  );
+}
 
 // Keep the unused-import checker honest about streamRng: it is the engine's
 // source of run-to-run variety and this file asserts nothing about it directly.

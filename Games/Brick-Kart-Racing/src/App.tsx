@@ -42,7 +42,7 @@ import {
   playerOverallPlace,
   type CupSession,
 } from './engine/cupSession';
-import {GhostRecorder, type GhostLap} from './engine/ghost';
+import {GhostRecorder, calculateContinuousGhostDelta, type GhostLap} from './engine/ghost';
 import {
   applyCupFinish as applyCupProgress,
   getGhost,
@@ -59,6 +59,7 @@ import {
   driftFill,
   driftLevel,
   formatTime,
+  HOMING_WARNING_DIST,
   migrateBestTimesMap,
   stepRace,
   type RaceInput,
@@ -127,6 +128,7 @@ const EMPTY_HUD: HudSnapshot = {
   cupLabel: '',
   ghostDelta: null,
   telemetry: INITIAL_TELEMETRY,
+  incomingHoming: false,
 };
 
 type CupOverlay = {
@@ -538,12 +540,22 @@ export default function App() {
         const laps = player.lapTimes.filter((t) => t > 0);
         let ghostDelta: number | null = null;
         if (state.ghostLap && state.phase === 'racing') {
-          // Ghost replays the best lap on a loop from race start; compare
-          // current-lap elapsed clock against the ghost's loop clock.
+          // Compare progress along centerline cleanly across laps rather than wrapping duration clock
           const lapElapsed = Math.max(0, state.time - raceLapStartRef.current);
-          const ghostLapTime = state.time % state.ghostLap.duration;
-          ghostDelta = lapElapsed - ghostLapTime;
+          ghostDelta = calculateContinuousGhostDelta(
+            state.ghostLap,
+            state.assets.centerline,
+            lapElapsed,
+            player.progress,
+          );
         }
+
+        const incomingHoming = state.homings.some((h) => {
+          if (h.target !== state.playerIndex) return false;
+          const dist = Math.hypot(player.x - h.x, player.y - h.y);
+          return dist < HOMING_WARNING_DIST;
+        });
+
         setHud({
           place: player.place,
           lap: player.lap,
@@ -567,6 +579,7 @@ export default function App() {
           cupLabel,
           ghostDelta: state.ghostLap && state.phase === 'racing' ? ghostDelta : null,
           telemetry: telem,
+          incomingHoming,
         });
         const mini = minimapRef.current;
         if (mini) drawMinimap(mini.getContext('2d')!, state, mini.width);

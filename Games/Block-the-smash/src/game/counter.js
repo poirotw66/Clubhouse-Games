@@ -32,12 +32,15 @@ export function counterVersusBonus(zone, cover) {
 /**
  * Whether the counter "breaks rhythm" (delays next smash / softens next fake).
  * Corner placements that find a weak side always disrupt; center only sometimes.
+ * Forward net angle (W, angleBias = 1) boosts / guarantees rhythm disruption.
  * @param {AimZone} zone
- * @param {{ coverLeft: number, coverCenter: number, coverRight: number }} cover
+ * @param {{ coverLeft: number, coverCenter: number, coverRight: number } | null} cover
  * @param {() => number} rng
+ * @param {number} [angleBias]
  */
-export function counterDisruptsRhythm(zone, cover, rng) {
-  if (zone === 'center') return rng() < 0.35;
+export function counterDisruptsRhythm(zone, cover, rng, angleBias = 0) {
+  if (angleBias === 1) return true;
+  if (!cover || zone === 'center') return rng() < 0.35;
   const covered =
     zone === 'left' ? cover.coverLeft : zone === 'right' ? cover.coverRight : cover.coverCenter;
   return rng() < Math.min(0.92, 0.55 + (1 - covered) * 0.4);
@@ -52,10 +55,11 @@ export function counterDisruptsRhythm(zone, cover, rng) {
  *   cover: { coverLeft: number, coverCenter: number, coverRight: number, defense: number } | null,
  *   versusWinsPoint: (grade: ContactGrade, zone: AimZone, cover: object, rng: () => number) => boolean,
  *   rng: () => number,
+ *   angleBias?: number,
  * }} input
  */
 export function resolvePerfectCounter(input) {
-  const { mode, zone, combo, cover, versusWinsPoint, rng } = input;
+  const { mode, zone, combo, cover, versusWinsPoint, rng, angleBias = 0 } = input;
   /** @type {{ scoreDelta: number, wonPoint: boolean, disrupted: boolean, toast: string }} */
   const out = { scoreDelta: 0, wonPoint: false, disrupted: false, toast: '完美回殺!' };
 
@@ -70,7 +74,7 @@ export function resolvePerfectCounter(input) {
     const base = versusWinsPoint('perfect', zone, cover, rng);
     const bonusRoll = rng() < counterVersusBonus(zone, cover);
     out.wonPoint = base || bonusRoll;
-    out.disrupted = counterDisruptsRhythm(zone, cover, rng);
+    out.disrupted = counterDisruptsRhythm(zone, cover, rng, angleBias);
     if (out.wonPoint) {
       out.toast = out.disrupted ? '得分・打亂節奏!' : '回殺得分!';
     } else {
@@ -82,6 +86,6 @@ export function resolvePerfectCounter(input) {
   // drill
   out.toast =
     zone === 'center' ? '完美回殺!' : `完美・${zone === 'left' ? '左' : '右'}路回殺`;
-  out.disrupted = zone !== 'center';
+  out.disrupted = angleBias === 1 || zone !== 'center';
   return out;
 }

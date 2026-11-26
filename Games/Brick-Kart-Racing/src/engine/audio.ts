@@ -356,10 +356,19 @@ export function playMiniTurbo(tier: number): void {
   }
 }
 
+export function playHomingChirp(): void {
+  if (muted) return;
+  beep(1400, 0.05, 'square');
+  setTimeout(() => beep(1850, 0.07, 'sine'), 50);
+}
+
 /** Maps simulation events onto sounds. */
 export function playEvent(event: string): void {
   if (muted) return;
   switch (event) {
+    case 'homing-warning':
+      playHomingChirp();
+      break;
     case 'go':
       beep(880, 0.35);
       break;

@@ -1692,15 +1692,39 @@ const IDLE: PlayerInput = { dx: 0, dy: 0, focus: false, bomb: false, special: fa
     'thread upgrade must increase focused movement speed',
   );
 
-  // Hold-to-focus timing model: 220ms threshold
+  // Hold-to-focus timing model: 220ms threshold decoupled from fast sweeping
   const HOLD_FOCUS_MS = 220;
-  const isHeldFocus = (elapsedMs: number) => elapsedMs >= HOLD_FOCUS_MS;
-  assert.equal(isHeldFocus(100), false, 'quick drag at 100ms should remain in fast travel mode');
-  assert.equal(isHeldFocus(200), false, 'drag at 200ms should not yet enter focus');
-  assert.equal(isHeldFocus(220), true, 'held finger at 220ms must trigger focus mode');
-  assert.equal(isHeldFocus(500), true, 'sustained hold must maintain focus mode');
+  const isHeldFocus = (elapsedMs: number, distanceMoved: number) =>
+    elapsedMs >= HOLD_FOCUS_MS && distanceMoved <= 10;
+  assert.equal(isHeldFocus(100, 2), false, 'quick drag at 100ms should remain in fast travel mode');
+  assert.equal(isHeldFocus(200, 2), false, 'drag at 200ms should not yet enter focus');
+  assert.equal(isHeldFocus(220, 2), true, 'held finger at 220ms must trigger focus mode');
+  assert.equal(isHeldFocus(500, 2), true, 'sustained stationary hold must maintain focus mode');
+  assert.equal(isHeldFocus(500, 45), false, 'fast sweeping drag (45px movement) must NOT trigger or lock focus mode');
 
-  ok('touch drag offset (-46px), vector steering, deadzone, and hold-to-focus dynamics verified');
+  ok('touch drag offset (-46px), vector steering, deadzone, and decoupled hold-to-focus dynamics verified');
+
+  // 24. Craft specials balance and execution in simulation step
+  const sSwift = createRun('SPEC-SWIFT', { craftId: 'swift' });
+  const sAfterDash = step(sSwift, { dx: 0, dy: -1, focus: false, bomb: false, special: true }, FIXED_DT);
+  assert.ok(sAfterDash.specialLeft > 0, 'swift dash special must activate');
+  assert.ok(sAfterDash.invuln > 0.3, 'swift dash must grant invulnerability');
+  assert.ok(sAfterDash.py < sSwift.py - 10, 'swift dash must surge forward along facing vector');
+
+  const sCannon = createRun('SPEC-CANNON', { craftId: 'cannon' });
+  const sAfterOverdrive = step(sCannon, { dx: 0, dy: 0, focus: false, bomb: false, special: true }, FIXED_DT);
+  assert.ok(sAfterOverdrive.specialLeft > 0, 'cannon overdrive special must activate');
+  assert.ok(shotDamage(sAfterOverdrive, 100) > shotDamage(sCannon, 100) * 1.5, 'cannon overdrive must grant > 1.5x damage burst');
+
+  const sStitch = createRun('SPEC-STITCH', { craftId: 'stitch' });
+  // Add a bullet within graze range
+  sStitch.bullets = [{ id: 99, x: sStitch.px + 20, y: sStitch.py, angle: 0, speed: 50, r: 3, hue: 100, age: 0, lifetime: 5, waveform: 'linear', curl: 0, grazed: false }];
+  const sAfterRift = step(sStitch, { dx: 0, dy: 0, focus: false, bomb: false, special: true }, FIXED_DT);
+  assert.ok(sAfterRift.specialLeft > 0, 'stitch rift special must activate');
+  assert.equal(sAfterRift.bullets.length, 0, 'stitch rift special must cancel bullets within graze zone');
+  assert.ok(grazeRadius(sAfterRift) > grazeRadius(sStitch), 'stitch rift must expand graze radius');
+
+  ok('all 3 craft specials (dash, overdrive, rift) execute cleanly in engine step');
 }
 
 console.log(`\nself-check: ok (${passed} checks)`);

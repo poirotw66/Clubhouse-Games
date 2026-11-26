@@ -1,6 +1,17 @@
 import {CHARACTERS, DIFFICULTIES, type DifficultyId} from '../data/characters';
 import {rivalForChar, type RivalStyle} from '../data/rivals';
-import {LAP_TOTAL, RACER_COUNT, SURFACE_BOOST, SURFACE_GRASS} from './constants';
+import {
+  BOUNDARY_BARRIER_LATERAL,
+  BOUNDARY_SHOULDER_LATERAL,
+  EMERGENCY_RESPAWN_LATERAL,
+  HOMING_SPEED,
+  HOMING_WARNING_DIST,
+  LAP_TOTAL,
+  MAX_LATERAL,
+  RACER_COUNT,
+  SURFACE_BOOST,
+  SURFACE_GRASS,
+} from './constants';
 import {poseAt, type GhostLap, type GhostSample} from './ghost';
 import {
   bestLapKey,
@@ -97,6 +108,7 @@ export interface Homing {
   life: number;
   owner: number;
   target: number;
+  warningCooldown?: number;
 }
 
 export interface Particle {
@@ -161,8 +173,14 @@ const KART_COLLIDE_DIST = 30;
 const ITEM_PICKUP_DIST = 26;
 const OIL_HIT_DIST = 22;
 const HOMING_HIT_DIST = 26;
-const HOMING_SPEED = 470;
-const MAX_LATERAL = 330;
+export {
+  BOUNDARY_SHOULDER_LATERAL,
+  BOUNDARY_BARRIER_LATERAL,
+  EMERGENCY_RESPAWN_LATERAL,
+  HOMING_SPEED,
+  HOMING_WARNING_DIST,
+  MAX_LATERAL,
+};
 
 import {DRIFT_LEVELS, driftFill, driftLevel} from './drift';
 export {DRIFT_LEVELS, driftFill, driftLevel};
@@ -594,8 +612,44 @@ function stepRacer(state: RaceState, r: Racer, input: RaceInput, dt: number): vo
   r.lastIdx = idx;
 
   const lateral = lateralOffset(line, idx, r.x, r.y);
-  if (Math.abs(lateral) > MAX_LATERAL) {
-    const home = pointAt(line, idx, Math.sign(lateral) * 40);
+  const absLat = Math.abs(lateral);
+  const side = Math.sign(lateral) || 1;
+
+  // Soft outer-shoulder scrub: progressive speed penalty when driving outside the normal track bounds
+  if (absLat > BOUNDARY_SHOULDER_LATERAL) {
+    const excess = absLat - BOUNDARY_SHOULDER_LATERAL;
+    vf = Math.max(0, vf - (260 + excess * 3.5) * dt);
+    vl *= Math.exp(-7.0 * dt);
+    r.speed = vf;
+    r.vx = fx * vf + rx * vl;
+    r.vy = fy * vf + ry * vl;
+  }
+
+  // Boundary curbs & soft barrier bounce before emergency teleport
+  if (absLat >= BOUNDARY_BARRIER_LATERAL) {
+    // Cushion and clamp kart position to barrier boundary
+    const clamped = pointAt(line, idx, side * BOUNDARY_BARRIER_LATERAL);
+    r.x = clamped.x;
+    r.y = clamped.y;
+
+    // Moving outward against the barrier?
+    const movingOutward = vl * side > 0;
+    if (movingOutward) {
+      // Elastic bounce back toward track centerline
+      vl = -vl * 0.45;
+      vf = Math.max(0, vf * 0.75);
+      r.speed = vf;
+      r.vx = fx * vf + rx * vl;
+      r.vy = fy * vf + ry * vl;
+      if (r.isPlayer) {
+        state.events.push('heavy-bump');
+      }
+    }
+  }
+
+  // Emergency respawn failsafe if kart breaches far outer boundary
+  if (absLat > EMERGENCY_RESPAWN_LATERAL) {
+    const home = pointAt(line, idx, side * 40);
     r.x = home.x;
     r.y = home.y;
     const tan = line.tangents[idx];
@@ -756,6 +810,16 @@ function stepProjectiles(state: RaceState, dt: number): void {
       const desired = Math.atan2(target.y - h.y, target.x - h.x);
       const delta = wrapAngle(desired - h.angle);
       h.angle += Math.max(-3.4 * dt, Math.min(3.4 * dt, delta));
+
+      // Lock-on warning audio chirp when homing missile approaches player
+      if (target.isPlayer) {
+        const dist = Math.hypot(target.x - h.x, target.y - h.y);
+        h.warningCooldown = (h.warningCooldown ?? 0) - dt;
+        if (dist < HOMING_WARNING_DIST && h.warningCooldown <= 0) {
+          h.warningCooldown = 0.42;
+          state.events.push('homing-warning');
+        }
+      }
     } else {
       // No one ahead: run along the track until it expires.
       const line = state.assets.centerline;

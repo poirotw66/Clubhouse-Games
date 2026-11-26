@@ -19,13 +19,16 @@ import {
   updateMatchBests,
 } from './stats.ts';
 import {
+  MIN_STRIKE_Z,
   PITCH_DEFS,
   PITCH_TYPES,
   STEER_WINDOW_SEC,
+  STRIKE_HALF_WIDTH,
   applyPitchFlight,
   chooseCpuPitch,
   cpuReadsPitch,
   initialPitchVelocity,
+  isPlateStrike,
 } from './pitching.ts';
 import {
   FENCE_DIST,
@@ -62,6 +65,7 @@ import {
 } from './telemetry.ts';
 import {
   computeBuntLaunch,
+  resolveHitAndRun,
   resolveStealAttempt,
 } from './tactics.ts';
 
@@ -588,6 +592,61 @@ assert(getTeam(PLAYER_TEAM_ID).id === 'tigers', 'player team is tigers');
     rng: createRng(1),
   });
   assert(emptyBases === null, 'cannot steal with empty bases');
+}
+
+// Deterministic plate-crossing geometry checks (replaces corner coin flip).
+{
+  assert(STRIKE_HALF_WIDTH === 35, 'expected STRIKE_HALF_WIDTH 35');
+  assert(MIN_STRIKE_Z === 2.0, 'expected MIN_STRIKE_Z 2.0');
+
+  // Down the middle
+  assert(isPlateStrike({ x: 400, y: 520, z: 10 }, 'center') === true, 'center strike');
+  // Right on the corner inside margin
+  assert(isPlateStrike({ x: 435, y: 520, z: 5 }, 'right') === true, 'painted corner strike');
+  assert(isPlateStrike({ x: 365, y: 520, z: 5 }, 'left') === true, 'painted inside corner strike');
+  // Late-breaking slider misses outside
+  assert(isPlateStrike({ x: 436, y: 520, z: 5 }, 'right') === false, 'misses outside border');
+  // Sinker/forkball diving into the dirt
+  assert(isPlateStrike({ x: 400, y: 520, z: 1.5 }, 'center') === false, 'pitch in dirt below min z is a ball');
+}
+
+// Hit-and-Run steal resolution checks.
+{
+  // Fair hit with active stealAttempt grants runners +1 base bonus and resets steal
+  const fairHit = resolveHitAndRun({
+    stealAttempt: true,
+    hitType: 'fair',
+    bases: 1,
+  });
+  assert(fairHit.runnerBonus === 1, 'fair contact gives runners +1 base bonus');
+  assert(fairHit.clearedSteal === true, 'stealAttempt is cleared');
+  assert(fairHit.blurb && fairHit.blurb.includes('打跑'), 'blurb mentions hit-and-run');
+
+  // Foul ball cleanly resets steal without bonus
+  const foulHit = resolveHitAndRun({
+    stealAttempt: true,
+    hitType: 'foul',
+    bases: 0,
+  });
+  assert(foulHit.runnerBonus === 0, 'foul ball gives no runner advance bonus');
+  assert(foulHit.clearedSteal === true, 'foul ball cleans up stealAttempt');
+
+  // Flyout / groundout cleanly resets steal
+  const outHit = resolveHitAndRun({
+    stealAttempt: true,
+    hitType: 'fair',
+    bases: 0,
+  });
+  assert(outHit.runnerBonus === 0, 'out gives no advance bonus');
+  assert(outHit.clearedSteal === true, 'out cleans up stealAttempt');
+
+  // Inactive steal attempt
+  const noSteal = resolveHitAndRun({
+    stealAttempt: false,
+    hitType: 'fair',
+    bases: 2,
+  });
+  assert(noSteal.runnerBonus === 0 && noSteal.clearedSteal === false, 'inactive steal does nothing');
 }
 
 console.log('check-baseball: ok');

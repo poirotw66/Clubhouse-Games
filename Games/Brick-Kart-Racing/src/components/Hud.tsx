@@ -33,6 +33,8 @@ export interface HudSnapshot {
   ghostDelta: number | null;
   /** Dual-wing F1 telemetry and pit wall dossier data. */
   telemetry: TelemetryData;
+  /** True when incoming homing missile is tracking the player within warning range. */
+  incomingHoming?: boolean;
 }
 
 const ITEM_LABEL: Record<ItemId, string> = {
@@ -200,6 +202,19 @@ export function Hud({
       {snap.slipstream > 0.25 && (
         <div className="absolute bottom-28 left-1/2 -translate-x-1/2 rounded-full border border-sky-300/40 bg-sky-500/25 px-4 py-1 backdrop-blur-sm">
           <p className="text-xs font-black tracking-widest text-sky-100 drop-shadow">尾流加速</p>
+        </div>
+      )}
+
+      {/* Incoming homing missile chevron warning */}
+      {snap.incomingHoming && (
+        <div className="absolute top-24 left-1/2 -translate-x-1/2 flex items-center gap-2 rounded-full border-2 border-rose-500 bg-rose-950/90 px-4 py-1.5 text-rose-200 shadow-[0_0_20px_rgba(244,63,94,0.7)] animate-pulse">
+          <svg className="h-4 w-4 fill-current text-rose-400" viewBox="0 0 24 24">
+            <path d="M12 2L4 10l1.41 1.41L12 4.83l6.59 6.58L20 10 12 2zm0 7L4 17l1.41 1.41L12 11.83l6.59 6.58L20 17 12 9z"/>
+          </svg>
+          <span className="text-xs font-black tracking-wider text-white">飛磚鎖定警報！</span>
+          <svg className="h-4 w-4 fill-current text-rose-400" viewBox="0 0 24 24">
+            <path d="M12 2L4 10l1.41 1.41L12 4.83l6.59 6.58L20 10 12 2zm0 7L4 17l1.41 1.41L12 11.83l6.59 6.58L20 17 12 9z"/>
+          </svg>
         </div>
       )}
 

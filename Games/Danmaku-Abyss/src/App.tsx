@@ -141,6 +141,10 @@ export default function App(): React.ReactElement {
   const bombRef = useRef(false);
   const specialRef = useRef(false);
   const pointerRef = useRef<{ active: boolean; x: number; y: number; focus: boolean } | null>(null);
+  const anchorPosRef = useRef<{ x: number; y: number } | null>(null);
+  const activePointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const touchFocusRef = useRef(false);
+  const [touchFocusActive, setTouchFocusActive] = useState(false);
   const rafRef = useRef(0);
   const accRef = useRef(0);
   const lastRef = useRef(0);
@@ -276,7 +280,7 @@ export default function App(): React.ReactElement {
     if (keys.has('ArrowRight') || keys.has('KeyD')) dx += 1;
     if (keys.has('ArrowUp') || keys.has('KeyW')) dy -= 1;
     if (keys.has('ArrowDown') || keys.has('KeyS')) dy += 1;
-    let focus = keys.has('ShiftLeft') || keys.has('ShiftRight');
+    let focus = keys.has('ShiftLeft') || keys.has('ShiftRight') || touchFocusRef.current;
 
     const p = pointerRef.current;
     if (p?.active) {
@@ -290,7 +294,7 @@ export default function App(): React.ReactElement {
         dx = ddx / d;
         dy = ddy / d;
       }
-      focus = focus || p.focus;
+      focus = focus || p.focus || (activePointersRef.current.size >= 2);
     }
 
     const bomb = bombRef.current;
@@ -304,8 +308,12 @@ export default function App(): React.ReactElement {
     if (!paused) return;
     keysRef.current.clear();
     pointerRef.current = null;
+    anchorPosRef.current = null;
+    activePointersRef.current.clear();
     bombRef.current = false;
     specialRef.current = false;
+    touchFocusRef.current = false;
+    setTouchFocusActive(false);
   }, [paused]);
 
   // Leaving the game is a pause, never an invitation to spend a life offscreen.
@@ -580,12 +588,30 @@ export default function App(): React.ReactElement {
     (e: React.PointerEvent) => {
       if (paused) return;
       const p = toField(e.clientX, e.clientY);
-      pointerRef.current = { active: true, x: p.x, y: p.y, focus: false };
+      activePointersRef.current.set(e.pointerId, { x: p.x, y: p.y });
+      // Right-click or multi-touch (two or more fingers) enters focus mode immediately
+      const isRightClick = e.button === 2;
+      const isMultiTouch = activePointersRef.current.size >= 2;
+      const initialFocus = isRightClick || isMultiTouch;
+
+      pointerRef.current = { active: true, x: p.x, y: p.y, focus: initialFocus };
+      anchorPosRef.current = { x: p.x, y: p.y };
       (e.target as Element).setPointerCapture?.(e.pointerId);
-      // A held finger means "thread this", matching Shift on a keyboard.
-      holdTimer.current = window.setTimeout(() => {
-        if (pointerRef.current) pointerRef.current.focus = true;
-      }, 220);
+
+      if (holdTimer.current !== null) {
+        window.clearTimeout(holdTimer.current);
+        holdTimer.current = null;
+      }
+
+      // If already focused via multi-touch or right-click, no need to wait for timer
+      if (!initialFocus) {
+        holdTimer.current = window.setTimeout(() => {
+          // Stationary hold triggers focus mode for threading tight bullet lanes
+          if (pointerRef.current) {
+            pointerRef.current.focus = true;
+          }
+        }, 220);
+      }
     },
     [toField, paused],
   );
@@ -593,17 +619,61 @@ export default function App(): React.ReactElement {
     (e: React.PointerEvent) => {
       if (!pointerRef.current?.active) return;
       const p = toField(e.clientX, e.clientY);
+      activePointersRef.current.set(e.pointerId, { x: p.x, y: p.y });
       pointerRef.current.x = p.x;
       pointerRef.current.y = p.y;
+
+      const isMultiTouch = activePointersRef.current.size >= 2;
+      if (isMultiTouch) {
+        pointerRef.current.focus = true;
+        return;
+      }
+
+      // Velocity/displacement gating: if the player is actively sweeping/dragging,
+      // prevent or release focus mode so fast sweeping stays at FAST_SPEED = 260.
+      if (anchorPosRef.current) {
+        const dist = Math.hypot(p.x - anchorPosRef.current.x, p.y - anchorPosRef.current.y);
+        // If movement exceeds the micro-jitter threshold (10px), the player is sweeping
+        if (dist > 10) {
+          anchorPosRef.current = { x: p.x, y: p.y };
+          // If in focus mode from a previous hold, break out of focus mode into fast sweep
+          if (pointerRef.current.focus && !touchFocusRef.current) {
+            pointerRef.current.focus = false;
+          }
+          // Reset the stationary hold timer
+          if (holdTimer.current !== null) {
+            window.clearTimeout(holdTimer.current);
+          }
+          holdTimer.current = window.setTimeout(() => {
+            if (pointerRef.current) pointerRef.current.focus = true;
+          }, 220);
+        }
+      }
     },
     [toField],
   );
-  const endPointer = useCallback(() => {
-    if (holdTimer.current !== null) {
-      window.clearTimeout(holdTimer.current);
-      holdTimer.current = null;
+  const endPointer = useCallback((e?: React.PointerEvent) => {
+    if (e) {
+      activePointersRef.current.delete(e.pointerId);
+    } else {
+      activePointersRef.current.clear();
     }
-    pointerRef.current = null;
+    if (activePointersRef.current.size === 0) {
+      if (holdTimer.current !== null) {
+        window.clearTimeout(holdTimer.current);
+        holdTimer.current = null;
+      }
+      pointerRef.current = null;
+      anchorPosRef.current = null;
+    } else if (pointerRef.current) {
+      // Switch active tracking to remaining finger
+      const remaining = activePointersRef.current.values().next().value;
+      if (remaining) {
+        pointerRef.current.x = remaining.x;
+        pointerRef.current.y = remaining.y;
+        pointerRef.current.focus = false;
+      }
+    }
   }, []);
 
   // ── Screens ────────────────────────────────────────────────────────────────
@@ -995,6 +1065,7 @@ export default function App(): React.ReactElement {
           onPointerMove={onPointerMove}
           onPointerUp={endPointer}
           onPointerCancel={endPointer}
+          onContextMenu={(event) => event.preventDefault()}
         >
           <GameCanvas
             stateRef={stateRef}
@@ -1126,8 +1197,27 @@ export default function App(): React.ReactElement {
         </div>
       )}
 
-      {/* Touch bomb / special: kept off the field so steering never hits them. */}
+      {/* Touch focus / bomb / special: kept off the field so steering never hits them. */}
       <div className="da-touchbar">
+        <button
+          type="button"
+          aria-label="集中（低速移動）"
+          onPointerDown={() => {
+            touchFocusRef.current = true;
+            setTouchFocusActive(true);
+          }}
+          onPointerUp={() => {
+            touchFocusRef.current = false;
+            setTouchFocusActive(false);
+          }}
+          onPointerCancel={() => {
+            touchFocusRef.current = false;
+            setTouchFocusActive(false);
+          }}
+          className={`da-touch da-touch--focus ${touchFocusActive ? 'active' : ''}`}
+        >
+          集中 Shift
+        </button>
         <button
           type="button"
           aria-label={`特技 ${activeCraft.special.name}`}

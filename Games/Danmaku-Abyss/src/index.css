@@ -785,6 +785,19 @@ body {
     0 0 22px rgba(251, 191, 36, calc(0.45 * var(--fx-mult)));
 }
 
+.da-touch--focus {
+  background: #a855f7;
+  color: #1e1138;
+  box-shadow:
+    0 0 0 2px rgba(233, 213, 255, 0.4),
+    0 0 22px rgba(168, 85, 247, calc(0.45 * var(--fx-mult)));
+}
+
+.da-touch--focus.active {
+  filter: brightness(1.25);
+  transform: scale(0.95);
+}
+
 .da-share {
   min-height: 44px;
   border: 0;
