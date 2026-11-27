@@ -201,8 +201,14 @@ body {
 /* Live training workbench: compare a plan before spending a career turn. */
 .bl-training-workbench, .bl-report-panel { scroll-margin-top: 24px; }
 .bl-training-plan { margin-top: 18px; border: 1px solid #355566; border-radius: 12px; background: #091824; padding: 15px; }
-.bl-plan-heading { display: flex; justify-content: space-between; gap: 10px; font-size: 11px; font-weight: 800; color: #e8c68f; }
-.bl-plan-heading > span:last-child { color: #b3c9d4; font-weight: 500; }
+.bl-plan-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; font-size: 11px; font-weight: 800; color: #e8c68f; }
+.bl-plan-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.bl-plan-controls > span { color: #b3c9d4; font-weight: 500; }
+.bl-quick-toggle { display: inline-flex; align-items: center; gap: 5px; min-height: 28px; padding: 3px 9px; border-radius: 999px; border: 1px solid #3c6073; background: #0e2230; color: #b7ced9; font-size: 10px; font-weight: 700; cursor: pointer; transition: border-color 120ms ease, background 120ms ease, color 120ms ease; }
+.bl-quick-toggle:hover { border-color: #f3c17b; color: #f6e7c8; }
+.bl-quick-toggle.is-active { border-color: #f3c17b; background: #f3c17b24; color: #ffd994; }
+.bl-quick-toggle kbd { font-size: 9px; border: 1px solid currentColor; border-radius: 3px; padding: 0 3px; opacity: 0.75; }
+.bl-craft-tag { display: inline-block; margin-top: 4px; font-style: normal; font-size: 9px; font-weight: 700; color: #ffd588; background: #f59e0b1f; border: 1px solid #f59e0b45; border-radius: 4px; padding: 1px 5px; }
 .bl-condition-note { font-size: 11px; color: #a6b9c6; line-height: 1.65; margin: 9px 0 0; }
 .bl-condition-note.is-warning { color: #f0ba80; }
 .bl-plan-empty { margin: 16px 0 0; font-size: 13px; color: #d8e8ed; line-height: 1.9; }

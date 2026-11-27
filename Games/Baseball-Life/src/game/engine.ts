@@ -492,9 +492,11 @@ function applyTraining(
   dice: number,
   power: number,
   r: () => number,
+  ageFloor = 0,
 ): Partial<Attributes & Meta> {
   const effects = traitEffects(state.traits);
   const ability = abilityEffects(state.abilities);
+  const ageFactor = Math.max(growthAgeFactor(state.age), ageFloor);
   const deltas: Partial<Attributes & Meta> = {};
   focus.forEach((key) => {
     const headroom = clamp((state.potential[key] - state.attrs[key]) / 22, 0.12, 1);
@@ -502,7 +504,7 @@ function applyTraining(
     const gain = round(
       power *
         DICE_MULT[dice] *
-        growthAgeFactor(state.age) *
+        ageFactor *
         effects.growth *
         focusMul *
         headroom *
@@ -534,6 +536,11 @@ interface TrainingOption extends Option {
   motivation?: number;
   /** True when this card is offered as the high-school secondary slot. */
   secondary?: boolean;
+  /**
+   * Minimum age growth multiplier applied on veteran refinement/craft drills
+   * so technical & mental mastery resists steep late-career decay.
+   */
+  ageFloor?: number;
 }
 
 /** Secondary-slot growth scale — half a primary without doubling fatigue cost. */
@@ -552,7 +559,8 @@ function developPitch(
   turnScale: number,
 ): void {
   const effects = traitEffects(state.traits);
-  const scale = DICE_MULT[dice] * growthAgeFactor(state.age) * effects.growth * turnScale;
+  const ageFactor = Math.max(growthAgeFactor(state.age), option.ageFloor ?? 0);
+  const scale = DICE_MULT[dice] * ageFactor * effects.growth * turnScale;
 
   if (option.pitch === 'new') {
     const candidates = learnablePitches(state.arsenal);
@@ -835,7 +843,7 @@ function secondaryOptions(state: GameState, primaryId: string): TrainingOption[]
 /** Public, non-random cost view for the training workbench. No roll, event,
  * hidden potential, or mutable game-state reference escapes this projection. */
 export interface TrainingPlanPreview {
-  cards: { id: string; label: string; focus: AttrKey[]; recovery: boolean }[];
+  cards: { id: string; label: string; focus: AttrKey[]; recovery: boolean; veteranCraft?: boolean }[];
   fatigueChange: number;
   motivationChange: number;
   fatigueAfterCards: number;
@@ -861,7 +869,13 @@ export function previewTrainingPlan(state: GameState, optionId: string): Trainin
     motivationChange += effects.motivationDrift ?? 0;
   }
   return {
-    cards: cards.map((card) => ({ id: card.id, label: card.label.replace(/^副課・/, ''), focus: [...card.focus], recovery: Boolean(card.rest) })),
+    cards: cards.map((card) => ({
+      id: card.id,
+      label: card.label.replace(/^副課・/, ''),
+      focus: [...card.focus],
+      recovery: Boolean(card.rest),
+      veteranCraft: Boolean(card.veteranCraft),
+    })),
     fatigueChange,
     motivationChange,
     fatigueAfterCards: clamp(state.meta.fatigue + fatigueChange, 0, 100),
@@ -928,6 +942,78 @@ function tournamentOptions(state: GameState): TrainingOption[] {
   ];
 }
 
+/**
+ * Late-career (age 28+) refinement & craft drills. Technical discipline,
+ * command, pitch craft, and game IQ resist steep physical age decay so
+ * veteran pro seasons stay strategically engaging without halting physical decline.
+ */
+function veteranCraftOptions(state: GameState): TrainingOption[] {
+  const drills: TrainingOption[] = [];
+  if (!IS_PITCHER[state.position] || IS_TWO_WAY[state.position]) {
+    drills.push({
+      id: 'craft-discipline',
+      label: '本壘紀律精修',
+      hint: '老將火候・抗衰退：選球與擊球手腕微調，小補心志',
+      focus: ['eye', 'contact'],
+      power: 7.4,
+      fatigue: 7,
+      meta: { mind: 3 },
+      injuryMul: 0.75,
+      motivation: 2,
+      ageFloor: 0.52,
+      veteranCraft: true,
+    });
+    if (!IS_TWO_WAY[state.position]) {
+      drills.push({
+        id: 'craft-veteran-iq',
+        label: '老將比賽智慧',
+        hint: '老將火候・抗衰退：讀投選球打磨，回補心志與動機，低受傷風險',
+        focus: ['eye'],
+        power: 6.4,
+        fatigue: 3,
+        meta: { mind: 6, body: 2 },
+        injuryMul: 0.6,
+        motivation: 6,
+        ageFloor: 0.58,
+        veteranCraft: true,
+      });
+    }
+  }
+  if (IS_PITCHER[state.position]) {
+    drills.push({
+      id: 'craft-command',
+      label: '邊角控球微調',
+      hint: '老將火候・抗衰退：進壘點與膽識細修，減輕手臂負荷',
+      focus: ['control', 'guts'],
+      power: 7.4,
+      fatigue: 7,
+      meta: { mind: 3 },
+      injuryMul: 0.75,
+      motivation: 2,
+      ageFloor: 0.52,
+      veteranCraft: true,
+    });
+    const best = [...state.arsenal].sort((a, b) => b.level - a.level)[0];
+    drills.push({
+      id: 'craft-pitch-craft',
+      label: best ? `老將球種火候：${pitchInfo(best.id).label}` : '配球節奏與老將智慧',
+      hint: best
+        ? `老將火候・抗衰退：深化${pitchInfo(best.id).label}與膽識，低負荷延續壓制力`
+        : '老將火候・抗衰退：膽識細修，回補心志與動機',
+      focus: ['guts'],
+      power: best ? 7.2 : 6.4,
+      fatigue: 5,
+      meta: { mind: 5 },
+      injuryMul: 0.65,
+      motivation: 3,
+      pitch: best ? best.id : undefined,
+      ageFloor: 0.56,
+      veteranCraft: true,
+    });
+  }
+  return drills;
+}
+
 function proOptions(state: GameState): TrainingOption[] {
   const base = trainingOptions(state);
   if (state.meta.fame >= 55 && state.age <= 33) {
@@ -946,6 +1032,15 @@ function proOptions(state: GameState): TrainingOption[] {
       injuryMul: 1.45,
       motivation: -3,
     });
+  }
+  if (state.age >= 28) {
+    let craft = veteranCraftOptions(state);
+    if (state.coach) {
+      craft = craft.map((d) => applyCoachToDrill(state.coach, d));
+    }
+    const restIndex = base.findIndex((o) => o.id === 'rest');
+    if (restIndex >= 0) base.splice(restIndex, 0, ...craft);
+    else base.push(...craft);
   }
   return base;
 }
@@ -1662,7 +1757,7 @@ function applyTrainingCard(
   const breakingBefore = state.attrs.breaking;
   if (option.pitch) developPitch(state, option, dice, r, report, turnScale);
 
-  const gained = applyTraining(state, option.focus, dice, option.power * turnScale, r);
+  const gained = applyTraining(state, option.focus, dice, option.power * turnScale, r, option.ageFloor ?? 0);
   Object.entries(gained).forEach(([key, value]) => {
     const k = key as DeltaKey;
     deltas[k] = (deltas[k] ?? 0) + (value as number);

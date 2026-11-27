@@ -28,6 +28,7 @@ const ACTIVE_CHALLENGE_KEY = `${STORAGE_KEY}:active-challenge`;
 const RECORDS_KEY = `${STORAGE_KEY}:records`;
 const ENCYCLOPEDIA_KEY = `${STORAGE_KEY}:encyclopedia`;
 const LEGACY_KEY = `${STORAGE_KEY}:legacy`;
+const QUICK_TRAINING_KEY = `${STORAGE_KEY}:quick-training`;
 
 export interface ArchiveEntry {
   seedCode: string;
@@ -404,4 +405,20 @@ export function savePendingLegacy(legacy: PendingLegacy | null): void {
 
 export function clearPendingLegacy(): void {
   savePendingLegacy(null);
+}
+
+export function loadQuickTraining(): boolean {
+  try {
+    return window.localStorage.getItem(QUICK_TRAINING_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function saveQuickTraining(enabled: boolean): void {
+  try {
+    window.localStorage.setItem(QUICK_TRAINING_KEY, enabled ? '1' : '0');
+  } catch {
+    // Best effort.
+  }
 }
