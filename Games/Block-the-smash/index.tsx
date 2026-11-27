@@ -7,6 +7,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
 import { haptic, type HapticPreset } from '@clubhouse/shared/juice';
+import { openOriginLoreModal } from '@clubhouse/shared/originLoreDom';
+import { BLOCK_THE_SMASH_LORE } from '@clubhouse/shared/lore/vanillaDom';
 import { playGoal, playLose, playWin } from '@clubhouse/shared/synthAudio';
 import { createRoot } from 'react-dom/client';
 import { DIFFICULTY, OPPONENTS, isOpponentUnlocked } from './src/game/opponents.js';
@@ -260,6 +262,7 @@ function App() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.repeat) return;
+      if (document.querySelector('[data-clubhouse-lore-modal="1"]')) return;
       if (isMatchOver && !showMenu) {
         if (e.code === 'Space' || e.code === 'Enter' || e.code === 'KeyR') {
           e.preventDefault();
@@ -414,6 +417,15 @@ function App() {
         </div>
 
         <div style={styles.buttonGroup}>
+          <button
+            type="button"
+            style={styles.button(false)}
+            onClick={() => openOriginLoreModal({ dossier: BLOCK_THE_SMASH_LORE })}
+            aria-haspopup="dialog"
+          >
+            📜 圖鑑
+          </button>
+          <div style={{ width: 1, height: 20, background: '#333', margin: '0 4px' }} />
           <button type="button" style={styles.button(false)} onClick={() => setMuted((m) => !m)}>
             {muted ? '靜音' : '音效'}
           </button>
@@ -459,6 +471,24 @@ function App() {
             <p style={{ ...styles.modalSub, color: '#ccc' }}>
               讀對手預備動作與假動作，卡進時機窗揮拍。完美擋後進入回殺，選擇落點得分或打亂節奏。
             </p>
+
+            <div style={{ marginBottom: 14 }}>
+              <button
+                type="button"
+                style={{
+                  ...styles.button(false),
+                  width: '100%',
+                  justifyContent: 'center',
+                  borderColor: 'rgba(16, 185, 129, 0.45)',
+                  background: 'rgba(16, 185, 129, 0.14)',
+                  color: '#a7f3d0',
+                }}
+                onClick={() => openOriginLoreModal({ dossier: BLOCK_THE_SMASH_LORE })}
+                aria-haspopup="dialog"
+              >
+                📜 文化源流與玩法圖鑑
+              </button>
+            </div>
 
             <p style={{ margin: '0 0 8px', color: '#aaa', fontSize: 13 }}>模式</p>
             <div

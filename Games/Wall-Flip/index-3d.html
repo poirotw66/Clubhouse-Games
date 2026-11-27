@@ -710,6 +710,7 @@
 <script src="vehicle-mesh.js"></script>
 <script src="simulation.js"></script>
 <script src="leaderboard.js"></script>
+<script src="origin-lore.js"></script>
 <script src="cyber-city.js"></script>
 <link rel="stylesheet" href="experience.css">
 </head>
@@ -776,6 +777,7 @@
         <button id="camBtn" type="button" title="切換 3D 視角 (C)">📹 視角</button>
         <button id="qualityBtn" type="button" aria-label="切換畫質">畫質</button>
         <button id="ufoBtn" type="button" title="召喚飛碟彩蛋 (U)">🛸 彩蛋</button>
+        <button id="loreBtn3d" type="button" aria-haspopup="dialog" aria-label="文化源流與玩法圖鑑" style="min-height:44px;cursor:pointer;background:transparent;border:0;color:#fda4af;font:600 14px var(--sans);padding:0 8px;">📜 圖鑑</button>
         <button id="langbtn"></button>
         <button id="apibtn" type="button"></button>
         <button id="mutebtn">靜音</button>
@@ -2520,9 +2522,10 @@ function domTyping(e) {
   const tag = el.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON' || tag === 'SUMMARY') return true;
   if (el.isContentEditable) return true;
-  if (el.closest && el.closest('input, textarea, select, button, [contenteditable="true"], .wf-view-switch, .wf-mode-pick, .wf-panel')) return true;
+  if (el.closest && el.closest('input, textarea, select, button, [contenteditable="true"], .wf-view-switch, .wf-mode-pick, .wf-panel, .clubhouse-lore-overlay')) return true;
   return apiPanel.classList.contains('on') || namePanel.classList.contains('on') ||
-    (viewConfirmEl && viewConfirmEl.classList.contains('on'));
+    (viewConfirmEl && viewConfirmEl.classList.contains('on')) ||
+    !!document.querySelector('[data-clubhouse-lore-modal="1"]');
 }
 addEventListener('keydown', e => {
   if (e.code === 'Escape' && viewConfirmEl && viewConfirmEl.classList.contains('on')) {
@@ -2961,6 +2964,10 @@ function returnToStartScreen() {
   closeNamePanel();
 }
 document.getElementById('btnToTitle3d')?.addEventListener('click', returnToStartScreen);
+document.getElementById('loreBtn3d')?.addEventListener('click', e => {
+  e.stopPropagation();
+  window.WallFlipOriginLore?.open();
+});
 if (el.manualToggleBtn && el.manualModal) {
   el.manualToggleBtn.addEventListener('click', e => {
     e.stopPropagation();

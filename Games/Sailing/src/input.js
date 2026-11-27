@@ -14,6 +14,7 @@ export function createInput(root) {
   ]);
 
   const onKey = (e, down) => {
+    if (down && typeof document.querySelector === 'function' && document.querySelector('[data-clubhouse-lore-modal="1"]')) return;
     if (e.repeat && down) return;
     keys[down ? 'add' : 'delete'](e.code);
     if (STEER.has(e.code)) {

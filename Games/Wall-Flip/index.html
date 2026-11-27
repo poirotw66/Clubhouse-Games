@@ -8,6 +8,7 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏎️</text></svg>">
 <script src="leaderboard-config.js"></script>
 <script src="leaderboard.js"></script>
+<script src="origin-lore.js"></script>
 <script>
 /* Prefer 3D when remembered and WebGL is available (hub entry lands here). */
 (function () {
@@ -130,6 +131,7 @@
 <canvas id="c"></canvas>
 <nav class="back-to-menu-nav" aria-label="導航選單" style="position:fixed;top:0;left:16px;z-index:30;height:48px;display:flex;align-items:center;gap:12px;">
   <button type="button" id="btnToTitle" style="display:none;background:rgba(21,23,26,0.85);border:1px solid #444;border-radius:999px;padding:4px 12px;color:#eaf6ff;font:500 13px 'IBM Plex Sans','PingFang TC',sans-serif;cursor:pointer;">⌂ 回到主選單</button>
+  <button type="button" id="btnLore2d" style="display:none;min-height:44px;align-items:center;background:rgba(21,23,26,0.88);border:1px solid rgba(244,63,94,0.48);border-radius:999px;padding:6px 14px;color:#fda4af;font:600 13px 'IBM Plex Sans','PingFang TC',sans-serif;cursor:pointer;touch-action:manipulation;" aria-haspopup="dialog" aria-label="文化源流與玩法圖鑑">📜 圖鑑</button>
   <a href="../../" style="display:flex;align-items:center;color:#b4b4b4;text-decoration:none;font:500 14px 'IBM Plex Sans','PingFang TC',sans-serif;">← 返回總覽</a>
 </nav>
 <div id="viewSwitch" class="wf-view-switch" data-testid="view-mode-switch" role="group" aria-label="顯示模式">
@@ -1147,9 +1149,10 @@ function domTyping(e) {
   const tag = el.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON' || tag === 'SUMMARY') return true;
   if (el.isContentEditable) return true;
-  if (el.closest && el.closest('input, textarea, select, button, [contenteditable="true"], .wf-view-switch, .wf-mode-pick, .wf-panel')) return true;
+  if (el.closest && el.closest('input, textarea, select, button, [contenteditable="true"], .wf-view-switch, .wf-mode-pick, .wf-panel, .clubhouse-lore-overlay')) return true;
   return apiPanel.classList.contains('on') || namePanel.classList.contains('on') ||
-    (viewConfirmEl && viewConfirmEl.classList.contains('on'));
+    (viewConfirmEl && viewConfirmEl.classList.contains('on')) ||
+    !!document.querySelector('[data-clubhouse-lore-modal="1"]');
 }
 addEventListener('keydown', e => {
   if (e.code === 'Escape' && viewConfirmEl && viewConfirmEl.classList.contains('on')) {
@@ -1305,10 +1308,15 @@ function reset(ready) {
   stateT = 0;
   const btnToTitle = document.getElementById('btnToTitle');
   if (btnToTitle) btnToTitle.style.display = ready ? 'none' : 'inline-flex';
+  const btnLore2d = document.getElementById('btnLore2d');
+  if (btnLore2d) btnLore2d.style.display = ready ? 'none' : 'inline-flex';
 }
 document.getElementById('btnToTitle')?.addEventListener('click', () => {
   reset(true);
   camSnapSafe();
+});
+document.getElementById('btnLore2d')?.addEventListener('click', () => {
+  window.WallFlipOriginLore?.open();
 });
 function startRun() { reset(false); }
 
