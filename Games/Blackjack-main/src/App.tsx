@@ -13,6 +13,7 @@ import {
   evenMoneyPayout,
   blackjackPayout,
   blackjackPayoutLabel,
+  calculateNetProfitDelta,
   formatHandTotal,
   isPairHand,
   isAcePair,
@@ -81,6 +82,7 @@ import {
   TIN_MAX_BET,
   TIN_MIN_BET,
   TIN_START_CHIPS,
+  TIN_SIM_RULES,
   advanceRivalsOneHand,
   buildStandings,
   createRivalStates,
@@ -369,7 +371,7 @@ export default function App() {
     taken: DecisionRecord['taken'],
     phase: DecisionRecord['phase'],
     hand: PlayerHand,
-    extras?: Partial<Pick<DecisionRecord, 'canDouble' | 'canSplit' | 'canSurrender'>>,
+    extras?: Partial<Pick<DecisionRecord, 'canDouble' | 'canSplit' | 'canSurrender' | 'dealerRule' | 'surrenderRule'>>,
   ) => {
     const upcard = dealerCards[0];
     if (!upcard) return;
@@ -382,6 +384,8 @@ export default function App() {
         canDouble: extras?.canDouble ?? false,
         canSplit: extras?.canSplit ?? false,
         canSurrender: extras?.canSurrender ?? false,
+        dealerRule: extras?.dealerRule ?? rules.dealerRule,
+        surrenderRule: extras?.surrenderRule ?? rules.surrender,
         taken,
       },
     ];
@@ -459,7 +463,12 @@ export default function App() {
     });
   }, []);
 
-  const finalizeHandStats = (hands: PlayerHand[], balanceAfter: number) => {
+  const finalizeHandStats = (
+    hands: PlayerHand[],
+    balanceAfter: number,
+    dealerCardsOut?: CardType[],
+    shoeOut?: ShoeState,
+  ) => {
     if (statsRecordedRef.current) return;
     statsRecordedRef.current = true;
 
@@ -473,18 +482,18 @@ export default function App() {
       setHandVerdicts([]);
     }
 
-    const hasBJ = hands.some(h => h.status === 'blackjack');
-    const hasWon = hands.some(h => h.status === 'won' || h.status === 'blackjack');
-    const hasLost = hands.some(
-      h => h.status === 'lost' || h.status === 'busted' || h.status === 'surrendered',
-    );
+    const profit = calculateNetProfitDelta(hands, rules.bjPayout);
     let outcome: HandOutcome = 'push';
-    if (hasBJ && !hasLost) outcome = 'blackjack';
-    else if (hasWon && !hasLost) outcome = 'win';
-    else if (hasLost && !hasWon) outcome = 'lose';
-    else if (hasWon && hasLost) outcome = 'push';
-    else if (hasLost) outcome = 'lose';
-    else if (hasWon) outcome = 'win';
+    if (profit > 0) {
+      outcome =
+        hands.some(h => h.status === 'blackjack' && !h.fromSplit) && hands.length === 1
+          ? 'blackjack'
+          : 'win';
+    } else if (profit < 0) {
+      outcome = 'lose';
+    } else {
+      outcome = 'push';
+    }
 
     const profitDelta = balanceAfter - handStartBalanceRef.current;
     const mode = tableModeRef.current;
@@ -514,9 +523,22 @@ export default function App() {
     if (mode === 'tournament') {
       tinHandsRef.current += 1;
       setTinHandsPlayed(tinHandsRef.current);
-      const nextRivals = advanceRivalsOneHand(tinRivalsRef.current, tinHandsRef.current);
+      const currentShoe = shoeOut ?? shoe;
+      const currentDealer = dealerCardsOut ?? dealerCards;
+      const nextRivals = advanceRivalsOneHand(
+        tinRivalsRef.current,
+        tinHandsRef.current,
+        TIN_SIM_RULES,
+        {
+          tableShoe: currentShoe,
+          dealerCards: currentDealer,
+        },
+      );
       tinRivalsRef.current = nextRivals;
       setTinRivals(nextRivals);
+      if (nextRivals.length > 0 && nextRivals[0].shoe) {
+        setShoe(nextRivals[0].shoe);
+      }
       const completed = tinHandsRef.current >= TIN_HANDS;
       const busted = balanceAfter < TIN_MIN_BET;
       if (completed || busted) {
@@ -561,7 +583,7 @@ export default function App() {
       insured > 0 ? '莊家 Blackjack。保險賠付 2:1。' : '莊家 Blackjack。',
     );
     setGameState('gameOver');
-    finalizeHandStats(lostHands, balanceRef.current);
+    finalizeHandStats(lostHands, balanceRef.current, revealed, shoe);
     return false;
   };
 
@@ -675,7 +697,7 @@ export default function App() {
         setBalanceTracked(prev => prev + currentBet);
         setMessage(sideMsg ? `${sideMsg} · 和局！雙方皆 Blackjack。` : '和局！雙方皆 Blackjack。');
         setGameState('gameOver');
-        finalizeHandStats(nextHands, balanceRef.current);
+        finalizeHandStats(nextHands, balanceRef.current, revealed, currentShoe);
       } else {
         const nextHands: PlayerHand[] = [
           { id: '1', cards: initialPlayerCards, bet: currentBet, status: 'blackjack' },
@@ -688,7 +710,7 @@ export default function App() {
             : `Blackjack！贏得 ${blackjackPayoutLabel(rules.bjPayout)}。`,
         );
         setGameState('gameOver');
-        finalizeHandStats(nextHands, balanceRef.current);
+        finalizeHandStats(nextHands, balanceRef.current, revealed, currentShoe);
       }
       return;
     }
@@ -839,7 +861,7 @@ export default function App() {
     if (dealerCards[1]?.isHidden) noteSeenCards([{ ...revealed[1], isHidden: false }]);
     setMessage(`投降 — 取回半注 $${refund}`);
     setGameState('gameOver');
-    finalizeHandStats(newHands, balanceRef.current);
+    finalizeHandStats(newHands, balanceRef.current, revealed, shoe);
   };
 
   const ensurePeeked = async (): Promise<boolean> => {
@@ -1041,8 +1063,8 @@ export default function App() {
         h => h.status === 'stood' || h.status === 'playing',
       );
 
+      let currentShoe = shoe;
       if (needsDealerPlay) {
-        let currentShoe = shoe;
         const hitSoft17 = rules.dealerRule === 'H17';
 
         while (dealerShouldHit(currentDealerCards, hitSoft17)) {
@@ -1057,14 +1079,14 @@ export default function App() {
         setShoe(currentShoe);
       }
 
-      settleBets(currentDealerCards);
+      settleBets(currentDealerCards, currentShoe);
     };
 
     void playDealer();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameState]);
 
-  const settleBets = (finalDealerCards: CardType[]) => {
+  const settleBets = (finalDealerCards: CardType[], currentShoe?: ShoeState) => {
     const dScore = calculateScore(finalDealerCards);
     const dBusted = dScore > 21;
     const dBJ = isBlackjack(finalDealerCards);
@@ -1098,37 +1120,25 @@ export default function App() {
       setBalanceTracked(prev => prev + totalWinnings);
     }
     setGameState('gameOver');
-    finalizeHandStats(newHands, balanceRef.current);
+    finalizeHandStats(newHands, balanceRef.current, finalDealerCards, currentShoe ?? shoe);
 
     if (dBusted) {
       setMessage('莊家爆牌！你贏了。');
     } else {
-      const wins = newHands.filter(h => h.status === 'won' || h.status === 'blackjack').length;
-      const losses = newHands.filter(
-        h => h.status === 'lost' || h.status === 'busted' || h.status === 'surrendered',
-      ).length;
-      const pushes = newHands.filter(h => h.status === 'push').length;
-
-      if (wins > 0 && losses === 0) setMessage('你贏了！');
-      else if (losses > 0 && wins === 0) setMessage('莊家贏了。');
-      else if (pushes > 0 && wins === 0 && losses === 0) setMessage('和局。');
-      else setMessage('本局結束。');
+      const netProfit = calculateNetProfitDelta(newHands, rules.bjPayout);
+      if (netProfit > 0) setMessage('你贏了！');
+      else if (netProfit < 0) setMessage('莊家贏了。');
+      else setMessage('和局。');
     }
   };
 
   const resultPrompt = useMemo((): 'win' | 'lose' | 'push' | null => {
     if (gameState !== 'gameOver' || playerHands.length === 0) return null;
-    const hasWon = playerHands.some(h => h.status === 'won' || h.status === 'blackjack');
-    const hasLost = playerHands.some(
-      h => h.status === 'lost' || h.status === 'busted' || h.status === 'surrendered',
-    );
-    const hasPush = playerHands.some(h => h.status === 'push');
-    if (hasWon && !hasLost) return 'win';
-    if (hasLost && !hasWon) return 'lose';
-    if (hasPush && !hasWon && !hasLost) return 'push';
-    if (hasWon && hasLost) return 'push';
-    return hasWon ? 'win' : hasLost ? 'lose' : 'push';
-  }, [gameState, playerHands]);
+    const profit = calculateNetProfitDelta(playerHands, rules.bjPayout);
+    if (profit > 0) return 'win';
+    if (profit < 0) return 'lose';
+    return 'push';
+  }, [gameState, playerHands, rules.bjPayout]);
 
   useEffect(() => {
     if (gameState === 'gameOver' && prevGameStateRef.current !== 'gameOver') {
@@ -1225,14 +1235,15 @@ export default function App() {
     sessionClosingRef.current = false;
     setSessionResult(null);
     const seed = tournamentSeed(`${Date.now()}:${career}`);
-    const rivals = createRivalStates(seed);
+    const tournamentShoe = createSeededShoe(6, seed ^ 0xc0ffee);
+    const rivals = createRivalStates(seed, tournamentShoe);
     setTableMode('tournament');
     tableModeRef.current = 'tournament';
     setTinRivals(rivals);
     tinRivalsRef.current = rivals;
     tinHandsRef.current = 0;
     setTinHandsPlayed(0);
-    setShoe(createSeededShoe(6, seed ^ 0xc0ffee));
+    setShoe(tournamentShoe);
     setRunningHiLo(0);
     setBalanceTracked(TIN_START_CHIPS);
     setSessionStartBalance(TIN_START_CHIPS);
@@ -1331,6 +1342,8 @@ export default function App() {
       canDouble: phase === 'playing' && canDoubleActive(),
       canSplit: phase === 'playing' && canSplitActive(),
       canSurrender: canSurrenderNow(),
+      dealerRule: rules.dealerRule,
+      surrenderRule: rules.surrender,
     });
     setHintLabel(STRATEGY_LABELS[action]);
     setMessage(`提示：${STRATEGY_LABELS[action]}`);

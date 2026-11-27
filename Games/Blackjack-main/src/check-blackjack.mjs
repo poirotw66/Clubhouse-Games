@@ -8,6 +8,7 @@ import {
   surrenderRefund,
   evenMoneyPayout,
   blackjackPayout,
+  calculateNetProfitDelta,
   formatHandTotal,
   isPairHand,
   isAcePair,
@@ -194,6 +195,39 @@ for (const sh of splitHands) {
 assert(totalSplitProfit === 0, 'multi-split net profit correctly balances to $0');
 assert(totalReturnedToPlayer === 500, 'total returned on 4 split hands equals total original $500 wager');
 
+// --- calculateNetProfitDelta & Split Hand Profit Deltas ---
+// Net positive: split hand 1 doubles and wins (+$200), hand 2 loses (-$100) -> net profit +$100 -> Win
+const splitNetPositive = [
+  { bet: 200, status: 'won' },
+  { bet: 100, status: 'lost' },
+];
+assert(calculateNetProfitDelta(splitNetPositive) === 100, 'split 1 win-double + 1 lose is net positive +$100');
+const splitNetPosOutcome = calculateNetProfitDelta(splitNetPositive) > 0 ? 'win' : 'push';
+assert(splitNetPosOutcome === 'win', 'net positive profit reports win rather than push');
+
+// Net negative: split hand 1 wins (+$100), hand 2 doubles and loses (-$200) -> net profit -$100 -> Lose
+const splitNetNegative = [
+  { bet: 100, status: 'won' },
+  { bet: 200, status: 'lost' },
+];
+assert(calculateNetProfitDelta(splitNetNegative) === -100, 'split 1 win + 1 double-lose is net negative -$100');
+
+// Net zero: split hand 1 wins (+$100), hand 2 loses (-$100) -> net profit $0 -> Push
+const splitNetZero = [
+  { bet: 100, status: 'won' },
+  { bet: 100, status: 'lost' },
+];
+assert(calculateNetProfitDelta(splitNetZero) === 0, 'split 1 win + 1 lose is net $0');
+
+// Blackjack on split or normal hand
+const naturalBJHand = [{ bet: 100, status: 'blackjack' }];
+assert(calculateNetProfitDelta(naturalBJHand, '3:2') === 150, 'natural BJ 3:2 net profit +$150');
+assert(calculateNetProfitDelta(naturalBJHand, '6:5') === 120, 'natural BJ 6:5 net profit +$120');
+
+// Surrender on hand
+const surrenderHand = [{ bet: 100, status: 'surrendered' }];
+assert(calculateNetProfitDelta(surrenderHand) === -50, 'surrender net loss is -$50');
+
 // --- Early surrender half bet ---
 assert(surrenderRefund(100) === 50, 'surrender refunds half');
 assert(surrenderRefund(25) === 12, 'surrender floors odd bets');
@@ -354,6 +388,242 @@ assert(
     canSurrender: false,
   }) === 'declineEvenMoney',
   'decline even money',
+);
+
+// --- Dynamic Rule Adaptation: H17 vs S17 ---
+// Hard 11 vs Ace: Double on H17, Hit on S17
+assert(
+  recommendAction({
+    phase: 'playing',
+    playerCards: hand(['5', '6']),
+    dealerUpcard: up('A'),
+    canDouble: true,
+    canSplit: false,
+    canSurrender: true,
+    dealerRule: 'H17',
+  }) === 'double',
+  'Hard 11 vs Ace: double on H17',
+);
+assert(
+  recommendAction({
+    phase: 'playing',
+    playerCards: hand(['5', '6']),
+    dealerUpcard: up('A'),
+    canDouble: true,
+    canSplit: false,
+    canSurrender: true,
+    dealerRule: 'S17',
+  }) === 'hit',
+  'Hard 11 vs Ace: hit on S17',
+);
+
+// Soft 19 (A,8) vs 6: Double on H17, Stand on S17
+assert(
+  recommendAction({
+    phase: 'playing',
+    playerCards: hand(['A', '8']),
+    dealerUpcard: up('6'),
+    canDouble: true,
+    canSplit: false,
+    canSurrender: true,
+    dealerRule: 'H17',
+  }) === 'double',
+  'Soft 19 vs 6: double on H17',
+);
+assert(
+  recommendAction({
+    phase: 'playing',
+    playerCards: hand(['A', '8']),
+    dealerUpcard: up('6'),
+    canDouble: true,
+    canSplit: false,
+    canSurrender: true,
+    dealerRule: 'S17',
+  }) === 'stand',
+  'Soft 19 vs 6: stand on S17',
+);
+
+// Soft 18 (A,7) vs 2: Double on H17, Stand on S17
+assert(
+  recommendAction({
+    phase: 'playing',
+    playerCards: hand(['A', '7']),
+    dealerUpcard: up('2'),
+    canDouble: true,
+    canSplit: false,
+    canSurrender: true,
+    dealerRule: 'H17',
+  }) === 'double',
+  'Soft 18 vs 2: double on H17',
+);
+assert(
+  recommendAction({
+    phase: 'playing',
+    playerCards: hand(['A', '7']),
+    dealerUpcard: up('2'),
+    canDouble: true,
+    canSplit: false,
+    canSurrender: true,
+    dealerRule: 'S17',
+  }) === 'stand',
+  'Soft 18 vs 2: stand on S17',
+);
+
+// Hard 15 vs Ace: Surrender on H17 (canSurrender), Hit on S17
+assert(
+  recommendAction({
+    phase: 'playing',
+    playerCards: hand(['10', '5']),
+    dealerUpcard: up('A'),
+    canDouble: true,
+    canSplit: false,
+    canSurrender: true,
+    dealerRule: 'H17',
+    surrenderRule: 'late',
+  }) === 'surrender',
+  'Hard 15 vs Ace: surrender on H17',
+);
+assert(
+  recommendAction({
+    phase: 'playing',
+    playerCards: hand(['10', '5']),
+    dealerUpcard: up('A'),
+    canDouble: true,
+    canSplit: false,
+    canSurrender: true,
+    dealerRule: 'S17',
+    surrenderRule: 'late',
+  }) === 'hit',
+  'Hard 15 vs Ace: hit on S17',
+);
+
+// Pair 8,8 vs Ace: Surrender on H17 (canSurrender), Split on S17
+assert(
+  recommendAction({
+    phase: 'playing',
+    playerCards: hand(['8', '8']),
+    dealerUpcard: up('A'),
+    canDouble: true,
+    canSplit: true,
+    canSurrender: true,
+    dealerRule: 'H17',
+    surrenderRule: 'late',
+  }) === 'surrender',
+  'Pair 8,8 vs Ace: surrender on H17',
+);
+assert(
+  recommendAction({
+    phase: 'playing',
+    playerCards: hand(['8', '8']),
+    dealerUpcard: up('A'),
+    canDouble: true,
+    canSplit: true,
+    canSurrender: true,
+    dealerRule: 'S17',
+    surrenderRule: 'late',
+  }) === 'split',
+  'Pair 8,8 vs Ace: split on S17',
+);
+
+// --- Dynamic Rule Adaptation: Early Surrender ---
+// Early surrender vs Ace: Hard 12..17, Pairs 6,6, 7,7, 8,8
+for (const total of [12, 13, 14, 15, 16, 17]) {
+  const cards =
+    total === 12
+      ? hand(['10', '2'])
+      : total === 17
+        ? hand(['10', '7'])
+        : hand(['10', String(total - 10)]);
+  assert(
+    recommendAction({
+      phase: 'playing',
+      playerCards: cards,
+      dealerUpcard: up('A'),
+      canDouble: true,
+      canSplit: false,
+      canSurrender: true,
+      surrenderRule: 'early',
+    }) === 'surrender',
+    `Early Surrender: Hard ${total} vs Ace surrenders`,
+  );
+}
+assert(
+  recommendAction({
+    phase: 'playing',
+    playerCards: hand(['6', '6']),
+    dealerUpcard: up('A'),
+    canDouble: true,
+    canSplit: true,
+    canSurrender: true,
+    surrenderRule: 'early',
+  }) === 'surrender',
+  'Early Surrender: 6,6 vs Ace surrenders',
+);
+assert(
+  recommendAction({
+    phase: 'playing',
+    playerCards: hand(['7', '7']),
+    dealerUpcard: up('A'),
+    canDouble: true,
+    canSplit: true,
+    canSurrender: true,
+    surrenderRule: 'early',
+  }) === 'surrender',
+  'Early Surrender: 7,7 vs Ace surrenders',
+);
+
+// Early surrender vs 10: Hard 14..16, Pairs 7,7, 8,8
+for (const total of [14, 15, 16]) {
+  assert(
+    recommendAction({
+      phase: 'playing',
+      playerCards: hand(['10', String(total - 10)]),
+      dealerUpcard: up('10'),
+      canDouble: true,
+      canSplit: false,
+      canSurrender: true,
+      surrenderRule: 'early',
+    }) === 'surrender',
+    `Early Surrender: Hard ${total} vs 10 surrenders`,
+  );
+}
+assert(
+  recommendAction({
+    phase: 'playing',
+    playerCards: hand(['7', '7']),
+    dealerUpcard: up('10'),
+    canDouble: true,
+    canSplit: true,
+    canSurrender: true,
+    surrenderRule: 'early',
+  }) === 'surrender',
+  'Early Surrender: 7,7 vs 10 surrenders',
+);
+assert(
+  recommendAction({
+    phase: 'playing',
+    playerCards: hand(['8', '8']),
+    dealerUpcard: up('10'),
+    canDouble: true,
+    canSplit: true,
+    canSurrender: true,
+    surrenderRule: 'early',
+  }) === 'surrender',
+  'Early Surrender: 8,8 vs 10 surrenders',
+);
+
+// Early surrender vs 9: Hard 16
+assert(
+  recommendAction({
+    phase: 'playing',
+    playerCards: hand(['10', '6']),
+    dealerUpcard: up('9'),
+    canDouble: true,
+    canSplit: false,
+    canSurrender: true,
+    surrenderRule: 'early',
+  }) === 'surrender',
+  'Early Surrender: Hard 16 vs 9 surrenders',
 );
 
 // --- Post-hand feedback ---
@@ -717,6 +987,39 @@ assert(
       r.balance !== rivals0[i].balance || r.shoe.cards.length !== rivals0[i].shoe.cards.length,
   ),
   'rivals advanced at least one seat',
+);
+
+// --- Unified Tournament Dealing: Shared Table Shoe & Shared Dealer Outcome ---
+// 1. Rivals share the exact same table shoe from creation
+const sharedShoe = createSeededShoe(6, 12345);
+const rivalsShared = createRivalStates(12345, sharedShoe);
+assert(rivalsShared.every((r) => r.shoe.seed === sharedShoe.seed), 'all rivals share the initial table shoe');
+
+// 2. Dealer busts at table: all non-busting rivals win
+const tableDealerBustCards = [card('10'), card('6'), card('9')]; // 25 (Busted)
+const rivalsAfterBust = advanceRivalsOneHand(rivalsShared, 1, TIN_SIM_RULES, {
+  tableShoe: sharedShoe,
+  dealerCards: tableDealerBustCards,
+});
+// When dealer busts, every rival whose hand didn't bust must have positive profit
+const nonBustedRivals = rivalsAfterBust.filter((r) => r.lastProfit > 0);
+assert(nonBustedRivals.length > 0, 'rivals win against busted dealer hand');
+// All rivals share the identical updated shoe
+const firstShoeLength = rivalsAfterBust[0].shoe.cards.length;
+assert(
+  rivalsAfterBust.every((r) => r.shoe.cards.length === firstShoeLength),
+  'all rivals end with the exact same updated table shoe card count',
+);
+
+// 3. Dealer has natural Blackjack: all non-BJ rivals lose
+const tableDealerBJCards = [card('A'), card('K')];
+const rivalsAfterDealerBJ = advanceRivalsOneHand(rivalsAfterBust, 2, TIN_SIM_RULES, {
+  tableShoe: rivalsAfterBust[0].shoe,
+  dealerCards: tableDealerBJCards,
+});
+assert(
+  rivalsAfterDealerBJ.every((r) => r.lastProfit <= 0),
+  'rivals lose or push against shared table dealer blackjack',
 );
 const standings = buildStandings(1500, '你', rivals1);
 assert(standings[0].rank === 1, 'rank 1 assigned');

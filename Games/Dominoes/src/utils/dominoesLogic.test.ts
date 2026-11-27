@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  alphaBetaEndgame,
   applyRoundToMatch,
   canAttachToEnd,
   createInitialState,
@@ -7,6 +8,7 @@ import {
   createSet,
   drawTiles,
   emptyBoard,
+  getBoardTiles,
   getChainEnds,
   getDifficultyConfig,
   getEndPip,
@@ -605,5 +607,81 @@ describe('single-round match target', () => {
     expect(match.matchOver).toBe(true);
     expect(match.matchWinner).toBe(0);
     expect(match.scores[0]).toBe(10);
+  });
+});
+
+describe('alphaBetaEndgame (Hard AI endgame multi-ply search)', () => {
+  it('finds winning move that dominoes immediately', () => {
+    let board = emptyBoard();
+    board = placeFirstTile(board, tile(1, 6, 4), 'draw');
+    const botHand = [tile(2, 4, 2)];
+    const oppHand = [tile(3, 6, 1), tile(4, 1, 1)];
+
+    const result = alphaBetaEndgame(
+      botHand,
+      oppHand,
+      board,
+      true,
+      -Infinity,
+      Infinity,
+      0,
+      10,
+      'draw',
+    );
+    expect(result.bestMove).toEqual({ tileId: 2, end: 'right' });
+    expect(result.score).toBeGreaterThan(0);
+  });
+
+  it('in Fives, chooses the move that blocks opponent and maximizes net points across turns', () => {
+    let board = emptyBoard();
+    board = placeFirstTile(board, tile(1, 4, 6), 'draw'); // ends: 4 (left), 6 (right)
+    // Bot has [6|1] (tile 2), [6|3] (tile 3), and [1|0] (tile 4).
+    // Opponent has [3|5] (tile 5, 8 pips).
+    // If bot plays [6|3] (tile 3), opponent can play [3|5] on 3 and domino immediately to win.
+    // If bot plays [6|1] (tile 2), ends become 4 and 1. Opponent has [3|5] and cannot play (must pass).
+    // Bot plays [1|0], game blocks with Bot having [6|3] (9 pips) vs Opponent having [3|5] (8 pips)...
+    // To ensure Bot wins block: give Bot lighter remaining tile [6|0] (tile 3) and Opponent [3|5] (8 pips).
+    // Then on block, Bot has 6 pips < Opponent 8 pips -> Bot wins!
+    const botHand = [tile(2, 6, 1), tile(3, 6, 0), tile(4, 1, 0)];
+    const oppHand = [tile(5, 3, 5)];
+
+    const result = alphaBetaEndgame(
+      botHand,
+      oppHand,
+      board,
+      true,
+      -Infinity,
+      Infinity,
+      0,
+      10,
+      'draw',
+    );
+    // Bot must play tile 2 [6|1] to block opponent and win
+    expect(result.bestMove?.tileId).toBe(2);
+    expect(result.bestMove?.end).toBe('right');
+  });
+
+  it('pickBotMove triggers alpha-beta when boneyard is empty and opponent hand <= 7', () => {
+    let board = emptyBoard();
+    board = placeFirstTile(board, tile(1, 4, 6), 'draw');
+    const botHand = [tile(2, 6, 1), tile(3, 6, 0), tile(4, 1, 0)];
+    const oppHand = [tile(5, 3, 5)];
+
+    const move = pickBotMove(botHand, board, 1, 'hard', {
+      ruleVariant: 'draw',
+      boneyard: [],
+      opponentHand: oppHand,
+    });
+    expect(move).toBeDefined();
+    expect(move?.tileId).toBe(2);
+  });
+
+  it('getBoardTiles gathers all tiles on board including hub and arms', () => {
+    let board = emptyBoard();
+    board = placeFirstTile(board, tile(1, 5, 5), 'fives');
+    board = placeTile(board, tile(2, 5, 3), 'left', 'fives')!;
+    board = placeTile(board, tile(3, 5, 2), 'right', 'fives')!;
+    const tiles = getBoardTiles(board);
+    expect(tiles.map((t) => t.id)).toEqual(expect.arrayContaining([1, 2, 3]));
   });
 });

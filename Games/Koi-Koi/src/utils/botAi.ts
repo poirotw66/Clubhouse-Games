@@ -287,6 +287,7 @@ export interface KoiKoiContext {
   difficulty: Difficulty;
   winScore?: number;
   personality?: PersonalityStyle | null;
+  sevenMonMultiplier?: boolean;
 }
 
 /**
@@ -299,12 +300,19 @@ export function shouldBotKoiKoi(ctx: KoiKoiContext): boolean {
   const config = effectiveConfig(ctx.difficulty, personality);
   const winScore = ctx.winScore ?? WIN_SCORE;
   const risk = personality?.riskAppetite ?? 0.45;
+  const enableSevenMon = ctx.sevenMonMultiplier !== false;
+  let finishMultiplier = 1;
+  if (ctx.playerKoiKoiCount > 0) finishMultiplier *= 2;
+  if (enableSevenMon && ctx.totalPoints >= 7) finishMultiplier *= 2;
+  const finishPoints = ctx.totalPoints * finishMultiplier;
 
   if (ctx.difficulty === 'hard') {
     // Bank if this finish wins the match, or points are already strong.
-    const finishPoints =
-      ctx.playerKoiKoiCount > 0 ? ctx.totalPoints * 2 : ctx.totalPoints;
     if (ctx.botScore + finishPoints >= winScore) return false;
+    // With 7-mon multiplier enabled, at 5-6 points with ample hand, pushing for 7 points has high upside.
+    if (enableSevenMon && ctx.totalPoints >= 5 && ctx.totalPoints < 7 && ctx.botHandLength >= 3 && risk >= 0.45) {
+      return true;
+    }
     // High-risk personalities may still press with strong hands.
     if (ctx.totalPoints >= 7 && risk < 0.7) return false;
     if (ctx.totalPoints >= 10) return false;

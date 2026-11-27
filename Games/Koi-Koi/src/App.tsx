@@ -34,7 +34,7 @@ import { useBgm } from './hooks/useBgm';
 import { useCharacterSelection } from './hooks/useCharacterSelection';
 import { useOpponentSelection } from './hooks/useOpponentSelection';
 import { Card, GameState, Phase } from './types';
-import { deal, calculateYaku, getMatchingCards, resolveRoundScores, WIN_SCORE_OPTIONS, WIN_SCORE_LABELS, type WinScore } from './utils/gameLogic';
+import { deal, calculateYaku, getMatchingCards, resolveRoundScores, calculateFinalRoundPoints, WIN_SCORE_OPTIONS, WIN_SCORE_LABELS, type WinScore } from './utils/gameLogic';
 import {
   Difficulty,
   DIFFICULTY_LABELS,
@@ -137,6 +137,7 @@ export default function App() {
   const [celebration, setCelebration] = useState<YakuCelebrationPayload | null>(null);
   const [difficulty, setDifficulty] = useState<Difficulty>(() => loadStats().lastDifficulty);
   const [winScore, setWinScore] = useState<WinScore>(() => loadStats().lastWinScore);
+  const [sevenMonMultiplier, setSevenMonMultiplier] = useState(true);
   const [hint, setHint] = useState<HintChoice | null>(null);
   const [leftWingCollapsed, setLeftWingCollapsed] = useState(false);
   const [rightWingCollapsed, setRightWingCollapsed] = useState(false);
@@ -149,6 +150,8 @@ export default function App() {
   difficultyRef.current = difficulty;
   const winScoreRef = useRef(winScore);
   winScoreRef.current = winScore;
+  const sevenMonMultiplierRef = useRef(sevenMonMultiplier);
+  sevenMonMultiplierRef.current = sevenMonMultiplier;
   const { character, characterId, setCharacterId } = useCharacterSelection();
   const { opponentId, opponent, personality, setOpponentId } = useOpponentSelection();
   const personalityRef = useRef(personality.style);
@@ -262,6 +265,29 @@ export default function App() {
     });
   };
 
+  const handleReturnToMenu = useCallback(() => {
+    bumpActionGen();
+    lockRef.current = false;
+    statsRecordedRef.current = false;
+    setHint(null);
+    clearHistory();
+    setCelebration(null);
+    setCursorIndex(0);
+    setCursorMatchIndex(0);
+    setState({
+      ...initialState,
+      phase: 'idle',
+      round: 1,
+      playerScore: 0,
+      botScore: 0,
+      playerPoints: 0,
+      botPoints: 0,
+      koiKoiCount: { player: 0, bot: 0 },
+      winner: null,
+      message: '歡迎來到花牌 (Koi-Koi)！點擊開始遊戲。',
+    });
+  }, [bumpActionGen, clearHistory]);
+
   const endTurn = (nextPlayer: 'player' | 'bot') => {
     setHint(null);
     setState(s => {
@@ -354,6 +380,7 @@ export default function App() {
           difficulty: difficultyRef.current,
           winScore: winScoreRef.current,
           personality: personalityRef.current,
+          sevenMonMultiplier: sevenMonMultiplierRef.current,
         });
         const foe = opponentNameRef.current;
         if (shouldContinue) {
@@ -366,8 +393,11 @@ export default function App() {
           });
           schedule(() => endTurn('player'), 2000);
         } else {
-          let finalPoints = totalPoints;
-          if (newState.koiKoiCount.player > 0) finalPoints *= 2;
+          const { finalPoints, isSevenMonDoubled, isKoiKoiDoubled } = calculateFinalRoundPoints(
+            totalPoints,
+            newState.koiKoiCount.player,
+            sevenMonMultiplierRef.current,
+          );
 
           const resolved = resolveRoundScores(
             newState.playerScore,
@@ -380,6 +410,11 @@ export default function App() {
           else if (resolved.winner === 'bot') playSfx('lose');
           else playSfx('draw');
 
+          const bonusLabel = [
+            isKoiKoiDoubled ? '對手Koi-Koi×2' : '',
+            isSevenMonDoubled ? '七文倍額×2' : '',
+          ].filter(Boolean).join(' · ');
+
           setState({
             ...newState,
             botYaku: yaku,
@@ -389,8 +424,8 @@ export default function App() {
             phase: resolved.phase,
             winner: resolved.winner,
             message: resolved.winner === 'bot'
-              ? `${foe}結束了遊戲！獲得 ${finalPoints} 分，先達 ${winScoreRef.current} 分獲勝！`
-              : `${foe}結束了遊戲！獲得 ${finalPoints} 分。`,
+              ? `${foe}結束了遊戲！獲得 ${finalPoints} 分${bonusLabel ? `（${bonusLabel}）` : ''}，先達 ${winScoreRef.current} 分獲勝！`
+              : `${foe}結束了遊戲！獲得 ${finalPoints} 分${bonusLabel ? `（${bonusLabel}）` : ''}。`,
             dealer: 'bot',
           });
         }
@@ -587,8 +622,11 @@ export default function App() {
     if (lockRef.current) return;
     lockRef.current = true;
     setHint(null);
-    let finalPoints = state.playerPoints;
-    if (state.koiKoiCount.bot > 0) finalPoints *= 2;
+    const { finalPoints, isSevenMonDoubled, isKoiKoiDoubled } = calculateFinalRoundPoints(
+      state.playerPoints,
+      state.koiKoiCount.bot,
+      sevenMonMultiplierRef.current,
+    );
 
     const resolved = resolveRoundScores(
       state.playerScore,
@@ -601,6 +639,11 @@ export default function App() {
     else if (resolved.winner === 'bot') playSfx('lose');
     else playSfx('draw');
 
+    const bonusLabel = [
+      isKoiKoiDoubled ? '對手Koi-Koi×2' : '',
+      isSevenMonDoubled ? '七文倍額×2' : '',
+    ].filter(Boolean).join(' · ');
+
     setState(s => ({
       ...s,
       playerScore: resolved.playerScore,
@@ -608,8 +651,8 @@ export default function App() {
       phase: resolved.phase,
       winner: resolved.winner,
       message: resolved.winner === 'player'
-        ? `你結束了遊戲！獲得 ${finalPoints} 分，先達 ${winScoreRef.current} 分獲勝！`
-        : `你結束了遊戲！獲得 ${finalPoints} 分。`,
+        ? `你結束了遊戲！獲得 ${finalPoints} 分${bonusLabel ? `（${bonusLabel}）` : ''}，先達 ${winScoreRef.current} 分獲勝！`
+        : `你結束了遊戲！獲得 ${finalPoints} 分${bonusLabel ? `（${bonusLabel}）` : ''}。`,
       dealer: 'player',
     }));
   };
@@ -736,6 +779,7 @@ export default function App() {
       state.koiKoiCount.player,
       state.botScore,
       winScoreRef.current,
+      sevenMonMultiplier,
     );
   }, [
     state.phase,
@@ -748,6 +792,7 @@ export default function App() {
     state.koiKoiCount.player,
     state.botScore,
     winScore,
+    sevenMonMultiplier,
   ]);
 
   useEffect(() => {
@@ -923,7 +968,7 @@ export default function App() {
         ].join(', '),
       }}
     >
-      <BackToMenu onBackToTitle={() => startGame(false, true)} titleLabel="回到主選單" />
+      <BackToMenu onBackToTitle={state.phase !== 'idle' ? handleReturnToMenu : undefined} titleLabel="回到主選單" />
       {showFirstRun && (
         <FirstRunGuide onClose={() => setShowFirstRun(false)} />
       )}
@@ -1120,6 +1165,27 @@ export default function App() {
                 ))}
               </div>
             </details>
+            <div className="mt-4 pt-3 border-t border-gold/15 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="text-left">
+                <span className="text-xs font-semibold text-cream/90 flex items-center gap-1.5">
+                  <span>七文倍額規則</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-gold/20 text-gold border border-gold/40">傳統規則</span>
+                </span>
+                <p className="text-[11px] text-cream/60 mt-0.5">單局役種總分滿 7 分（7文）以上得分自動翻倍（×2）</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSevenMonMultiplier(prev => !prev)}
+                className={`px-3 py-1.5 min-h-[44px] rounded-lg text-xs font-semibold transition-colors touch-manipulation border shrink-0 ${
+                  sevenMonMultiplier
+                    ? 'bg-gold/20 text-gold border-gold/50'
+                    : 'text-cream/50 border-gold/20 hover:text-cream'
+                }`}
+                aria-pressed={sevenMonMultiplier}
+              >
+                {sevenMonMultiplier ? '已開啟（預設）' : '已關閉'}
+              </button>
+            </div>
           </div>
 
           <div className="wafu-panel rounded-2xl p-4 sm:p-6 w-full">
@@ -1454,8 +1520,8 @@ export default function App() {
           ]}
           primaryLabel="下一局 (Space / Enter / R)"
           onPrimary={() => startGame(true)}
-          secondaryLabel="役種圖鑑"
-          onSecondary={() => setShowCodex(true)}
+          secondaryLabel="回到主選單"
+          onSecondary={handleReturnToMenu}
         />
       )}
 
@@ -1479,8 +1545,8 @@ export default function App() {
           ]}
           primaryLabel="再來一局 (Space / Enter / R)"
           onPrimary={() => startGame(false, true)}
-          secondaryLabel="役種圖鑑"
-          onSecondary={() => setShowCodex(true)}
+          secondaryLabel="回到主選單"
+          onSecondary={handleReturnToMenu}
         />
       )}
 

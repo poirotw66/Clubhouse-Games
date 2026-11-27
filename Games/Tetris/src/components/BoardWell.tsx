@@ -18,6 +18,7 @@ interface BoardWellProps {
   dangerZone?: 'safe' | 'warning' | 'critical';
   showDangerLine?: boolean;
   isGoldenClear?: boolean;
+  targetGhost?: { row: number; col: number; rotation: 0 | 1 | 2 | 3 } | null;
 }
 
 function ghostCellsFor(board: Cell[][], active: ActivePiece | null): Set<string> {
@@ -41,10 +42,20 @@ export function BoardWell({
   dangerZone = 'safe',
   showDangerLine = true,
   isGoldenClear = false,
+  targetGhost = null,
 }: BoardWellProps) {
   const ghostCells = showGhost ? ghostCellsFor(board, active) : new Set<string>();
   const activeCells = active
     ? new Set(getCellsForActive(active).map((p) => `${p.row},${p.col}`))
+    : new Set<string>();
+  const targetCells = targetGhost
+    ? new Set(
+        getCellsForActive({
+          type: 'T',
+          position: { row: targetGhost.row, col: targetGhost.col },
+          rotation: targetGhost.rotation,
+        }).map((p) => `${p.row},${p.col}`),
+      )
     : new Set<string>();
 
   const isCritical = dangerZone === 'critical';
@@ -124,7 +135,10 @@ export function BoardWell({
               backgroundPosition: 'center',
             };
           } else if (isGhost) {
-            bg = 'bg-slate-500/30';
+            const isTarget = targetCells.has(`${row},${col}`);
+            bg = isTarget ? 'bg-purple-400/50 border border-purple-300' : 'bg-slate-500/30';
+          } else if (targetCells.has(`${row},${col}`)) {
+            bg = 'bg-purple-600/25 border border-dashed border-purple-400/70 shadow-[0_0_8px_rgba(168,85,247,0.35)]';
           }
           return (
             <div

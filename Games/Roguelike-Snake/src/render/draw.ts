@@ -328,6 +328,47 @@ function drawBoss(
     ctx.fillRect(pipX, y - cell * 0.45, cell * 0.16, cell * 0.14);
   }
   ctx.globalAlpha = 1;
+
+  // Tactical Break Loop visualization: Shielded vs Vulnerable Dash Window
+  const isVulnerable = boss.breakUntil !== undefined && now < boss.breakUntil;
+  if (isVulnerable) {
+    ctx.save();
+    ctx.strokeStyle = '#facc15';
+    ctx.lineWidth = 2.5;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.arc(cx, cy, size / 2 + 6 + Math.sin(now / 150) * 3, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = '#fbbf24';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(cx - 12, cy);
+    ctx.lineTo(cx + 12, cy);
+    ctx.moveTo(cx, cy - 12);
+    ctx.lineTo(cx, cy + 12);
+    ctx.stroke();
+
+    ctx.font = `bold ${Math.max(9, Math.floor(cell * 0.45))}px system-ui, sans-serif`;
+    ctx.fillStyle = '#fde047';
+    ctx.textAlign = 'center';
+    ctx.fillText('⚡ 破防弱點！衝刺打擊', cx, y + size + cell * 0.6);
+    ctx.restore();
+  } else {
+    ctx.save();
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 2.5;
+    ctx.globalAlpha = 0.6 + pulse * 0.3;
+    ctx.beginPath();
+    ctx.arc(cx, cy, size / 2 + 4, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.font = `bold ${Math.max(9, Math.floor(cell * 0.42))}px system-ui, sans-serif`;
+    ctx.fillStyle = '#7dd3fc';
+    ctx.textAlign = 'center';
+    ctx.fillText('🛡️ 毒霧護盾 (需脈衝破防)', cx, y + size + cell * 0.6);
+    ctx.restore();
+  }
 }
 
 function drawSnake(

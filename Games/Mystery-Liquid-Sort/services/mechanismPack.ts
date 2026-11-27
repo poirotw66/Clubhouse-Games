@@ -176,10 +176,10 @@ export function continueMechIndex(clearedCount: number): number {
   return clearedCount;
 }
 
-/** 3★ at minSteps; 2★ within a soft buffer; else 1★ for any clear. */
-export function starsForMoves(moves: number, minSteps: number): 1 | 2 | 3 {
+/** 3★ at minSteps with 0 undo; 2★ within a soft buffer; else 1★ for any clear. */
+export function starsForMoves(moves: number, minSteps: number, undoCount: number = 0): 1 | 2 | 3 {
   if (!Number.isFinite(moves) || moves < 0) return 1;
-  if (moves <= minSteps) return 3;
+  if (moves <= minSteps && undoCount === 0) return 3;
   const buffer = Math.max(2, Math.ceil(minSteps * 0.35));
   if (moves <= minSteps + buffer) return 2;
   return 1;
@@ -189,6 +189,7 @@ export function applyMechStageClear(
   progress: MechanismPackProgress,
   stageIndex: number,
   moves: number,
+  undoCount: number = 0,
 ): MechanismPackProgress {
   const stage = MECHANISM_PACK_STAGES[stageIndex];
   if (!stage || !Number.isFinite(moves) || moves < 0) return progress;
@@ -199,7 +200,7 @@ export function applyMechStageClear(
   const prev = bestMoves[stage.id];
   bestMoves[stage.id] = prev == null ? nextMoves : Math.min(prev, nextMoves);
 
-  const stars = starsForMoves(bestMoves[stage.id], stage.minSteps);
+  const stars = starsForMoves(nextMoves, stage.minSteps, undoCount);
   const prevStars = bestStars[stage.id] ?? 0;
   bestStars[stage.id] = Math.max(prevStars, stars);
 
@@ -248,8 +249,8 @@ export function saveMechProgress(progress: MechanismPackProgress): void {
   }
 }
 
-export function persistMechStageClear(stageIndex: number, moves: number): MechanismPackProgress {
-  const next = applyMechStageClear(loadMechProgress(), stageIndex, moves);
+export function persistMechStageClear(stageIndex: number, moves: number, undoCount: number = 0): MechanismPackProgress {
+  const next = applyMechStageClear(loadMechProgress(), stageIndex, moves, undoCount);
   saveMechProgress(next);
   return next;
 }

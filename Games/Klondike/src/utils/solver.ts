@@ -215,8 +215,9 @@ const RANKS: Rank[] = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', '
 /**
  * Reverse-build a standard 28+24 deal from a cleared board.
  * Every reverse step has a forward inverse, so the deal is solvable with perfect play.
+ * Validates solvability against the active drawCount (Draw-1 or Draw-3) with fallback.
  */
-export function buildGuaranteedDeal(seed: number): BoardSnapshot {
+export function buildGuaranteedDeal(seed: number, drawCount: DrawCount = 1): BoardSnapshot {
   const rng = createRng(seed);
 
   const foundation: CardType[][] = SUITS.map((suit) =>
@@ -363,7 +364,7 @@ export function buildGuaranteedDeal(seed: number): BoardSnapshot {
     waste: [],
   };
 
-  if (isSolvable(built, 1, { maxNodes: 20_000 })) {
+  if (isSolvable(built, drawCount, { maxNodes: 8_000 })) {
     return built;
   }
   return buildScriptedSolvable(seed);

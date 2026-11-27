@@ -1,4 +1,5 @@
 import type { Card } from '../types.ts';
+import type { DealerRule } from './rules.ts';
 import {
   recommendAction,
   STRATEGY_LABELS,
@@ -13,6 +14,8 @@ export interface DecisionRecord {
   canDouble: boolean;
   canSplit: boolean;
   canSurrender: boolean;
+  dealerRule?: DealerRule;
+  surrenderRule?: 'early' | 'late' | 'none';
   /** Action the player actually took. */
   taken: StrategyAction;
 }
@@ -50,6 +53,8 @@ export function evaluateDecision(record: DecisionRecord): DecisionVerdict {
     canDouble: record.canDouble,
     canSplit: record.canSplit,
     canSurrender: record.canSurrender,
+    dealerRule: record.dealerRule,
+    surrenderRule: record.surrenderRule,
   });
   const correct = recommended === record.taken;
   const takenLabel = STRATEGY_LABELS[record.taken];

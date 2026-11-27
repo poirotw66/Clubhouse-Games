@@ -144,6 +144,8 @@ export default function App() {
   const [shareCopied, setShareCopied] = useState(false);
   const [tacticalHighlight, setTacticalHighlight] = useState(true);
   const [lastKeyPressed, setLastKeyPressed] = useState<string | null>(null);
+  const [usedReshuffle, setUsedReshuffle] = useState(false);
+  const [reshuffleNotice, setReshuffleNotice] = useState<string | null>(null);
 
   const noProgressCount = useRef(0);
   const autoCompleteIdle = useRef(0);
@@ -195,6 +197,8 @@ export default function App() {
     setMoveCount(0);
     setRecycleCount(0);
     setUsedUndo(false);
+    setUsedReshuffle(false);
+    setReshuffleNotice(null);
     setElapsedSec(0);
     setTimePenaltyThrough(0);
     setIsAutoPlaying(false);
@@ -745,6 +749,7 @@ export default function App() {
     const cleared = evaluateChallenges({
       won: true,
       usedUndo,
+      usedReshuffle,
       moves: moveRef.current,
       elapsedSec,
       score: finalScore,
@@ -760,6 +765,7 @@ export default function App() {
         score: finalScore,
         elapsedSec,
         moves: moveRef.current,
+        usedReshuffle,
         clearedChallenges: cleared,
       }),
     );
@@ -880,6 +886,13 @@ export default function App() {
   }, [isAutoCompleting, gameState, isGameWon, scoreMode, drawCount, recycleCount]);
 
   const reshuffleBoard = () => {
+    setUsedReshuffle(true);
+    setReshuffleNotice('⚠️ 已使用重新洗牌：本局失去「純技連勝」與「真才實學（無洗牌）」挑戰資格');
+    setFlash({
+      text: '已重新洗牌（純技連勝中斷）',
+      tone: 'bad',
+      key: Date.now(),
+    });
     setGameState((prevState) => {
       const cardsToCollect: CardType[] = [];
       prevState.tableau.forEach((col) => cardsToCollect.push(...col));
@@ -1232,6 +1245,9 @@ export default function App() {
               {modeBest?.bestTimeSec == null ? '—' : formatTime(modeBest.bestTimeSec)}
               {' · '}
               連勝 {stats.currentStreak}
+              {' · '}
+              純技連勝 {stats.pureStreak ?? stats.currentStreak}
+              {usedReshuffle ? ' · ⚠️ 本局已重洗' : ''}
               {settings.playDaily && todayBest
                 ? ` · 今日最佳 ${todayBest.won ? `${todayBest.score} 分` : '未過關'}`
                 : ''}
@@ -1479,6 +1495,11 @@ export default function App() {
 
           {/* Center Table */}
           <div ref={boardRef} className="flex-1 max-w-4xl w-full">
+            {reshuffleNotice && (
+              <div className="mb-4 px-4 py-2.5 rounded-xl bg-amber-500/20 border border-amber-400/50 text-amber-200 text-xs sm:text-sm text-center font-bold backdrop-blur-md shadow-lg animate-pulse">
+                {reshuffleNotice}
+              </div>
+            )}
             {isAutoCompleting && !isGameWon && (
               <p className="mb-4 text-sm text-emerald-200/90 font-medium">自動完成中…</p>
             )}
@@ -1711,12 +1732,13 @@ export default function App() {
           variant="lose"
           subtitle={
             scoreMode === 'vegas'
-              ? `本局 ${score} · 累計籌碼 ${stats.vegasBankroll}`
-              : '也可從上方工具列開新局或復原'
+              ? `本局 ${score} · 累計籌碼 ${stats.vegasBankroll}（重新洗牌將中斷純技連勝）`
+              : '⚠️ 重新洗牌將中斷「純技連勝」並失去本局「真才實學（無洗牌）」徽章資格'
           }
           stats={[
             { label: '分數', value: score },
             { label: '步數', value: moveCount },
+            { label: '純技連勝', value: usedReshuffle ? '已中斷' : `${stats.pureStreak ?? stats.currentStreak} 連勝` },
           ]}
           primaryLabel="重新洗牌 (Space / Enter / R)"
           onPrimary={reshuffleBoard}

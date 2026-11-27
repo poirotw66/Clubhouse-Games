@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { algebraicToMove, boardFromRows, moveToAlgebraic } from './boardCodec';
-import { countEmpties, createInitialBoard, getLegalMoves } from './reversiLogic';
+import { countEmpties, createInitialBoard, getLegalMoves, opponent, type Piece } from './reversiLogic';
 import {
   ACCEPTABLE_FIRST_MOVES,
   PUZZLES,
@@ -8,7 +8,11 @@ import {
   assertPuzzleSolvable,
   describePuzzleObjective,
 } from './puzzles';
-import { isOptimalMove, solveExact } from './solver';
+import {
+  isOptimalMove,
+  solveExact,
+  getPuzzleCounterRefutation,
+} from './solver';
 import { createSeries, applySeriesResult, seriesLabel } from './match';
 import { OPPONENTS, opponentCount } from './opponents';
 import {
@@ -91,9 +95,40 @@ describe('puzzle pack', () => {
     expect(isOptimalMove(board, 'black', [0, 0], 'win')).toBe(true);
     expect(isOptimalMove(board, 'black', [0, 7], 'win')).toBe(true);
   });
+
+  it('computes 1-step counter-refutation state on wrong puzzle move', () => {
+    const puzzle = PUZZLES.find((p) => p.id === 'fork-choice')!;
+    const board = boardFromRows(puzzle.rows);
+    // (7,4)=e8 is known losing move
+    const refutation = getPuzzleCounterRefutation(board, [7, 4], 'black');
+    expect(refutation).not.toBeNull();
+    expect(refutation!.playerMove).toEqual([7, 4]);
+    expect(refutation!.oppSide).toBe('white');
+    // Opponent counter-move must be non-null and legal on the resulting board
+    expect(refutation!.counterMove).toBeDefined();
+    const [cr, cc] = refutation!.counterMove;
+    expect(cr).toBeGreaterThanOrEqual(0);
+    expect(cr).toBeLessThan(8);
+    expect(cc).toBeGreaterThanOrEqual(0);
+    expect(cc).toBeLessThan(8);
+    // The refuted board contains the opponent piece at the refutation square
+    expect(refutation!.boardAfterRefutation[cr][cc]).toBe('white');
+
+    // Passing an illegal move returns null
+    expect(getPuzzleCounterRefutation(board, [0, 0], 'black')).toBeNull();
+  });
 });
 
 describe('opponent roster', () => {
+  it('allows challenging roster opponents as White (CPU moves first)', () => {
+    // When playing as White, opponent (CPU) is Black and moves first
+    const playerSide: Piece = 'white';
+    const cpuSide = opponent(playerSide);
+    expect(cpuSide).toBe('black');
+    const initialBoard = createInitialBoard();
+    const legalBlackMoves = getLegalMoves(initialBoard, 'black');
+    expect(legalBlackMoves.length).toBeGreaterThan(0);
+  });
   it('has at least 5 named styles with distinct knobs', () => {
     expect(opponentCount()).toBeGreaterThanOrEqual(5);
     const keys = OPPONENTS.map(

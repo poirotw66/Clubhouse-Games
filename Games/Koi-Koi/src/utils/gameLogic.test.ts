@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DECK } from '../constants';
 import {
   calculateYakuDetail,
+  calculateFinalRoundPoints,
   getMatchWinner,
   resolveRoundScores,
   scoreToWin,
@@ -150,5 +151,61 @@ describe('resolveRoundScores', () => {
     const result = resolveRoundScores(5, 4, 2, 0, 7);
     expect(result.phase).toBe('game_over');
     expect(result.winner).toBe('player');
+  });
+});
+
+describe('calculateFinalRoundPoints (7-mon and Koi-Koi multipliers)', () => {
+  it('keeps base points when below 7 points and opponent did not call Koi-Koi', () => {
+    const { finalPoints, multiplier, isSevenMonDoubled, isKoiKoiDoubled } =
+      calculateFinalRoundPoints(5, 0, true);
+    expect(finalPoints).toBe(5);
+    expect(multiplier).toBe(1);
+    expect(isSevenMonDoubled).toBe(false);
+    expect(isKoiKoiDoubled).toBe(false);
+  });
+
+  it('automatically doubles points when points >= 7 with rule enabled', () => {
+    const { finalPoints, multiplier, isSevenMonDoubled } =
+      calculateFinalRoundPoints(7, 0, true);
+    expect(finalPoints).toBe(14);
+    expect(multiplier).toBe(2);
+    expect(isSevenMonDoubled).toBe(true);
+
+    const higherScore = calculateFinalRoundPoints(10, 0, true);
+    expect(higherScore.finalPoints).toBe(20);
+    expect(higherScore.multiplier).toBe(2);
+  });
+
+  it('does not double points >= 7 when seven-mon rule toggle is disabled', () => {
+    const { finalPoints, multiplier, isSevenMonDoubled } =
+      calculateFinalRoundPoints(7, 0, false);
+    expect(finalPoints).toBe(7);
+    expect(multiplier).toBe(1);
+    expect(isSevenMonDoubled).toBe(false);
+  });
+
+  it('doubles points when opponent called Koi-Koi', () => {
+    const { finalPoints, multiplier, isKoiKoiDoubled } =
+      calculateFinalRoundPoints(4, 1, true);
+    expect(finalPoints).toBe(8);
+    expect(multiplier).toBe(2);
+    expect(isKoiKoiDoubled).toBe(true);
+  });
+
+  it('compounds both multipliers (4x) when score >= 7 and opponent called Koi-Koi', () => {
+    const { finalPoints, multiplier, isSevenMonDoubled, isKoiKoiDoubled } =
+      calculateFinalRoundPoints(7, 1, true);
+    expect(finalPoints).toBe(28); // 7 * 2 * 2
+    expect(multiplier).toBe(4);
+    expect(isSevenMonDoubled).toBe(true);
+    expect(isKoiKoiDoubled).toBe(true);
+  });
+
+  it('demonstrates substantial upside for calling Koi-Koi at 5 points to hit 7 points', () => {
+    const stopAtFive = calculateFinalRoundPoints(5, 0, true);
+    const reachSeven = calculateFinalRoundPoints(7, 0, true);
+    expect(stopAtFive.finalPoints).toBe(5);
+    expect(reachSeven.finalPoints).toBe(14);
+    expect(reachSeven.finalPoints).toBeGreaterThan(stopAtFive.finalPoints * 2.5);
   });
 });

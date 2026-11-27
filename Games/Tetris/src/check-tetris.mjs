@@ -18,13 +18,16 @@ import {
   movePiece,
   rotatePiece,
   scoreClear,
+  shiftPieceUpOnGarbage,
   spawnPiece,
   tryRotateWithKick,
 } from './utils/tetrisLogic.ts';
 import {
   DIFFICULTY_PRESETS,
   PLAYER_GARBAGE_DROP_CAP,
+  evaluateBestMove,
   findBestPlacement,
+  isTuckPlacement,
   reachPlacement,
 } from './utils/cpuAi.ts';
 import {
@@ -537,7 +540,13 @@ function fillRow(board, row, type = 'I') {
 
 // T-Spin puzzles: boards parse; TSD puzzle can be cleared with one T lock after rotate.
 {
-  assert.ok(TSPIN_PUZZLES.length >= 2);
+  assert.ok(TSPIN_PUZZLES.length >= 8, 'T-Spin drills must have at least 8 structured puzzles');
+  for (const p of TSPIN_PUZZLES) {
+    assert.ok(p.targetGhost, `T-Spin puzzle ${p.id} must define targetGhost`);
+    assert.ok(p.rows.length >= 3, `T-Spin puzzle ${p.id} must have board rows`);
+    const parsed = puzzleBoardFromRows(p.rows);
+    assert.equal(parsed.length, BOARD_SIZE.rows);
+  }
   const puzzle = TSPIN_PUZZLES.find((p) => p.id === 'ts-double-1');
   assert.ok(puzzle);
   const board = puzzleBoardFromRows(puzzle.rows);
@@ -1196,6 +1205,41 @@ function fillRow(board, row, type = 'I') {
   // Stack height is 19. Applying 2 garbage lines pushes row 1 above top -> null (KO).
   const koResult = applyGarbage(fullBoard, 2, 0);
   assert.equal(koResult, null, 'Stack overflowing playfield top must return null (KO)');
+
+  // Garbage-rise active piece shift: shift piece cleanly upward when headroom exists
+  const riseBoard = createEmptyBoard();
+  fillRow(riseBoard, 19, 'G');
+  const activePiece = {
+    type: 'T',
+    rotation: 0,
+    position: { row: 17, col: 4 },
+  };
+  const risenBoard = applyGarbage(riseBoard, 2, 0);
+  assert.ok(risenBoard);
+  assert.equal(collides(risenBoard, activePiece), true, 'Piece collides with rising garbage stack');
+  const shiftedPiece = shiftPieceUpOnGarbage(risenBoard, activePiece, 2);
+  assert.ok(shiftedPiece, 'Active piece must cleanly shift upward when headroom exists');
+  assert.equal(shiftedPiece.position.row, 15, 'Piece must shift up by 2 lines to match rising garbage');
+  assert.equal(collides(risenBoard, shiftedPiece), false, 'Shifted piece must clear collision');
+
+  // CPU Hold evaluation & well/tuck placement reachability
+  const basePreset = DIFFICULTY_PRESETS.normal;
+  const holdBoard = createEmptyBoard();
+  fillRow(holdBoard, 19, 'G');
+  holdBoard[19][3] = null; // single hole for an I or T
+  const evalResult = evaluateBestMove(holdBoard, 'O', 'I', 'T', 'L', true, basePreset);
+  assert.ok(evalResult.plan, 'CPU evaluation must return a viable plan');
+
+  // Well/tuck placement under overhang:
+  const tuckBoard = createEmptyBoard();
+  fillRow(tuckBoard, 19, 'G');
+  tuckBoard[19][4] = null; // open well cell at row 19, col 4
+  tuckBoard[17][4] = 'G';  // overhang covering col 4 at row 17
+  tuckBoard[18][4] = null; // pocket under overhang
+  tuckBoard[18][3] = null; // open path adjacent to well
+  const tuckedPiece = reachPlacement(tuckBoard, 'I', 0, 3);
+  assert.ok(tuckedPiece, 'reachPlacement must find well/tuck placement under overhang');
+  assert.equal(isTuckPlacement(tuckBoard, tuckedPiece), true, 'Placement must be recognized as tuck');
 }
 
 // BO3 Series Progression & Style Unlocking

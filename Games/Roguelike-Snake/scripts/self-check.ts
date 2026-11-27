@@ -31,6 +31,8 @@ import {
   BASE_MOVE_MS,
   CHALLENGES_STORAGE_KEY,
   DASH_DISTANCE,
+  ENERGY_UPGRADE_AMOUNT,
+  ENERGY_UPGRADE_COST,
   GRID,
   IRONSNAKE_RELIC_CHOICE_COUNT,
   MAX_FLOOR,
@@ -56,6 +58,7 @@ import {
 import {
   bossCovers,
   buildFloor,
+  buyEnergyUpgrade,
   chooseRelic,
   createRun,
   dash,
@@ -860,36 +863,62 @@ function expectCombatTurnsAndEnemyMovement(): void {
     hp: 4,
     maxHp: 4,
     hitFlashUntil: 0,
+    breakUntil: 0,
   };
   assert.equal(bossCovers(bossState.boss, { x: 9, y: 9 }), true);
   assert.equal(bossCovers(bossState.boss, { x: 10, y: 10 }), true);
   assert.equal(bossCovers(bossState.boss, { x: 11, y: 11 }), true);
   assert.equal(bossCovers(bossState.boss, { x: 12, y: 10 }), false);
 
-  bossState.energy = 50;
+  bossState.energy = 100;
   bossState.time = 2000;
   bossState.dashReadyAt = 0;
   setSnake(bossState, [{ x: 8, y: 10 }, { x: 7, y: 10 }, { x: 6, y: 10 }], 'right');
+  
+  // Tactical break loop: Dash while boss is shielded must deflect and NOT damage boss
   dash(bossState);
   assert.ok(bossState.boss, 'Boss should still be alive');
-  assert.equal(bossState.boss.hp, 3, 'Dash should deal 1 damage to boss');
-  assert.equal(bossState.boss.hitFlashUntil, 2500, 'Boss should have 500ms hit flash cooldown');
+  assert.equal(bossState.boss.hp, 4, 'Dash should deflect without dealing HP damage while boss is shielded');
 
-  bossState.energy = 50;
+  // VenomPulse clears projectiles and breaks boss shield without direct HP damage
   bossState.time = 2100;
+  bossState.pulseReadyAt = 0;
+  const breakOk = venomPulse(bossState);
+  assert.equal(breakOk, true, 'VenomPulse should succeed');
+  assert.ok((bossState.boss.breakUntil ?? 0) > bossState.time, 'VenomPulse should open break vulnerability window');
+  assert.equal(bossState.boss.hp, 4, 'VenomPulse should NOT deal direct HP damage to boss');
+
+  // Dash during break window deals 1 damage and resets break
+  bossState.time = 2200;
+  bossState.energy = 50;
+  bossState.dashReadyAt = 0;
+  setSnake(bossState, [{ x: 8, y: 10 }, { x: 7, y: 10 }, { x: 6, y: 10 }], 'right');
+  dash(bossState);
+  assert.equal(bossState.boss.hp, 3, 'Dash should deal 1 damage to broken boss');
+  assert.equal(bossState.boss.breakUntil, 0, 'Damage resets break vulnerability');
+  assert.equal(bossState.boss.hitFlashUntil, 2700, 'Boss should have 500ms hit flash cooldown');
+
+  // Hit flash protection test: while hitFlash is active, break and dash cannot double damage
+  bossState.energy = 100;
+  bossState.time = 2300;
+  bossState.pulseReadyAt = 0;
+  venomPulse(bossState);
   bossState.dashReadyAt = 0;
   setSnake(bossState, [{ x: 8, y: 10 }, { x: 7, y: 10 }, { x: 6, y: 10 }], 'right');
   dash(bossState);
   assert.equal(bossState.boss.hp, 3, 'Boss should not take damage during hitFlash cooldown');
 
+  // Break and dash to defeat boss when hp is 1
   bossState.time = 3000;
   bossState.boss.hp = 1;
   bossState.coins = 0;
   bossState.kills = 0;
   bossState.pendingPicks = 0;
   bossState.bossesDefeated = [];
-  bossState.energy = 50;
+  bossState.energy = 100;
   bossState.dashReadyAt = 0;
+  bossState.pulseReadyAt = 0;
+  venomPulse(bossState);
   setSnake(bossState, [{ x: bossState.boss.pos.x - 2, y: bossState.boss.pos.y }, { x: bossState.boss.pos.x - 3, y: bossState.boss.pos.y }], 'right');
   dash(bossState);
   assert.equal(bossState.boss, null, 'Boss should be defeated');
@@ -1131,7 +1160,7 @@ function expectSakuraiJuiceAudioAndUxPrinciples(): void {
     "Fatal hit must emit 'die'",
   );
 
-  // 2. Boss defeat event
+  // 2. Boss defeat event (with tactical break window)
   const bossState = createEmptyState();
   bossState.floor = 5;
   bossState.energy = 100;
@@ -1140,6 +1169,7 @@ function expectSakuraiJuiceAudioAndUxPrinciples(): void {
     hp: 1,
     maxHp: 4,
     hitFlashUntil: 0,
+    breakUntil: 5000,
   };
   setSnake(bossState, [{ x: 4, y: 10 }, { x: 3, y: 10 }], 'right');
   dash(bossState);
@@ -1197,6 +1227,23 @@ function expectSakuraiJuiceAudioAndUxPrinciples(): void {
   assert.ok(isRapidRetryKey('KeyR', 'R'), 'Shift+R / KeyR is rapid retry key');
   assert.ok(!isRapidRetryKey('KeyW', 'w'), 'W is not rapid retry key');
   assert.ok(!isRapidRetryKey('Escape', 'Escape'), 'Escape is not rapid retry key');
+  // 6. Shop 3rd sink: Max Energy Upgrade
+  const shopState = createEmptyState();
+  shopState.phase = 'relic';
+  shopState.coins = 10;
+  shopState.energy = 100;
+  shopState.maxEnergy = 100;
+  const buyOk = buyEnergyUpgrade(shopState);
+  assert.equal(buyOk, true, 'Should successfully buy energy upgrade with 10 coins');
+  assert.equal(shopState.coins, 10 - ENERGY_UPGRADE_COST, 'Coins should be deducted by ENERGY_UPGRADE_COST');
+  assert.equal(shopState.maxEnergy, 100 + ENERGY_UPGRADE_AMOUNT, 'maxEnergy should increase by ENERGY_UPGRADE_AMOUNT');
+  assert.equal(shopState.energy, 100 + ENERGY_UPGRADE_AMOUNT, 'current energy should also be topped up');
+
+  // Insufficient coins test
+  shopState.coins = 2;
+  const failBuy = buyEnergyUpgrade(shopState);
+  assert.equal(failBuy, false, 'Should fail to buy energy upgrade with insufficient coins');
+  assert.equal(shopState.coins, 2);
 }
 
 expectSpitterOnlyFiresWhenAligned();

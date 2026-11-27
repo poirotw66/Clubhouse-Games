@@ -436,11 +436,12 @@ export default function Game() {
             }
             if (gameState.mode === 'mechanism_pack') {
               const moves = gameState.history.length;
-              const next = persistMechStageClear(gameState.level, moves);
+              const undoCount = gameState.undoCount ?? 0;
+              const next = persistMechStageClear(gameState.level, moves, undoCount);
               const stage = getMechStage(gameState.level);
               if (stage) {
                 setPackBestMoves(next.bestMoves[stage.id] ?? moves);
-                setMechStars(next.bestStars[stage.id] ?? starsForMoves(moves, stage.minSteps));
+                setMechStars(next.bestStars[stage.id] ?? starsForMoves(moves, stage.minSteps, undoCount));
               }
             }
             if (gameState.mode === 'daily') {
@@ -982,7 +983,7 @@ export default function Game() {
                 sounds.error();
                 return prev;
             }
-            if (prev.coins < COST_UNDO) {
+            if (COST_UNDO > 0 && prev.coins < COST_UNDO) {
                 sounds.error();
                 return prev;
             }
@@ -996,7 +997,8 @@ export default function Game() {
 
             return {
                 ...prev,
-                coins: prev.coins - COST_UNDO,
+                coins: COST_UNDO > 0 ? prev.coins - COST_UNDO : prev.coins,
+                undoCount: (prev.undoCount ?? 0) + 1,
                 bottles: previousState.bottles,
                 orders: previousState.orders,
                 selectedBottleId: null,
@@ -1239,20 +1241,23 @@ export default function Game() {
                 return;
             }
 
-            // Numeric keys 1-9 (main keyboard row or numpad)
-            let tubeNum: number | null = null;
+            // Numeric keys 1-9 and 10+ symbols (0, -, =)
+            let targetIdx: number | null = null;
             if (/^[1-9]$/.test(key)) {
-                tubeNum = parseInt(key, 10);
+                targetIdx = parseInt(key, 10) - 1;
             } else if (e.code.startsWith('Numpad') && /^[1-9]$/.test(e.code.slice(6))) {
-                tubeNum = parseInt(e.code.slice(6), 10);
+                targetIdx = parseInt(e.code.slice(6), 10) - 1;
+            } else if (key === '0' || e.code === 'Numpad0') {
+                targetIdx = 9; // Tube 10
+            } else if (key === '-' || key === '_' || e.code === 'NumpadSubtract') {
+                targetIdx = 10; // Tube 11
+            } else if (key === '=' || key === '+' || e.code === 'NumpadAdd') {
+                targetIdx = 11; // Tube 12
             }
 
-            if (tubeNum != null) {
-                const targetIdx = tubeNum - 1;
-                if (targetIdx >= 0 && targetIdx < gameState.bottles.length) {
-                    e.preventDefault();
-                    handleBottleClick(gameState.bottles[targetIdx].id);
-                }
+            if (targetIdx != null && targetIdx >= 0 && targetIdx < gameState.bottles.length) {
+                e.preventDefault();
+                handleBottleClick(gameState.bottles[targetIdx].id);
             }
         };
 
@@ -1390,11 +1395,23 @@ export default function Game() {
                         {bottleRows.map((row, rowIndex) => (
                             <TestTubeRack key={`rack-row-${rowIndex}`}>
                                 {row.map(bottle => {
-                                    const tubeNumber = gameState.bottles.findIndex(b => b.id === bottle.id) + 1;
+                                    const tubeIdx = gameState.bottles.findIndex(b => b.id === bottle.id);
+                                    const tubeNumber = tubeIdx + 1;
+                                    const keyBadge =
+                                      tubeIdx >= 0 && tubeIdx < 9
+                                        ? String(tubeIdx + 1)
+                                        : tubeIdx === 9
+                                          ? '0'
+                                          : tubeIdx === 10
+                                            ? '-'
+                                            : tubeIdx === 11
+                                              ? '='
+                                              : undefined;
                                     return (
                                         <Bottle
                                             key={bottle.id}
                                             tubeNumber={tubeNumber}
+                                            keyBadge={keyBadge}
                                             bottle={bottle}
                                             isSelected={gameState.selectedBottleId === bottle.id}
                                             isValidTarget={validTargets.has(bottle.id)}
@@ -1548,10 +1565,10 @@ export default function Game() {
                         </div>
                         <div className="space-y-2 text-xs text-white/80 leading-relaxed">
                             <div className="flex items-start gap-2 bg-white/5 p-2 rounded-xl">
-                                <span className="font-mono px-1.5 py-0.5 rounded bg-amber-400/20 text-amber-300 font-bold flex-shrink-0">1 ~ 9</span>
+                                <span className="font-mono px-1.5 py-0.5 rounded bg-amber-400/20 text-amber-300 font-bold flex-shrink-0">1~9, 0, -, =</span>
                                 <div>
-                                    <span className="font-bold text-white">數字鍵秒選試管</span>
-                                    <p className="text-[11px] text-white/60">第一按鎖定來源管，第二按直接注入目標管，無需滑鼠逐格拖曳！</p>
+                                    <span className="font-bold text-white">數字與符號鍵秒選試管</span>
+                                    <p className="text-[11px] text-white/60">1~9 直選前 9 管；第 10、11、12 管支援 0、-、= 快捷鍵，第一按鎖定來源管，第二按直接注入目標管！</p>
                                 </div>
                             </div>
                             <div className="flex items-start gap-2 bg-white/5 p-2 rounded-xl">

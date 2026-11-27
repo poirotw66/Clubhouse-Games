@@ -22,6 +22,9 @@ import {
   IRONSNAKE_RELIC_CHOICE_COUNT,
   RELIC_CHOICE_COUNT,
   REROLL_COST,
+  ENERGY_UPGRADE_COST,
+  ENERGY_UPGRADE_AMOUNT,
+  BOSS_BREAK_DURATION_MS,
   SCORE_BOSS,
   SCORE_ESCAPE,
   SCORE_FLOOR,
@@ -774,6 +777,7 @@ function damageBoss(state: GameState): void {
   if (!boss || state.time < boss.hitFlashUntil) return;
 
   boss.hp -= 1;
+  boss.breakUntil = 0;
   boss.hitFlashUntil = state.time + 500;
   addEffect(state, 'burst', boss.pos, '#f472b6', 2.5, 480);
   state.events.push({ type: 'bossHit' });
@@ -801,6 +805,18 @@ function updateBoss(state: GameState): void {
   if (!boss) return;
   if (state.tick % 20 === 0 && state.enemies.length < 4) spawnEnemy(state, 'stalker');
   if (state.tick % 20 === 0 && state.spikes.length < 20) spawnSpikes(state, 1);
+
+  // When shielded, boss periodically releases toxic projectiles
+  const isVulnerable = boss.breakUntil !== undefined && state.time < boss.breakUntil;
+  if (!isVulnerable && state.tick % 12 === 0) {
+    const dirs: Dir[] = ['up', 'down', 'left', 'right'];
+    for (const dir of dirs) {
+      const muzzle = { x: boss.pos.x + DELTA[dir].x * 2, y: boss.pos.y + DELTA[dir].y * 2 };
+      if (!isWall(state.tiles, muzzle.x, muzzle.y)) {
+        state.projectiles.push({ id: state.nextId++, pos: muzzle, prev: { ...boss.pos }, dir });
+      }
+    }
+  }
 }
 
 function checkSpikes(state: GameState): void {
@@ -863,7 +879,16 @@ export function dash(state: GameState): void {
     if (!target) break;
 
     if (state.boss && bossCovers(state.boss, target)) {
-      damageBoss(state);
+      const isVulnerable = state.boss.breakUntil !== undefined && state.time < state.boss.breakUntil;
+      if (isVulnerable) {
+        damageBoss(state);
+      } else {
+        addEffect(state, 'ring', state.boss.pos, '#38bdf8', 2.5, 300);
+        state.events.push({
+          type: 'bossDeflect',
+          text: '首領護盾防禦！請先以猛毒脈衝 (E) 擊碎投射物並破防！',
+        });
+      }
       break;
     }
 
@@ -912,13 +937,28 @@ export function venomPulse(state: GameState): boolean {
     }
   }
 
-  if (state.boss && chebyshev(state.boss.pos, head) <= PULSE_RADIUS + 1) {
-    damageBoss(state);
+  // Tactical Break Loop: venomPulse shatters Boss projectiles and breaks Boss defense,
+  // opening a vulnerability window, instead of dealing direct HP damage.
+  let bossBroken = false;
+  if (state.boss && chebyshev(state.boss.pos, head) <= PULSE_RADIUS + 2) {
+    bossBroken = true;
+    state.boss.breakUntil = state.time + BOSS_BREAK_DURATION_MS;
+    addEffect(state, 'ring', state.boss.pos, '#facc15', 3, 500);
+    addEffect(state, 'burst', state.boss.pos, '#38bdf8', 2.5, 400);
+    state.events.push({
+      type: 'bossVulnerable',
+      text: '首領防禦瓦解！虛弱破防狀態，立即使用衝刺 (Space) 打擊！',
+    });
   }
 
   state.events.push({
     type: 'pulse',
-    text: killed > 0 || clearedProj > 0 ? `猛毒脈衝！淨化 ${killed} 敵 · 破除 ${clearedProj} 毒液` : '猛毒脈衝！',
+    text:
+      bossBroken
+        ? `猛毒脈衝！淨化破除 ${clearedProj} 毒液 · 首領破防虛弱！`
+        : killed > 0 || clearedProj > 0
+          ? `猛毒脈衝！淨化 ${killed} 敵 · 破除 ${clearedProj} 毒液`
+          : '猛毒脈衝！',
   });
   return true;
 }
@@ -996,6 +1036,14 @@ export function buyHeal(state: GameState): void {
   if (state.ironsnake) return;
   state.coins -= HEAL_COST;
   state.hp += 1;
+}
+
+export function buyEnergyUpgrade(state: GameState): boolean {
+  if (state.phase !== 'relic' || state.coins < ENERGY_UPGRADE_COST) return false;
+  state.coins -= ENERGY_UPGRADE_COST;
+  state.maxEnergy += ENERGY_UPGRADE_AMOUNT;
+  state.energy = Math.min(state.maxEnergy, state.energy + ENERGY_UPGRADE_AMOUNT);
+  return true;
 }
 
 /** Called from the victory screen to keep diving with the same build. */

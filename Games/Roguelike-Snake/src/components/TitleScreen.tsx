@@ -44,7 +44,7 @@ const RULES: Array<[string, string]> = [
   ['⚡ 衝刺', 'Space／衝刺鍵，消耗能量並輾殺敵人'],
   ['❤️ 生命', '撞牆、撞自己、被敵人碰到都會 −1 HP'],
   ['🎁 遺物', '每通過一層三選一，永久疊加'],
-  ['👹 首領', '每 5 層一場，只有衝刺能傷到它'],
+  ['👹 首領', '每 5 層一場，先以脈衝破防後衝刺撞擊核心'],
 ];
 
 function startingRelicLabel(relicIds: readonly RelicId[]): string {

@@ -90,6 +90,29 @@ export const blackjackPayout = (bet: number, payout: BjPayout = '3:2'): number =
 export const blackjackPayoutLabel = (payout: BjPayout): string =>
   payout === '6:5' ? '6:5' : '3:2';
 
+/**
+ * Calculates net profit delta across all player hands at round resolution.
+ * Takes split hands, double-downs, blackjacks, surrenders, and busts into account.
+ */
+export function calculateNetProfitDelta(
+  hands: Array<{ bet: number; status: string }>,
+  bjPayout: BjPayout = '3:2',
+): number {
+  let profit = 0;
+  for (const hand of hands) {
+    if (hand.status === 'blackjack') {
+      profit += blackjackPayout(hand.bet, bjPayout) - hand.bet;
+    } else if (hand.status === 'won') {
+      profit += hand.bet;
+    } else if (hand.status === 'lost' || hand.status === 'busted') {
+      profit -= hand.bet;
+    } else if (hand.status === 'surrendered') {
+      profit += surrenderRefund(hand.bet) - hand.bet;
+    }
+  }
+  return profit;
+}
+
 /** Display total; soft hands show Traditional Chinese「軟」prefix. */
 export const formatHandTotal = (cards: Card[]): string => {
   const score = calculateScore(cards);

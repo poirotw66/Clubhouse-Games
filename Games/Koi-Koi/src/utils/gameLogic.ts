@@ -176,6 +176,34 @@ export interface RoundResolution {
   winner: 'player' | 'bot' | null;
 }
 
+/**
+ * Calculate final round points with traditional multipliers:
+ * 1. Opponent called Koi-Koi (overextension penalty): x2
+ * 2. Traditional 7-mon/point >= 7 automatic multiplier: x2 (optional toggle, default true)
+ */
+export function calculateFinalRoundPoints(
+  basePoints: number,
+  opponentKoiKoiCount: number,
+  enableSevenMonMultiplier: boolean = true,
+): {
+  finalPoints: number;
+  isSevenMonDoubled: boolean;
+  isKoiKoiDoubled: boolean;
+  multiplier: number;
+} {
+  const isSevenMonDoubled = Boolean(enableSevenMonMultiplier && basePoints >= 7);
+  const isKoiKoiDoubled = opponentKoiKoiCount > 0;
+  let multiplier = 1;
+  if (isKoiKoiDoubled) multiplier *= 2;
+  if (isSevenMonDoubled) multiplier *= 2;
+  return {
+    finalPoints: basePoints * multiplier,
+    isSevenMonDoubled,
+    isKoiKoiDoubled,
+    multiplier,
+  };
+}
+
 export function resolveRoundScores(
   playerScore: number,
   botScore: number,

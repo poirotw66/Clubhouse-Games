@@ -726,6 +726,28 @@ function isSolvable(bottles, orders, maxNodes = 200000, maxMs = 5000) {
   // Level 4 boards opt into mixingEnabled.
   const early = generateLevel(4);
   assert.ok(early.bottles.some((b) => b.mixingEnabled), 'level 4 should enable mixing');
+
+  // Odd-capacity levels (L5-9, e.g. L5 with capacity 5) preserve mixing
+  const oddLevel = generateLevel(5);
+  assert.equal(getCapacityForLevel(5), 5);
+  assert.ok(oddLevel.bottles.length >= 4);
+  assert.equal(oddLevel.bottles[0].capacity, 5);
+  assert.ok(oddLevel.bottles.some((b) => b.mixingEnabled), 'level 5 should enable mixing');
+
+  // Hint respects blocked tubes and locked orders
+  const bTest1 = bottle('h1', [layer(Color.RED), layer(Color.RED)]);
+  const bTest2 = bottle('h2', []);
+  const bBlockedHint = { ...bottle('hBlocked', [layer(Color.RED)]), isBlocked: true };
+  const testOrdersHint = [
+    { id: 'ord1', color: Color.RED, isCompleted: false, isLocked: false },
+    { id: 'ord2', color: Color.BLUE, isCompleted: false, isLocked: true },
+  ];
+  const hintResult = findHintMove([bTest1, bTest2, bBlockedHint], testOrdersHint);
+  assert.ok(hintResult, 'should find legal hint move');
+  assert.notEqual(hintResult.sourceId, 'hBlocked', 'hint cannot pick blocked bottle as source');
+  assert.notEqual(hintResult.targetId, 'hBlocked', 'hint cannot pick blocked bottle as target');
+  assert.equal(hintResult.sourceId, 'h1');
+  assert.equal(hintResult.targetId, 'h2');
 }
 
 // --- Mechanism pack: blocked / mixed capacity / minSteps stars ---
@@ -740,7 +762,9 @@ function isSolvable(bottles, orders, maxNodes = 200000, maxMs = 5000) {
   assert.equal(continueMechIndex(0), 0);
   assert.equal(continueMechIndex(mechStageCount()), mechStageCount() - 1);
 
-  assert.equal(starsForMoves(5, 5), 3);
+  assert.equal(COST_UNDO, 0, 'undo should be free (0 coins)');
+  assert.equal(starsForMoves(5, 5, 0), 3, '3 stars requires 0 undo');
+  assert.equal(starsForMoves(5, 5, 1), 2, '3 stars gated when undoCount > 0');
   assert.equal(starsForMoves(6, 5), 2);
   assert.equal(starsForMoves(20, 5), 1);
 

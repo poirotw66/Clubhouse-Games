@@ -12,12 +12,13 @@ import {
   isValidSequence,
   INITIAL_FOUNDATIONS,
 } from './utils/gameLogic.ts';
-import { dealForDifficulty, dealGame } from './utils/deck.ts';
+import { dealForDifficulty, dealGame, VERIFIED_DIFFICULTY_SEEDS } from './utils/deck.ts';
 import { classifyDifficulty, estimateParMoves, solveSync } from './utils/solver.ts';
 import { computeStreak, dailyBaseSeed, dailySeedCode, dateKey } from './utils/daily.ts';
 import { evaluateChallenges, isChallengeCleared, CHALLENGES } from './utils/challenges.ts';
 import {
   applyScoreDelta,
+  calibrateParMovesForSlots,
   clampScore,
   classicTimeBonus,
   finishMoveDelta,
@@ -887,6 +888,30 @@ function emptyState(overrides = {}) {
   const deal1 = dealGame(1);
   const par = estimateParMoves(deal1.tableaus, { maxNodes: 1000 });
   assert.ok(['easy', 'medium', 'hard'].includes(classifyDifficulty(par)));
+
+  // Dynamic parMoves calibration for 2-cell mode vs 4-cell baseline
+  assert.equal(calibrateParMovesForSlots(50, 4), 50, '4-cell mode preserves baseline par');
+  const calibrated2Cell = calibrateParMovesForSlots(50, 2);
+  assert.equal(calibrated2Cell, 74, '2-cell mode dynamically scales par (+35% + 6 moves)');
+  assert.equal(calibrateParMovesForSlots(null, 2), null, 'null par remains null');
+  assert.equal(calibrateParMovesForSlots(0, 2), null, '0 par returns null');
+
+  // Non-blocking difficulty change using precomputed verified seed pools (<50ms execution)
+  const tStart = Date.now();
+  const dealEasy = dealForDifficulty('easy');
+  const dealMedium = dealForDifficulty('medium');
+  const dealHard = dealForDifficulty('hard');
+  const elapsed = Date.now() - tStart;
+  assert.ok(elapsed < 100, `switching difficulties must be instant and non-blocking (took ${elapsed}ms)`);
+  assert.equal(dealEasy.difficulty, 'easy');
+  assert.equal(dealMedium.difficulty, 'medium');
+  assert.equal(dealHard.difficulty, 'hard');
+  assert.ok(dealEasy.parMoves != null && dealEasy.parMoves <= 52);
+  assert.ok(dealMedium.parMoves != null && dealMedium.parMoves >= 53 && dealMedium.parMoves <= 78);
+  assert.ok(dealHard.parMoves != null && dealHard.parMoves >= 79);
+  assert.ok(VERIFIED_DIFFICULTY_SEEDS.easy.length >= 5);
+  assert.ok(VERIFIED_DIFFICULTY_SEEDS.medium.length >= 5);
+  assert.ok(VERIFIED_DIFFICULTY_SEEDS.hard.length >= 5);
 }
 
 // ============================================================================

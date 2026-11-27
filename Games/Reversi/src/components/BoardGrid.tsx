@@ -17,6 +17,7 @@ export interface BoardGridProps {
   lastMove: [number, number] | null;
   hintCell: [number, number] | null;
   cursorCell: [number, number] | null;
+  refutationCell?: [number, number] | null;
   flipCells: Set<string>;
   cascadeMap?: Map<string, CascadeStep>;
   previewFlips?: Set<string>;
@@ -44,6 +45,7 @@ export function BoardGrid({
   lastMove,
   hintCell,
   cursorCell,
+  refutationCell,
   flipCells,
   cascadeMap,
   previewFlips = new Set(),
@@ -112,6 +114,9 @@ export function BoardGrid({
               const isCornerLocked =
                 isCorner && (cell !== null || (goldenFortressCorners?.has(key) ?? false));
               const isRecentBeam = recentCornerLocked === key;
+              const isRefutation = Boolean(
+                refutationCell && refutationCell[0] === r && refutationCell[1] === c,
+              );
 
               // Stability info
               const isStable = stabilityAnalysis?.stableSet.has(key) ?? false;
@@ -127,15 +132,17 @@ export function BoardGrid({
               const cellStyle: CSSProperties = {
                 backgroundColor: isCornerLocked ? '#064e3b' : '#065f46',
                 backgroundImage: [
-                  isHint
-                    ? 'linear-gradient(rgba(14,165,233,0.45), rgba(14,165,233,0.5))'
-                    : isTeach
-                      ? 'linear-gradient(rgba(251,191,36,0.35), rgba(251,191,36,0.4))'
-                      : isCornerLocked
-                        ? 'linear-gradient(rgba(245,158,11,0.22), rgba(180,83,9,0.28))'
-                        : showLegalHints && isLegal && !cell
-                          ? 'linear-gradient(rgba(5,150,105,0.45), rgba(5,150,105,0.55))'
-                          : 'linear-gradient(rgba(6,95,70,0.35), rgba(6,78,59,0.5))',
+                  isRefutation
+                    ? 'linear-gradient(rgba(225,29,72,0.55), rgba(190,18,60,0.65))'
+                    : isHint
+                      ? 'linear-gradient(rgba(14,165,233,0.45), rgba(14,165,233,0.5))'
+                      : isTeach
+                        ? 'linear-gradient(rgba(251,191,36,0.35), rgba(251,191,36,0.4))'
+                        : isCornerLocked
+                          ? 'linear-gradient(rgba(245,158,11,0.22), rgba(180,83,9,0.28))'
+                          : showLegalHints && isLegal && !cell
+                            ? 'linear-gradient(rgba(5,150,105,0.45), rgba(5,150,105,0.55))'
+                            : 'linear-gradient(rgba(6,95,70,0.35), rgba(6,78,59,0.5))',
                   `url(${import.meta.env.BASE_URL}cell.jpg)`,
                 ].join(', '),
               };
@@ -155,7 +162,8 @@ export function BoardGrid({
                     ${cell ? 'cursor-default' : ''}
                     ${showLegalHints && isLegal && !cell ? 'hover:brightness-125 cursor-pointer' : ''}
                     ${!phasePlaying ? 'cursor-default' : ''}
-                    ${isLastMove ? 'ring-2 ring-yellow-400 ring-inset' : ''}
+                    ${isRefutation ? 'ring-4 ring-rose-500 ring-offset-2 ring-offset-black z-30 animate-pulse shadow-[0_0_16px_rgba(244,63,94,0.9)]' : ''}
+                    ${isLastMove && !isRefutation ? 'ring-2 ring-yellow-400 ring-inset' : ''}
                     ${isHint ? 'ring-2 ring-sky-300 ring-inset' : ''}
                     ${isTeach && !isHint ? 'ring-2 ring-amber-300/80 ring-inset' : ''}
                     ${isCursor ? 'ring-2 sm:ring-[3px] ring-emerald-300 ring-offset-1 ring-offset-black z-10' : ''}
@@ -246,6 +254,16 @@ export function BoardGrid({
                       title="四角黃金要塞：永久不可逆安定防線"
                     >
                       ★要塞
+                    </span>
+                  )}
+
+                  {/* Opponent Refutation Move Badge */}
+                  {isRefutation && (
+                    <span
+                      className="absolute top-0.5 right-0.5 text-[8px] sm:text-[9px] font-black text-rose-100 bg-rose-700 px-1 py-0.5 rounded border border-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.8)] z-40 pointer-events-none animate-bounce"
+                      title="對手破著反擊"
+                    >
+                      ⚔️ 反擊
                     </span>
                   )}
 

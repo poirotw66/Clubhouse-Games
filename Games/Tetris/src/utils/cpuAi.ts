@@ -4,6 +4,7 @@ import {
   clearLines,
   collides,
   detectTSpin,
+  getCellsForActive,
   mergePiece,
   movePiece,
   scoreClear,
@@ -103,6 +104,8 @@ export interface PlacementPlan {
   score: number;
   linesCleared: number;
   attack: number;
+  useHold?: boolean;
+  isTuck?: boolean;
 }
 
 function columnHeights(board: Cell[][]): number[] {
@@ -193,39 +196,131 @@ function landPiece(board: Cell[][], piece: ActivePiece): ActivePiece | null {
 }
 
 /**
- * Walk the same rotate→shift path the versus loop uses.
- * Returns null when the target orientation/column is not reachable on this board
- * (teleport placements were the main Easy-mode suicide cause).
+ * Check if a placed piece sits under an overhang (tuck / well placement).
+ */
+export function isTuckPlacement(board: Cell[][], piece: ActivePiece): boolean {
+  const cells = getCellsForActive(piece);
+  for (const { row, col } of cells) {
+    for (let r = row - 1; r >= 0; r--) {
+      if (board[r][col] !== null) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Walk the rotate→shift→drop path, and evaluate well/tuck paths under overhangs
+ * when direct drop is obstructed.
+ * Returns null when the target orientation/column is not reachable on this board.
  */
 export function reachPlacement(
   board: Cell[][],
   type: TetrominoType,
   rotation: Rotation,
   col: number,
+  targetRow?: number,
 ): ActivePiece | null {
   let piece = spawnPiece(type);
   if (collides(board, piece)) return null;
 
+  let directPossible = true;
   let rotGuard = 0;
   while (piece.rotation !== rotation && rotGuard < 4) {
     const { piece: next, kickIndex } = tryRotateWithKick(board, piece, 1);
-    if (kickIndex < 0) return null;
+    if (kickIndex < 0) {
+      directPossible = false;
+      break;
+    }
     piece = next;
     rotGuard += 1;
   }
-  if (piece.rotation !== rotation) return null;
+  if (piece.rotation !== rotation) directPossible = false;
 
-  let shiftGuard = 0;
-  while (piece.position.col !== col && shiftGuard < 12) {
-    const dir = col > piece.position.col ? 1 : -1;
-    const moved = movePiece(board, piece, 0, dir);
-    if (!moved) return null;
-    piece = moved;
-    shiftGuard += 1;
+  if (directPossible) {
+    let shiftGuard = 0;
+    while (piece.position.col !== col && shiftGuard < 12) {
+      const dir = col > piece.position.col ? 1 : -1;
+      const moved = movePiece(board, piece, 0, dir);
+      if (!moved) {
+        directPossible = false;
+        break;
+      }
+      piece = moved;
+      shiftGuard += 1;
+    }
+    if (piece.position.col === col) {
+      const landed = landPiece(board, piece);
+      if (landed) {
+        if (targetRow !== undefined && landed.position.row === targetRow) {
+          return landed;
+        }
+        if (targetRow === undefined && countHoles(board) === 0) {
+          return landed;
+        }
+      }
+    }
   }
-  if (piece.position.col !== col) return null;
 
-  return landPiece(board, piece);
+  // Well / tuck search: BFS through reachable legal piece movements
+  const startPiece = spawnPiece(type);
+  if (collides(board, startPiece)) return null;
+
+  const visited = new Set<string>();
+  const queue: ActivePiece[] = [startPiece];
+  visited.add(`${startPiece.position.row},${startPiece.position.col},${startPiece.rotation}`);
+
+  let deepestResting: ActivePiece | null = null;
+
+  while (queue.length > 0) {
+    const curr = queue.shift()!;
+
+    // Check if curr is resting (cannot move down)
+    const down = movePiece(board, curr, 1, 0);
+    if (!down) {
+      if (curr.rotation === rotation && curr.position.col === col) {
+        if (targetRow === undefined || curr.position.row === targetRow) {
+          if (!deepestResting || curr.position.row > deepestResting.position.row) {
+            deepestResting = curr;
+            if (targetRow !== undefined && curr.position.row === targetRow) {
+              return curr;
+            }
+          }
+        }
+      }
+    } else {
+      const key = `${down.position.row},${down.position.col},${down.rotation}`;
+      if (!visited.has(key)) {
+        visited.add(key);
+        queue.push(down);
+      }
+    }
+
+    // Try horizontal shifts
+    for (const dir of [-1, 1]) {
+      const shifted = movePiece(board, curr, 0, dir);
+      if (shifted) {
+        const key = `${shifted.position.row},${shifted.position.col},${shifted.rotation}`;
+        if (!visited.has(key)) {
+          visited.add(key);
+          queue.push(shifted);
+        }
+      }
+    }
+
+    // Try rotations
+    for (const rotDir of [1, -1] as const) {
+      const { piece: rotated, kickIndex } = tryRotateWithKick(board, curr, rotDir);
+      if (kickIndex >= 0) {
+        const key = `${rotated.position.row},${rotated.position.col},${rotated.rotation}`;
+        if (!visited.has(key)) {
+          visited.add(key);
+          queue.push(rotated);
+        }
+      }
+    }
+  }
+
+  return deepestResting;
 }
 
 function simulatePlacement(
@@ -314,6 +409,7 @@ function scorePlacement(
     score,
     linesCleared: sim.linesCleared,
     attack: sim.attack,
+    isTuck: isTuckPlacement(board, sim.piece),
   };
 }
 
@@ -367,4 +463,47 @@ export function findBestPlacement(
 export function thinkDelayMs(preset: DifficultyPreset): number {
   const span = Math.max(0, preset.thinkMax - preset.thinkMin);
   return preset.thinkMin + Math.floor(Math.random() * (span + 1));
+}
+
+export interface CpuEvaluation {
+  plan: PlacementPlan | null;
+  useHold: boolean;
+}
+
+/**
+ * Evaluates whether to play the current active piece or execute a Hold swap.
+ * Checks both options and chooses Hold if it avoids a topout or gives a noticeably
+ * superior strategic placement (T-Spin, higher attack, better board stability).
+ */
+export function evaluateBestMove(
+  board: Cell[][],
+  currentType: TetrominoType,
+  holdType: TetrominoType | null,
+  nextType: TetrominoType | null,
+  afterNextType: TetrominoType | null,
+  canHold: boolean,
+  preset: DifficultyPreset,
+  options: { backToBackReady?: boolean; combo?: number; level?: number } = {},
+): CpuEvaluation {
+  const currentPlan = findBestPlacement(board, currentType, nextType, preset, options);
+  if (!canHold) {
+    return { plan: currentPlan, useHold: false };
+  }
+  const candidateHoldType = holdType ?? nextType;
+  if (!candidateHoldType) {
+    return { plan: currentPlan, useHold: false };
+  }
+  const futureNext = holdType ? nextType : afterNextType;
+  const holdPlan = findBestPlacement(board, candidateHoldType, futureNext, preset, options);
+
+  if (!currentPlan && holdPlan) {
+    return { plan: { ...holdPlan, useHold: true }, useHold: true };
+  }
+  if (currentPlan && holdPlan) {
+    // Switch to hold if it produces a significantly higher score (e.g. saves from topout, scores T-Spin, or clears more attack)
+    if (holdPlan.score > currentPlan.score + 15 || (holdPlan.attack > currentPlan.attack && holdPlan.attack >= 2)) {
+      return { plan: { ...holdPlan, useHold: true }, useHold: true };
+    }
+  }
+  return { plan: currentPlan, useHold: false };
 }

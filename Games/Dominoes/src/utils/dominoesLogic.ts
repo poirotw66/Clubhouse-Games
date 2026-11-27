@@ -19,6 +19,7 @@ import {
   sumOpenEnds,
   type Board,
 } from './board';
+
 import type {
   Difficulty,
   EndId,
@@ -698,6 +699,211 @@ export function remainingPipCounts(
   return counts.map((c) => Math.max(0, c));
 }
 
+export function getBoardTiles(board: Board): Tile[] {
+  if (!board.hub) return [];
+  const tiles: Tile[] = [board.hub.tile];
+  for (const end of ['left', 'right', 'up', 'down'] as EndId[]) {
+    for (const p of board.arms[end]) {
+      tiles.push(p.tile);
+    }
+  }
+  return tiles;
+}
+
+export interface AlphaBetaSearchResult {
+  score: number;
+  bestMove: BotMove | null;
+}
+
+/**
+ * Multi-ply Alpha-Beta minimax endgame search for 1v1 dominoes when boneyard is empty.
+ * Optimizes net points, taking into account All Fives in-round scoring and endgame bonuses.
+ */
+export function alphaBetaEndgame(
+  botHand: Tile[],
+  oppHand: Tile[],
+  board: Board,
+  isBotTurn: boolean,
+  alpha: number,
+  beta: number,
+  depth: number,
+  maxDepth: number,
+  ruleVariant: RuleVariant,
+  consecutivePasses: number = 0,
+): AlphaBetaSearchResult {
+  // Terminal 1: Bot emptied hand
+  if (botHand.length === 0) {
+    const bonus = roundEndPoints(oppHand, ruleVariant);
+    return { score: bonus, bestMove: null };
+  }
+
+  // Terminal 2: Opponent emptied hand
+  if (oppHand.length === 0) {
+    const bonus = roundEndPoints(botHand, ruleVariant);
+    return { score: -bonus, bestMove: null };
+  }
+
+  // Terminal 3: Blocked game (both players passed)
+  if (consecutivePasses >= 2) {
+    const botSum = handSum(botHand);
+    const oppSum = handSum(oppHand);
+    if (botSum < oppSum) {
+      const bonus = roundEndPoints(oppHand, ruleVariant);
+      return { score: bonus, bestMove: null };
+    } else if (oppSum < botSum) {
+      const bonus = roundEndPoints(botHand, ruleVariant);
+      return { score: -bonus, bestMove: null };
+    } else {
+      return { score: 0, bestMove: null };
+    }
+  }
+
+  // Depth cutoff heuristic
+  if (depth >= maxDepth) {
+    const botSum = handSum(botHand);
+    const oppSum = handSum(oppHand);
+    return { score: oppSum - botSum, bestMove: null };
+  }
+
+  if (isBotTurn) {
+    const moves = getValidMoves(botHand, board, ruleVariant);
+    if (moves.length === 0) {
+      const res = alphaBetaEndgame(
+        botHand,
+        oppHand,
+        board,
+        false,
+        alpha,
+        beta,
+        depth + 1,
+        maxDepth,
+        ruleVariant,
+        consecutivePasses + 1,
+      );
+      return { score: res.score, bestMove: null };
+    }
+
+    let maxScore = -Infinity;
+    let bestMove: BotMove = moves[0];
+
+    const orderedMoves = [...moves].sort((a, b) => {
+      if (ruleVariant === 'fives') {
+        const tileA = botHand.find((t) => t.id === a.tileId);
+        const tileB = botHand.find((t) => t.id === b.tileId);
+        const boardA = tileA ? placeTile(board, tileA, a.end, ruleVariant) : null;
+        const boardB = tileB ? placeTile(board, tileB, b.end, ruleVariant) : null;
+        const sA = boardA ? scoreOpenEnds(boardA) : 0;
+        const sB = boardB ? scoreOpenEnds(boardB) : 0;
+        if (sB !== sA) return sB - sA;
+      }
+      return 0;
+    });
+
+    for (const move of orderedMoves) {
+      const tile = botHand.find((t) => t.id === move.tileId);
+      if (!tile) continue;
+      const nextBoard = placeTile(board, tile, move.end, ruleVariant);
+      if (!nextBoard) continue;
+
+      const moveScore = ruleVariant === 'fives' ? scoreOpenEnds(nextBoard) : 0;
+      const nextBotHand = botHand.filter((t) => t.id !== tile.id);
+
+      const child = alphaBetaEndgame(
+        nextBotHand,
+        oppHand,
+        nextBoard,
+        false,
+        alpha - moveScore,
+        beta - moveScore,
+        depth + 1,
+        maxDepth,
+        ruleVariant,
+        0,
+      );
+
+      const totalScore = moveScore + child.score;
+      if (totalScore > maxScore) {
+        maxScore = totalScore;
+        bestMove = move;
+      }
+      alpha = Math.max(alpha, maxScore);
+      if (beta <= alpha) {
+        break;
+      }
+    }
+
+    return { score: maxScore, bestMove };
+  } else {
+    const moves = getValidMoves(oppHand, board, ruleVariant);
+    if (moves.length === 0) {
+      const res = alphaBetaEndgame(
+        botHand,
+        oppHand,
+        board,
+        true,
+        alpha,
+        beta,
+        depth + 1,
+        maxDepth,
+        ruleVariant,
+        consecutivePasses + 1,
+      );
+      return { score: res.score, bestMove: null };
+    }
+
+    let minScore = Infinity;
+    let bestMove: BotMove = moves[0];
+
+    const orderedMoves = [...moves].sort((a, b) => {
+      if (ruleVariant === 'fives') {
+        const tileA = oppHand.find((t) => t.id === a.tileId);
+        const tileB = oppHand.find((t) => t.id === b.tileId);
+        const boardA = tileA ? placeTile(board, tileA, a.end, ruleVariant) : null;
+        const boardB = tileB ? placeTile(board, tileB, b.end, ruleVariant) : null;
+        const sA = boardA ? scoreOpenEnds(boardA) : 0;
+        const sB = boardB ? scoreOpenEnds(boardB) : 0;
+        if (sB !== sA) return sB - sA;
+      }
+      return 0;
+    });
+
+    for (const move of orderedMoves) {
+      const tile = oppHand.find((t) => t.id === move.tileId);
+      if (!tile) continue;
+      const nextBoard = placeTile(board, tile, move.end, ruleVariant);
+      if (!nextBoard) continue;
+
+      const oppMoveScore = ruleVariant === 'fives' ? scoreOpenEnds(nextBoard) : 0;
+      const nextOppHand = oppHand.filter((t) => t.id !== tile.id);
+
+      const child = alphaBetaEndgame(
+        botHand,
+        nextOppHand,
+        nextBoard,
+        true,
+        alpha + oppMoveScore,
+        beta + oppMoveScore,
+        depth + 1,
+        maxDepth,
+        ruleVariant,
+        0,
+      );
+
+      const totalScore = -oppMoveScore + child.score;
+      if (totalScore < minScore) {
+        minScore = totalScore;
+        bestMove = move;
+      }
+      beta = Math.min(beta, minScore);
+      if (beta <= alpha) {
+        break;
+      }
+    }
+
+    return { score: minScore, bestMove };
+  }
+}
+
 export type BotMove = { tileId: number; end: EndId };
 
 export type BotOptions = {
@@ -710,6 +916,11 @@ export type BotOptions = {
   cooperative?: boolean;
   /** Prefer deterministic tie-break (daily / tests). */
   deterministic?: boolean;
+  /** Boneyard tiles or count remaining. */
+  boneyard?: Tile[];
+  boneyardCount?: number;
+  /** Explicit opponent hand if known. */
+  opponentHand?: Tile[];
 };
 
 export function pickBotMove(
@@ -726,6 +937,43 @@ export function pickBotMove(
   const moves = getValidMoves(hand, board, ruleVariant);
   if (moves.length === 0) return null;
   if (moves.length === 1) return moves[0];
+
+  // Upgrade Hard AI endgame search: when remaining unknown tiles <= 7 and boneyard is empty,
+  // run multi-ply Alpha-Beta search instead of 1-ply heuristic.
+  if (difficulty === 'hard' && !cooperative) {
+    const boardTiles = getBoardTiles(board);
+    const boardTileIds = new Set(boardTiles.map((t) => t.id));
+    const handTileIds = new Set(hand.map((t) => t.id));
+    const allTiles = createSet();
+    const unseenTiles = allTiles.filter(
+      (t) => !boardTileIds.has(t.id) && !handTileIds.has(t.id),
+    );
+
+    const boneyardEmpty = options.boneyard
+      ? options.boneyard.length === 0
+      : options.boneyardCount === 0 ||
+        (options.boneyardCount === undefined && unseenTiles.length === opponentHandSize);
+
+    const oppTiles = options.opponentHand ?? (boneyardEmpty ? unseenTiles : null);
+
+    if (oppTiles && oppTiles.length <= 7 && boneyardEmpty) {
+      const abResult = alphaBetaEndgame(
+        hand,
+        oppTiles,
+        board,
+        true,
+        -Infinity,
+        Infinity,
+        0,
+        14,
+        ruleVariant,
+        0,
+      );
+      if (abResult.bestMove) {
+        return abResult.bestMove;
+      }
+    }
+  }
 
   const config = DIFFICULTY[difficulty];
   if (

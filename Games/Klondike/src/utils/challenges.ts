@@ -8,7 +8,8 @@ export type ChallengeId =
   | 'moves-80'
   | 'time-300'
   | 'standard-300'
-  | 'vegas-profit';
+  | 'vegas-profit'
+  | 'pure-skill';
 
 export interface ChallengeDef {
   id: ChallengeId;
@@ -21,8 +22,14 @@ export const CHALLENGES: readonly ChallengeDef[] = [
   {
     id: 'no-undo',
     name: '一氣呵成',
-    blurb: '通關全程不使用復原',
+    blurb: '通關全程不使用復原與重新洗牌',
     goalLabel: '無悔棋通關',
+  },
+  {
+    id: 'pure-skill',
+    name: '真才實學',
+    blurb: '通關全程不使用重新洗牌輔助',
+    goalLabel: '零洗牌通關',
   },
   {
     id: 'moves-120',
@@ -59,6 +66,7 @@ export const CHALLENGES: readonly ChallengeDef[] = [
 export type ChallengeContext = {
   won: boolean;
   usedUndo: boolean;
+  usedReshuffle?: boolean;
   moves: number;
   elapsedSec: number;
   score: number;
@@ -69,7 +77,9 @@ export function isChallengeCleared(id: ChallengeId, ctx: ChallengeContext): bool
   if (!ctx.won) return false;
   switch (id) {
     case 'no-undo':
-      return !ctx.usedUndo;
+      return !ctx.usedUndo && !ctx.usedReshuffle;
+    case 'pure-skill':
+      return !ctx.usedReshuffle;
     case 'moves-120':
       return ctx.moves <= 120;
     case 'moves-80':

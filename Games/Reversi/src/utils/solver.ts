@@ -140,3 +140,49 @@ export function isOptimalMove(
 export function bestExactReply(board: Board, side: Piece): [number, number] | null {
   return solveExact(board, side).bestMove;
 }
+
+export type PuzzleRefutation = {
+  playerMove: [number, number];
+  counterMove: [number, number];
+  oppSide: Piece;
+  boardAfterRefutation: Board;
+};
+
+/**
+ * When a player makes a suboptimal move in a puzzle, compute the opponent's
+ * 1-step exact counter-refutation and the resulting refuted board state.
+ */
+export function getPuzzleCounterRefutation(
+  boardBeforePlayerMove: Board,
+  playerMove: [number, number],
+  playerSide: Piece,
+): PuzzleRefutation | null {
+  const oppSide = opponent(playerSide);
+  if (
+    !getLegalMoves(boardBeforePlayerMove, playerSide).some(
+      ([r, c]) => r === playerMove[0] && c === playerMove[1],
+    )
+  ) {
+    return null;
+  }
+  const boardAfterPlayer = applyMove(
+    boardBeforePlayerMove,
+    playerMove[0],
+    playerMove[1],
+    playerSide,
+  );
+  const counterMove = bestExactReply(boardAfterPlayer, oppSide);
+  if (!counterMove) return null;
+  const boardAfterRefutation = applyMove(
+    boardAfterPlayer,
+    counterMove[0],
+    counterMove[1],
+    oppSide,
+  );
+  return {
+    playerMove,
+    counterMove,
+    oppSide,
+    boardAfterRefutation,
+  };
+}

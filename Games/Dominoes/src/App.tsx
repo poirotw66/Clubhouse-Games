@@ -16,6 +16,7 @@ import type {
   RuleVariant,
   MatchTarget,
   PlayerCount,
+  PlacedTile,
 } from './utils/dominoesLogic';
 import {
   createInitialState,
@@ -32,6 +33,7 @@ import {
   getValidMoves,
   pickBotMove,
   sumOpenEnds,
+  getOpenEndCounts,
   boardToChain,
   teamHandScores,
   mergeLackLists,
@@ -154,6 +156,7 @@ export default function App() {
     loadDailyProgress(),
   );
   const [shareCopied, setShareCopied] = useState(false);
+  const [screen, setScreen] = useState<'menu' | 'play'>('play');
 
   const [gameMode, setGameMode] = useState<GameMode>(saved?.gameMode ?? 'bot');
   const [difficulty, setDifficulty] = useState<Difficulty>(
@@ -259,6 +262,7 @@ export default function App() {
   const canPlayAny = playable.length > 0;
   const playableEndIds = getPlayableEnds(state.board);
   const openSum = sumOpenEnds(state.board);
+  const openCounts = useMemo(() => getOpenEndCounts(state.board), [state.board]);
   const chain = boardToChain(state.board);
   const showSpinnerCross =
     ruleVariant === 'fives' && state.board.spinnerActive;
@@ -317,6 +321,8 @@ export default function App() {
           partnerLack,
           cooperative: isPartners && seat === 2,
           deterministic: isDaily,
+          boneyard: state.boneyard,
+          boneyardCount: state.boneyard.length,
         });
         if (move) {
           const playedTile = hand.find((t) => t.id === move.tileId);
@@ -540,6 +546,8 @@ export default function App() {
         partnerLack: partner !== null ? state.suspectedLack[partner] : [],
         cooperative: isPartners,
         deterministic: true,
+        boneyard: state.boneyard,
+        boneyardCount: state.boneyard.length,
       },
     );
     if (move) {
@@ -593,6 +601,7 @@ export default function App() {
       botScheduled.current = false;
       prevPhaseRef.current = 'playing';
       matchRecordedRef.current = false;
+      setScreen('play');
       persistMatchSnapshot({
         match: nextMatch,
         ruleVariant: variant,
@@ -602,6 +611,12 @@ export default function App() {
     },
     [ruleVariant, matchTarget, gameMode, difficulty, todayKey],
   );
+
+  const returnToMenu = useCallback(() => {
+    clearMatch();
+    setRoundBanner(false);
+    setScreen('menu');
+  }, []);
 
   const handleNextRound = useCallback(() => {
     if (match.matchOver) {
@@ -933,6 +948,7 @@ export default function App() {
     if (!playableEndIds.includes(end)) return null;
     const pip = getEndPip(state.board, end);
     if (pip === null) return null;
+    const endCountItem = ruleVariant === 'fives' ? openCounts.find((c) => c.end === end) : null;
     return (
       <button
         type="button"
@@ -944,12 +960,17 @@ export default function App() {
           !humanCanAct ||
           !isValidEnd(selectedTileId, end)
         }
-        className={`flex flex-col items-center justify-center w-9 h-16 sm:w-10 sm:h-20 rounded border-2 border-dashed disabled:opacity-40 disabled:cursor-not-allowed hover:border-amber-500 hover:bg-slate-700/50 hover:text-amber-400 transition-colors touch-manipulation ${endHintClass(end)}`}
-        title={`出在${label}`}
+        className={`flex flex-col items-center justify-center w-9 h-16 sm:w-10 sm:h-20 rounded border-2 border-dashed disabled:opacity-40 disabled:cursor-not-allowed hover:border-amber-500 hover:bg-slate-700/50 hover:text-amber-400 transition-colors touch-manipulation relative ${endHintClass(end)}`}
+        title={`出在${label}${endCountItem ? `（當前計 ${endCountItem.value} 點）` : ''}`}
         aria-label={`出在${label}（${pip}）`}
       >
         <span className="text-base sm:text-lg font-bold">{pip}</span>
         <span className="text-[10px] sm:text-xs">{label}</span>
+        {endCountItem && (
+          <span className="text-[9px] px-1 rounded-full bg-emerald-950/90 text-amber-300 font-extrabold border border-emerald-400/50 leading-tight tabular-nums mt-0.5">
+            {endCountItem.value}點
+          </span>
+        )}
       </button>
     );
   };
@@ -984,7 +1005,7 @@ export default function App() {
         ].join(', '),
       }}
     >
-      <BackToMenu onBackToTitle={() => startFreshMatch()} titleLabel="回到主選單" />
+      <BackToMenu onBackToTitle={screen === 'play' ? returnToMenu : undefined} titleLabel="回到主選單" />
       {showFirstRun && <FirstRunGuide onClose={() => setShowFirstRun(false)} />}
       {scoreFlash && (
         <ScoreFlash
@@ -995,7 +1016,138 @@ export default function App() {
         />
       )}
 
-      <header className="w-full max-w-7xl flex justify-between items-center mb-2 sm:mb-3 gap-2 px-1">
+      {screen === 'menu' ? (
+        <div className="w-full max-w-xl mx-auto flex flex-col items-center gap-4 my-auto py-8 px-2 sm:px-4 z-10">
+          <div className="w-full rounded-3xl border border-slate-700/80 bg-slate-900/90 shadow-2xl p-6 sm:p-8 text-center backdrop-blur-md">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-amber-300 tracking-wider mb-2">
+              西洋骨牌 (Dominoes)
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-300 mb-6">
+              選擇賽制、規則變體與電腦難度，展開精彩對局
+            </p>
+
+            {/* Game mode selector */}
+            <div className="mb-5">
+              <p className="text-xs text-slate-400 mb-2 font-semibold tracking-wide">對局模式</p>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <ModeButton
+                  active={gameMode === 'two'}
+                  onClick={() => setGameMode('two')}
+                  icon={<Users className="w-4 h-4" />}
+                  label="雙人"
+                />
+                <ModeButton
+                  active={gameMode === 'bot'}
+                  onClick={() => setGameMode('bot')}
+                  icon={<Bot className="w-4 h-4" />}
+                  label="對戰電腦"
+                />
+                <ModeButton
+                  active={gameMode === 'partners'}
+                  onClick={() => {
+                    setGameMode('partners');
+                    setRuleVariant('fives');
+                  }}
+                  icon={<UserRound className="w-4 h-4" />}
+                  label="四人搭檔"
+                  accent="emerald"
+                />
+                <ModeButton
+                  active={gameMode === 'daily'}
+                  onClick={() => setGameMode('daily')}
+                  icon={<CalendarDays className="w-4 h-4" />}
+                  label="每日"
+                  accent="violet"
+                />
+              </div>
+            </div>
+
+            {/* Rule variant */}
+            {gameMode !== 'daily' && (
+              <div className="mb-5">
+                <p className="text-xs text-slate-400 mb-2 font-semibold tracking-wide">規則變體</p>
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  {allowedRules.map((id) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setRuleVariant(id)}
+                      className={`px-3 py-1.5 min-h-[44px] rounded-full border text-xs font-semibold touch-manipulation transition-colors ${
+                        ruleVariant === id
+                          ? 'border-emerald-400 bg-emerald-500/20 text-emerald-100 shadow-sm'
+                          : 'border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700'
+                      }`}
+                    >
+                      {RULE_LABELS[id]}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-slate-400 text-[11px] mt-1.5 min-h-[1.25rem]">{RULE_BLURBS[ruleVariant]}</p>
+              </div>
+            )}
+
+            {/* Target score */}
+            {gameMode !== 'daily' && (
+              <div className="mb-5">
+                <p className="text-xs text-slate-400 mb-2 font-semibold tracking-wide">比賽目標分</p>
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  {MATCH_TARGETS.map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setMatchTarget(t)}
+                      className={`px-3 py-1.5 min-h-[44px] rounded-full border text-xs font-semibold touch-manipulation transition-colors ${
+                        matchTarget === t
+                          ? 'border-violet-400 bg-violet-500/20 text-violet-100 shadow-sm'
+                          : 'border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700'
+                      }`}
+                    >
+                      {t === 1 ? '單局' : `${t} 分`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Difficulty */}
+            {(gameMode === 'bot' || gameMode === 'partners') && (
+              <div className="mb-6">
+                <p className="text-xs text-slate-400 mb-2 font-semibold tracking-wide">電腦難度</p>
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  {(['easy', 'normal', 'hard'] as Difficulty[]).map((id) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setDifficulty(id)}
+                      className={`px-3 py-1.5 min-h-[44px] rounded-full border text-xs font-semibold touch-manipulation transition-colors ${
+                        difficulty === id
+                          ? 'border-amber-400 bg-amber-500/20 text-amber-100 shadow-sm'
+                          : 'border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700'
+                      }`}
+                    >
+                      {DIFFICULTY_LABELS[id]}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-slate-400 text-[11px] mt-1.5">{DIFFICULTY_BLURBS[difficulty]}</p>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                startFreshMatch({ mode: gameMode, variant: ruleVariant, target: matchTarget, diff: difficulty });
+                setScreen('play');
+              }}
+              className="w-full sm:w-auto min-h-[52px] px-10 py-3.5 rounded-xl font-extrabold bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-base shadow-xl tracking-wider transition-all touch-manipulation hover:-translate-y-0.5 active:translate-y-0"
+            >
+              開始比賽
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <header className="w-full max-w-7xl flex justify-between items-center mb-2 sm:mb-3 gap-2 px-1">
         <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap min-w-0">
           <h1 className="text-lg sm:text-xl font-bold tracking-tight">西洋骨牌</h1>
           <span className="text-[10px] sm:text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-600">
@@ -1310,10 +1462,53 @@ export default function App() {
       <p className="text-slate-200 text-sm mb-1 sm:mb-2">{statusMessage}</p>
 
       {ruleVariant === 'fives' && (
-        <p className="text-emerald-300/90 text-xs mb-2 tabular-nums">
-          開放端點和：{openSum}
-          {openSum > 0 && openSum % 5 === 0 ? ' · 可得分！' : ''}
-        </p>
+        <div className="w-full max-w-xl mx-auto mb-2 px-3 py-2 rounded-xl bg-slate-900/85 border border-emerald-500/30 backdrop-blur-sm text-center shadow-lg">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5 text-[11px] text-slate-300">
+            <span className="font-bold text-emerald-400 flex items-center gap-1">
+              <span>五倍數端點點數和</span>
+              {state.board.spinnerActive && (
+                <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  轉軸十字啟用
+                </span>
+              )}
+            </span>
+            <span className="tabular-nums font-semibold">
+              {openSum > 0 && openSum % 5 === 0 ? (
+                <span className="text-emerald-300 font-extrabold animate-pulse">
+                  ✨ 5 × {openSum / 5} = {openSum}分（可得分！）
+                </span>
+              ) : (
+                <span className="text-slate-400">
+                  當前總和 {openSum}（差 {openSum % 5 === 0 ? 0 : 5 - (openSum % 5)} 分達 {openSum + (openSum % 5 === 0 ? 0 : 5 - (openSum % 5))}）
+                </span>
+              )}
+            </span>
+          </div>
+          {/* Endpoint breakdown bubbles */}
+          <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 text-xs">
+            {openCounts.map((c, i) => (
+              <span key={`${c.end}-${i}`} className="inline-flex items-center gap-1">
+                {i > 0 && <span className="text-slate-500 font-bold">+</span>}
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-800 border border-emerald-400/40 text-emerald-200">
+                  <span className="text-[10px] text-slate-400">
+                    {c.end === 'left' ? '左端' : c.end === 'right' ? '右端' : c.end === 'up' ? '上端' : '下端'}
+                  </span>
+                  <span className="font-extrabold text-amber-300 tabular-nums">{c.value}</span>
+                </span>
+              </span>
+            ))}
+            <span className="text-slate-400 font-bold">=</span>
+            <span
+              className={`px-2.5 py-0.5 rounded-full font-black tabular-nums border text-xs shadow-sm ${
+                openSum > 0 && openSum % 5 === 0
+                  ? 'bg-emerald-500/30 text-emerald-100 border-emerald-400 ring-1 ring-emerald-400'
+                  : 'bg-slate-800 text-slate-300 border-slate-600'
+              }`}
+            >
+              {openSum}
+            </span>
+          </div>
+        </div>
       )}
 
       {/* Partners table chrome — compact for phones */}
@@ -1393,7 +1588,7 @@ export default function App() {
                     justPlaced={state.board.hub.tile.id === lastPlacedId}
                   />
                 )}
-                {state.board.arms.right.map((p) => (
+                {state.board.arms.right.map((p: PlacedTile) => (
                   <PlacedDominoTile
                     key={p.tile.id}
                     placed={{
@@ -1412,7 +1607,7 @@ export default function App() {
             </div>
             <div className="flex items-center gap-1">
               <div className="flex flex-col items-center gap-0.5">
-                {state.board.arms.down.map((p) => (
+                {state.board.arms.down.map((p: PlacedTile) => (
                   <PlacedDominoTile
                     key={p.tile.id}
                     placed={{
@@ -1589,6 +1784,8 @@ export default function App() {
           </div>
         </div>
       </div>
+      </>
+      )}
 
       {roundBanner && state.phase === 'roundOver' && !match.matchOver && (
         <ResultOverlay
@@ -1615,6 +1812,8 @@ export default function App() {
           ]}
           primaryLabel="下一局 (Space / Enter / R)"
           onPrimary={handleNextRound}
+          secondaryLabel="回到主選單"
+          onSecondary={returnToMenu}
         />
       )}
 
@@ -1669,7 +1868,7 @@ export default function App() {
           primaryLabel={isDaily ? '再挑戰今日 (Space / Enter / R)' : '再打一場 (Space / Enter / R)'}
           onPrimary={() => startFreshMatch()}
           secondaryLabel={isDaily ? (shareCopied ? '已複製' : '複製分享結果') : '回到主選單'}
-          onSecondary={isDaily ? handleCopyShare : () => startFreshMatch()}
+          onSecondary={isDaily ? handleCopyShare : returnToMenu}
         />
       )}
 

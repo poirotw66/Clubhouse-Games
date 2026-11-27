@@ -46,7 +46,13 @@ import {
   type PuzzleStars,
 } from './utils/ladder';
 import { PUZZLES, getPuzzle, describePuzzleObjective, type PuzzleRuntime } from './utils/puzzles';
-import { isOptimalMove, bestExactReply, solveExact } from './utils/solver';
+import {
+  isOptimalMove,
+  bestExactReply,
+  solveExact,
+  getPuzzleCounterRefutation,
+  type PuzzleRefutation,
+} from './utils/solver';
 import { teachingHint } from './utils/teach';
 import { appendReviewMove, buildGameReview, type PlacedMove, type GameReview } from './utils/review';
 import {
@@ -162,6 +168,7 @@ export default function App() {
   const [puzzleUsedHint, setPuzzleUsedHint] = useState(false);
   const [puzzleUsedUndo, setPuzzleUsedUndo] = useState(false);
   const [lastPuzzleStars, setLastPuzzleStars] = useState<PuzzleStars | null>(null);
+  const [puzzleRefutation, setPuzzleRefutation] = useState<PuzzleRefutation | null>(null);
 
   const [state, setState] = useState<GameState>(getInitialState);
   const [showRules, setShowRules] = useState(false);
@@ -593,12 +600,26 @@ export default function App() {
         const ok = isOptimalMove(state.board, puzzle.side, [r, c], puzzle.goal);
         if (!ok) {
           pushHistory();
-          const nextBoard = executeCascadeMove(r, c, puzzle.side);
-          setLastMove([r, c]);
-          failPuzzle('這手無法達成目標。再試一次！');
-          setState((s) => ({ ...s, board: nextBoard }));
+          const refutation = getPuzzleCounterRefutation(state.board, [r, c], puzzle.side);
+          if (refutation) {
+            setLastMove(refutation.counterMove);
+            setPuzzleRefutation(refutation);
+            const refAlg = toAlgebraic(refutation.counterMove[0], refutation.counterMove[1]);
+            failPuzzle(`此手失著！對手於 ${refAlg} 致命反擊，無法達成目標。`);
+            setState((s) => ({
+              ...s,
+              board: refutation.boardAfterRefutation,
+            }));
+          } else {
+            const nextBoard = executeCascadeMove(r, c, puzzle.side);
+            setLastMove([r, c]);
+            setPuzzleRefutation(null);
+            failPuzzle('這手無法達成目標。再試一次！');
+            setState((s) => ({ ...s, board: nextBoard }));
+          }
           return;
         }
+        setPuzzleRefutation(null);
       }
 
       pushHistory();
@@ -725,6 +746,7 @@ export default function App() {
     setPuzzlePlies(prev.puzzlePlies);
     setPuzzleFailed(false);
     setPuzzleSolved(false);
+    setPuzzleRefutation(null);
     setLastPuzzleStars(null);
     if (playMode === 'puzzle') setPuzzleUsedUndo(true);
     setHintCell(null);
@@ -780,6 +802,7 @@ export default function App() {
     setPuzzlePlies(0);
     setPuzzleFailed(false);
     setPuzzleSolved(false);
+    setPuzzleRefutation(null);
     setPuzzleUsedHint(false);
     setPuzzleUsedUndo(false);
     setLastPuzzleStars(null);
@@ -856,6 +879,7 @@ export default function App() {
       setPuzzlePlies(0);
       setPuzzleFailed(false);
       setPuzzleSolved(false);
+      setPuzzleRefutation(null);
       setPuzzleUsedHint(false);
       setPuzzleUsedUndo(false);
       setLastPuzzleStars(null);
@@ -891,6 +915,7 @@ export default function App() {
       setPuzzlePlies(0);
       setPuzzleFailed(false);
       setPuzzleSolved(false);
+      setPuzzleRefutation(null);
       setPuzzleUsedHint(false);
       setPuzzleUsedUndo(false);
       setLastPuzzleStars(null);
@@ -1374,6 +1399,13 @@ export default function App() {
             </div>
           )}
 
+          {/* Puzzle Counter-Refutation Callout Banner */}
+          {puzzleRefutation && (
+            <div className="w-full mb-2 py-1.5 px-3 rounded-xl bg-gradient-to-r from-rose-950 via-rose-900 to-rose-950 text-rose-200 text-xs font-bold tracking-wide text-center shadow-lg border border-rose-500/80 animate-pulse select-none">
+              ⚔️ 對手於 {toAlgebraic(puzzleRefutation.counterMove[0], puzzleRefutation.counterMove[1])} 發動破著反擊！按 R 重試或按 Z 悔棋
+            </div>
+          )}
+
           {/* Target Reticle / Active Focus Coordinate Readout */}
           <div className="w-full flex items-center justify-between px-3 py-1.5 mb-2 bg-stone-900/70 border border-stone-800 rounded-xl text-xs">
             <span className="text-stone-400 font-mono text-[11px]">
@@ -1395,6 +1427,7 @@ export default function App() {
             lastMove={lastMove}
             hintCell={hintCell}
             cursorCell={cursorCell}
+            refutationCell={puzzleRefutation?.counterMove ?? null}
             flipCells={flipCells}
             cascadeMap={cascadeMap}
             previewFlips={previewFlips}

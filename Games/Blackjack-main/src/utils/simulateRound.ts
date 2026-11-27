@@ -42,7 +42,7 @@ export interface SimRoundResult {
   hands: SimHand[];
 }
 
-function playPlayerHands(
+export function playPlayerHands(
   initial: SimHand,
   dealerUp: Card,
   shoeIn: ShoeState,
@@ -95,6 +95,8 @@ function playPlayerHands(
         canDouble,
         canSplit,
         canSurrender,
+        dealerRule: rules.dealerRule,
+        surrenderRule: rules.surrender,
       });
 
       if (action === 'surrender' && canSurrender) {
@@ -167,7 +169,7 @@ function playPlayerHands(
   return { hands, shoe, spent };
 }
 
-function settle(hands: SimHand[], dealerCards: Card[], rules: SimRules): number {
+export function settle(hands: SimHand[], dealerCards: Card[], rules: SimRules): number {
   const dScore = calculateScore(dealerCards);
   const dBusted = dScore > 21;
   const dBJ = isBlackjack(dealerCards);
