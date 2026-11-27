@@ -966,6 +966,14 @@ body.solo-mode .player-card-p1 {
   box-shadow: 0 6px 16px rgba(122, 66, 214, 0.6);
 }
 
+.lore-trigger-btn {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: manipulation;
+}
+
 /* Wing Header & Badges */
 .wing-header {
   display: flex;

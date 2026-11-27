@@ -1,7 +1,7 @@
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
-import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
 import { BookOpen, Brain, Puzzle, Swords, Users } from 'lucide-react';
 import { useState, type ReactElement } from 'react';
+import { RulesModal } from './RulesModal';
 import {
   SERIES_OPTIONS,
   seriesLabel,
@@ -138,9 +138,11 @@ export function MenuScreen({
           <button
             type="button"
             onClick={() => setShowRules(true)}
-            className="text-stone-400 text-sm underline underline-offset-2 mt-1"
+            className="flex items-center justify-center gap-2 w-full min-h-[44px] py-3 rounded-xl border border-emerald-400/45 bg-emerald-950/60 hover:bg-emerald-900/70 text-emerald-200 text-sm font-bold transition-colors touch-manipulation"
+            aria-label="由來與規則圖鑑"
           >
-            規則說明
+            <span>📜</span>
+            <span>由來與規則圖鑑</span>
           </button>
         </div>
       )}
@@ -196,34 +198,7 @@ export function MenuScreen({
         </div>
       )}
 
-      {showRules && (
-        <div
-          className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-10"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="rules-title"
-        >
-          <div className="bg-stone-800 rounded-xl max-w-md max-h-[85vh] overflow-y-auto p-6 text-left">
-            <h2 id="rules-title" className="text-lg font-bold mb-3">規則說明</h2>
-            <ul className="text-sm text-stone-200 space-y-2 list-disc pl-4">
-              <li>8×8 棋盤，黑方先手。開局中央 2×2 為兩黑兩白（斜線相對）。</li>
-              <li>輪到的一方在空格下子，新子須與己方另一子「夾住」至少一條線上的對方子，並將該線上被夾住的對方子全部翻成己色。</li>
-              <li>無合法手時須 Pass，改由對方下；若雙方都無合法手則終局。</li>
-              <li>終局時己色子數多者勝，相同則和局。</li>
-            </ul>
-            <div className="mt-4">
-              <JuiceSettingsPanel />
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowRules(false)}
-              className="mt-4 w-full py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 font-medium"
-            >
-              關閉
-            </button>
-          </div>
-        </div>
-      )}
+      {showRules && <RulesModal onClose={() => setShowRules(false)} />}
     </div>
   );
 }

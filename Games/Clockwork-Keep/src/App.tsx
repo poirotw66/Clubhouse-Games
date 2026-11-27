@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { OriginLoreModal } from '@clubhouse/shared/OriginLoreModal';
+import { CLOCKWORK_KEEP_LORE } from '@clubhouse/shared/lore/puzzleStrategy';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { TouchButton } from '@clubhouse/shared/TouchButton';
 import {
@@ -180,6 +182,7 @@ export default function App(): ReactElement {
   const [showFirstRun, setShowFirstRun] = useState(() => !hasSeenFirstRunGuide());
   const [showCodex, setShowCodex] = useState(false);
   const [showHotkeys, setShowHotkeys] = useState(false);
+  const [showLore, setShowLore] = useState(false);
 
   const [showMissions, setShowMissions] = useState(false);
   const [missionProgress, setMissionProgress] = useState<MissionProgress>(() => loadMissionProgress());
@@ -687,6 +690,15 @@ export default function App(): ReactElement {
           </div>
           <button
             type="button"
+            onClick={() => setShowLore(true)}
+            className="mb-3 w-full py-2 rounded-lg border border-amber-500/45 bg-amber-950/50 text-xs font-semibold text-amber-200 hover:bg-amber-900/60 transition-colors min-h-[44px] touch-manipulation flex items-center justify-center gap-1.5"
+            aria-label="由來與決策心法"
+          >
+            <span>📜</span>
+            <span>由來與決策心法</span>
+          </button>
+          <button
+            type="button"
             onClick={() => setShowMissions(true)}
             className="mb-3 w-full py-2.5 rounded-lg border border-amber-500/50 bg-amber-600/25 text-sm font-semibold text-amber-100 hover:bg-amber-600/35 transition-colors min-h-[44px] touch-manipulation"
             aria-label={`開啟任務包。${packSubtitle}`}
@@ -908,6 +920,9 @@ export default function App(): ReactElement {
             </div>
           </div>
         )}
+        {showLore && (
+          <OriginLoreModal dossier={CLOCKWORK_KEEP_LORE} onClose={() => setShowLore(false)} />
+        )}
       </div>
     );
   }
@@ -1022,6 +1037,16 @@ export default function App(): ReactElement {
             title="敵軍圖鑑"
           >
             📖
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowLore(true)}
+            className="min-h-[44px] min-w-[44px] px-2.5 py-2 rounded-lg border border-amber-500/40 bg-amber-950/50 hover:bg-amber-900/60 transition-colors touch-manipulation inline-flex items-center justify-center gap-1 text-xs font-semibold text-amber-200"
+            aria-label="由來與決策心法"
+            title="由來與決策心法"
+          >
+            <span>📜</span>
+            <span className="hidden sm:inline">心法</span>
           </button>
         </div>
       </header>
@@ -1428,6 +1453,9 @@ export default function App(): ReactElement {
 
       {showCodex && <EnemyCodexModal onClose={() => setShowCodex(false)} />}
       {showHotkeys && <HotkeysCheatsheetModal onClose={() => setShowHotkeys(false)} />}
+      {showLore && (
+        <OriginLoreModal dossier={CLOCKWORK_KEEP_LORE} onClose={() => setShowLore(false)} />
+      )}
     </div>
   );
 }

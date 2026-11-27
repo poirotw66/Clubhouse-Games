@@ -62,6 +62,8 @@ interface Props {
   onAcknowledge: () => void;
   onUndo: () => void;
   canUndo: boolean;
+  onOpenLore?: () => void;
+  isLoreOpen?: boolean;
   onQuit: () => void;
 }
 
@@ -72,6 +74,8 @@ export function PlayScreen({
   onAcknowledge,
   onUndo,
   canUndo,
+  onOpenLore,
+  isLoreOpen = false,
   onQuit,
 }: Props): React.ReactElement {
   const [showCareer, setShowCareer] = useState(false);
@@ -249,7 +253,7 @@ export function PlayScreen({
   // Keyboard navigation & hotkeys
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.metaKey || event.ctrlKey || event.altKey || showDraftShowcase) return;
+      if (event.metaKey || event.ctrlKey || event.altKey || showDraftShowcase || isLoreOpen) return;
       const target = event.target as HTMLElement | null;
       if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
       if (event.repeat && /^(?:[1-9]|Enter|Backspace|[dDhHmMqQ])$/.test(event.key)) {
@@ -329,6 +333,7 @@ export function PlayScreen({
     decision?.kind,
     quickTraining,
     showDraftShowcase,
+    isLoreOpen,
     selectedTrainingId,
     canUndo,
     showDestinyToggle,
@@ -379,13 +384,26 @@ export function PlayScreen({
               </button>
             )}
 
+            {onOpenLore && (
+              <button
+                type="button"
+                onClick={onOpenLore}
+                className="flex min-h-[44px] items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-950/60 px-3 py-1.5 text-xs font-bold text-amber-200 transition hover:bg-amber-900/60 touch-manipulation"
+                aria-label="文化源流與玩法圖鑑"
+                title="文化源流與玩法圖鑑"
+              >
+                <span>📜</span>
+                <span>圖鑑</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => {
                 const nextMuted = toggleAudioMuted();
                 setMuted(nextMuted);
               }}
-              className="flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800/80 px-2.5 py-1 text-xs font-semibold text-slate-300 transition hover:bg-slate-700 hover:text-white"
+              className="flex min-h-[44px] items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800/80 px-2.5 py-1 text-xs font-semibold text-slate-300 transition hover:bg-slate-700 hover:text-white touch-manipulation"
               aria-label={muted ? '開啟音效 (快捷鍵 M)' : '靜音 (快捷鍵 M)'}
             >
               <span>{muted ? '🔇' : '🔊'}</span>

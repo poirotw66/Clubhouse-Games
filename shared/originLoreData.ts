@@ -1,33 +1,14 @@
-export interface LoreTable {
-  headers: string[];
-  rows: string[][];
-}
+import type { GameLoreDossier } from './originLoreTypes.ts';
+import { CARDS_BOARD_LORE_DOSSIERS } from './lore/cardsBoard.ts';
+import { PUZZLE_STRATEGY_LORE_DOSSIERS } from './lore/puzzleStrategy.ts';
+import { SPORTS_ARCADE_LORE_DOSSIERS } from './lore/sportsArcade.ts';
+import { VANILLA_DOM_LORE_DOSSIERS } from './lore/vanillaDom.ts';
 
-export interface LoreSection {
-  title: string;
-  subtitle?: string;
-  badge?: string;
-  content?: string | string[];
-  table?: LoreTable;
-  bullets?: string[];
-  sakuraiTip?: string;
-}
-
-export interface GameLoreDossier {
-  gameId: string;
-  gameTitle: string;
-  gameSubtitle: string;
-  badge: string;
-  themeColor: 'emerald' | 'amber' | 'rose' | 'indigo' | 'cyan' | 'purple';
-  culturalOrigin: {
-    title: string;
-    sections: LoreSection[];
-  };
-  rulesAndStrategy: {
-    title: string;
-    sections: LoreSection[];
-  };
-}
+export type { LoreTable, LoreSection, GameLoreDossier } from './originLoreTypes.ts';
+export * from './lore/cardsBoard.ts';
+export * from './lore/puzzleStrategy.ts';
+export * from './lore/sportsArcade.ts';
+export * from './lore/vanillaDom.ts';
 
 export const PICK_RED_LORE: GameLoreDossier = {
   gameId: 'pick-red',
@@ -518,4 +499,8 @@ export const ALL_LORE_DOSSIERS: Record<string, GameLoreDossier> = {
   'fifteen-puzzle': FIFTEEN_PUZZLE_LORE,
   'roguelike-snake': ROGUELIKE_SNAKE_LORE,
   'mystery-liquid-sort': MYSTERY_LIQUID_SORT_LORE,
+  ...CARDS_BOARD_LORE_DOSSIERS,
+  ...PUZZLE_STRATEGY_LORE_DOSSIERS,
+  ...SPORTS_ARCADE_LORE_DOSSIERS,
+  ...VANILLA_DOM_LORE_DOSSIERS,
 };

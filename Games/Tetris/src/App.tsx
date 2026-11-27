@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
+import { OriginLoreModal } from '@clubhouse/shared/OriginLoreModal';
+import { TETRIS_LORE } from '@clubhouse/shared/lore/puzzleStrategy';
 import { haptic, particles, shake } from '@clubhouse/shared/juice';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { ScoreFlash } from '@clubhouse/shared/ScoreFlash';
@@ -258,6 +260,7 @@ export default function App() {
   const [versusStats, setVersusStats] = useState(readVersusStats);
   const [versusWinner, setVersusWinner] = useState<'player' | 'cpu' | null>(null);
   const [coachOpen, setCoachOpen] = useState(() => !readCoachDismissed());
+  const [showLore, setShowLore] = useState(false);
   const [flash, setFlash] = useState<{
     text: string;
     tone: 'good' | 'neutral';
@@ -1413,6 +1416,17 @@ export default function App() {
             <p className="text-slate-400 text-sm sm:text-base font-medium">
               經典競技落下型方塊 · 多元對戰模式與技巧特訓
             </p>
+            <div className="mt-3 flex justify-center">
+              <button
+                type="button"
+                onClick={() => setShowLore(true)}
+                className="min-h-[44px] px-4 py-2 rounded-xl border border-indigo-400/50 bg-indigo-950/60 hover:bg-indigo-900/70 text-indigo-200 text-xs font-bold inline-flex items-center gap-1.5 transition-colors touch-manipulation shadow-md"
+                aria-label="由來與決策心法"
+              >
+                <span>📜</span>
+                <span>由來與決策心法</span>
+              </button>
+            </div>
           </div>
 
           <div className="w-full mb-6">
@@ -1537,6 +1551,9 @@ export default function App() {
             </button>
           </div>
         </div>
+        {showLore && (
+          <OriginLoreModal dossier={TETRIS_LORE} onClose={() => setShowLore(false)} />
+        )}
       </div>
     );
   }
@@ -1720,7 +1737,20 @@ export default function App() {
               </div>
             )}
           </div>
-          <div className="flex items-center gap-2 text-xs sm:text-sm">
+          <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm">
+            <button
+              type="button"
+              onClick={() => {
+                setPlayer((p) => (p.paused ? p : { ...p, paused: true }));
+                setShowLore(true);
+              }}
+              className="inline-flex items-center gap-1 min-h-[44px] min-w-[44px] px-3 py-2 rounded-lg bg-indigo-950/70 hover:bg-indigo-900/80 border border-indigo-400/50 text-indigo-200 font-semibold touch-manipulation"
+              aria-label="由來與決策心法"
+              title="由來與決策心法"
+            >
+              <span>📜</span>
+              <span>由來與心法</span>
+            </button>
             <button
               type="button"
               onClick={coachOpen ? dismissCoach : openCoach}
@@ -2135,6 +2165,9 @@ export default function App() {
                 : '回到主選單'
           }
         />
+      )}
+      {showLore && (
+        <OriginLoreModal dossier={TETRIS_LORE} onClose={() => setShowLore(false)} />
       )}
     </div>
   );

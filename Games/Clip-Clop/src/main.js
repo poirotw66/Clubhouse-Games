@@ -21,6 +21,8 @@ import { StrideCoach, mountStrideCoach } from './stride-coach.js';
 import { CFG, LEG_CFG, MOD, dailyInfo, todayStr, makeLegStates, makeHorseState, simHorse, PHYSICS_TIERS, setPhysicsTier } from './physics.js';
 import { SteeplechaseManager } from './steeplechase.js';
 import { CockpitManager } from './cockpit.js';
+import { openOriginLoreModal } from '@clubhouse/shared/originLoreDom';
+import { CLIP_CLOP_LORE } from '@clubhouse/shared/lore/vanillaDom';
 
 /* ================================================================
    Daily challenge display
@@ -92,6 +94,7 @@ const I18N = {
     legQ:'左後', legW:'右後', legO:'左前', legP:'右前',
     ranks:['傳奇賽馬','賽馬','小馬','新生小馬'],
     tip_warn:'快倒了！', practice:'練習模式',
+    lore_btn:'📜 文化源流與玩法圖鑑',
     board:'排行榜 · 成就', board_title:'LEADERBOARD · 排行榜', ach_title:'ACHIEVEMENTS · 成就',
     close:'關閉', new_record:'★ 新紀錄！',
     save_score:'存入排行', name_ph:'你的名字',
@@ -247,6 +250,7 @@ const I18N = {
     legQ:'L-hind', legW:'R-hind', legO:'L-front', legP:'R-front',
     ranks:['Legendary Racehorse','Racehorse','Pony','Foal'],
     tip_warn:'Tilting!', practice:'Practice',
+    lore_btn:'📜 Origin & Strategy',
     board:'Leaderboard · Achievements', board_title:'LEADERBOARD', ach_title:'ACHIEVEMENTS',
     close:'Close', new_record:'★ NEW RECORD!',
     save_score:'Save score', name_ph:'Your name',
@@ -386,6 +390,7 @@ const hudEl=$('hud'), hudTime=$('hudTime'), hudDist=$('hudDist'), hudFalls=$('hu
       tipWarnEl=$('tipWarn'), lbTop=$('lbTop'), lbBot=$('lbBot'),
       titleScreen=$('titleScreen'), startBtn=$('startBtn'), practiceBtn=$('practiceBtn'), duelBtn=$('duelBtn'),
       boardBtn=$('boardBtn'), boardScreen=$('boardScreen'), boardClose=$('boardClose'),
+      loreBtn=$('loreBtn'), titleLoreBtn=$('titleLoreBtn'),
       perfBtn=$('perfBtn'), tourBtn=$('tourBtn'), codeImportBtn=$('codeImportBtn'),
       codeRow=$('codeRow'), codeInput=$('codeInput'), codeCopyBtn=$('codeCopyBtn'),
       codeScreen=$('codeScreen'), codeArea=$('codeArea'), codeLoadBtn=$('codeLoadBtn'),
@@ -2383,6 +2388,7 @@ function isTextEntryTarget(el){
   return !!(el.closest&&el.closest('[contenteditable=""],[contenteditable="true"]'));
 }
 addEventListener('keydown',e=>{
+  if(document.querySelector('[data-clubhouse-lore-modal="1"]'))return;
   if(isTextEntryTarget(e.target)||isTextEntryTarget(document.activeElement))return;
   if(e.code==='Space'){
     e.preventDefault();
@@ -2657,6 +2663,13 @@ codeCopyBtn.addEventListener('click',async()=>{
   }
 });
 codeInput.addEventListener('click',()=>codeInput.select());
+
+function openClipClopLore(){
+  for(const k in held)setHeld(k,false);
+  openOriginLoreModal({ dossier: CLIP_CLOP_LORE });
+}
+loreBtn?.addEventListener('click',()=>{loreBtn.blur();openClipClopLore();});
+titleLoreBtn?.addEventListener('click',()=>{titleLoreBtn.blur();openClipClopLore();});
 
 boardBtn.addEventListener("click",()=>{boardBtn.blur();renderBoard();boardScreen.classList.remove("hidden");refreshWorld(false);});
 boardClose.addEventListener('click',()=>{boardClose.blur();boardScreen.classList.add('hidden');});

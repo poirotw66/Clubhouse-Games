@@ -8,6 +8,7 @@ interface TacticalTickerProps {
   combo: number;
   onToggleLeftWing?: () => void;
   onToggleRightWing?: () => void;
+  onOpenLore?: () => void;
   className?: string;
 }
 
@@ -17,6 +18,7 @@ export const TacticalTicker: React.FC<TacticalTickerProps> = ({
   combo,
   onToggleLeftWing,
   onToggleRightWing,
+  onOpenLore,
   className = '',
 }) => {
   return (
@@ -53,8 +55,20 @@ export const TacticalTicker: React.FC<TacticalTickerProps> = ({
         )}
       </div>
 
-      {/* Drawer Toggle buttons for Mobile/Tablet */}
+      {/* Drawer Toggle buttons for Mobile/Tablet & Lore Dossier */}
       <div className="flex items-center gap-1.5 shrink-0">
+        {onOpenLore && (
+          <button
+            type="button"
+            onClick={onOpenLore}
+            className="flex items-center gap-1 min-h-[44px] px-2.5 py-1 rounded bg-emerald-950/70 border border-emerald-400/50 text-emerald-200 hover:bg-emerald-900/80 text-xs font-display font-bold transition-colors touch-manipulation"
+            aria-label="由來與決策心法"
+            title="由來與決策心法"
+          >
+            <span>📜</span>
+            <span>心法</span>
+          </button>
+        )}
         {onToggleLeftWing && (
           <button
             type="button"

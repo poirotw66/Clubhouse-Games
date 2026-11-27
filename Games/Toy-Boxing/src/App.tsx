@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { OriginLoreModal } from '@clubhouse/shared/OriginLoreModal';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { haptic } from '@clubhouse/shared/juice';
+import { TOY_BOXING_LORE } from '@clubhouse/shared/lore/sportsArcade';
 import { playGoal, playLose, playWin } from '@clubhouse/shared/synthAudio';
 import { TouchButton, touchControlsWrapClass } from '@clubhouse/shared/TouchButton';
 import { AnimatePresence, motion } from 'motion/react';
@@ -280,6 +282,9 @@ export default function ToyBoxing() {
   const [careerStats, setCareerStats] = useState<CareerStats>(() => loadStats());
   const [difficulty, setDifficulty] = useState<Difficulty>(() => loadStats().lastDifficulty);
   const [showFirstRun, setShowFirstRun] = useState(() => !hasSeenFirstRunGuide());
+  const [showLore, setShowLore] = useState(false);
+  const showLoreRef = useRef(false);
+  showLoreRef.current = showLore;
   const [playMode, setPlayMode] = useState<PlayMode>('league');
   const [league, setLeague] = useState<LeagueProgress>(() => loadLeague());
   const [leagueIndex, setLeagueIndex] = useState(() => continueLeagueIndex(loadLeague().clearedCount));
@@ -371,6 +376,7 @@ export default function ToyBoxing() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (showLoreRef.current) return;
       if (['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) {
         e.preventDefault();
       }
@@ -437,7 +443,7 @@ export default function ToyBoxing() {
       const rawDt = Math.min((time - lastTime) / 1000, 0.1);
       lastTime = time;
 
-      if (gameStateRef.current === 'playing' && countdownRef.current === null) {
+      if (gameStateRef.current === 'playing' && countdownRef.current === null && !showLoreRef.current) {
         const eng = engineRef.current;
 
         if (eng.hitStop > 0) {
@@ -543,6 +549,7 @@ export default function ToyBoxing() {
     if (gameState !== 'game_over') return;
 
     const handleGameOverKeyDown = (e: KeyboardEvent) => {
+      if (showLoreRef.current) return;
       if (e.code === 'Space' || e.code === 'Enter' || e.code === 'KeyR') {
         e.preventDefault();
         keysPressed.current.clear();
@@ -1642,6 +1649,9 @@ export default function ToyBoxing() {
     <div className="min-h-screen bg-neutral-950 text-white font-sans selection:bg-blue-500/30 overflow-x-hidden">
       <BackToMenu onBackToTitle={gameState !== 'menu' ? () => { setFightTip(null); setGameState('menu'); } : undefined} />
       {showFirstRun && <FirstRunGuide onClose={() => setShowFirstRun(false)} />}
+      {showLore && (
+        <OriginLoreModal dossier={TOY_BOXING_LORE} onClose={() => setShowLore(false)} />
+      )}
       <header className="max-w-7xl mx-auto p-4 sm:p-6 flex flex-col gap-4 md:flex-row md:justify-between md:items-center border-b border-white/10">
         <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
           <img
@@ -1710,6 +1720,16 @@ export default function ToyBoxing() {
               {String(Math.min(59, Math.max(0, Math.floor(uiState.timeLeft % 60)))).padStart(2, '0')}
             </span>
           </div>
+          <button
+            type="button"
+            onClick={() => setShowLore(true)}
+            className="mt-2 inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-rose-400/40 bg-rose-950/60 px-3 py-1.5 text-xs font-bold text-rose-200 transition hover:bg-rose-900/60 touch-manipulation"
+            aria-label="文化源流與玩法圖鑑"
+            title="文化源流與玩法圖鑑"
+          >
+            <span>📜</span>
+            <span>文化與玩法圖鑑</span>
+          </button>
         </div>
 
         <div className="flex items-center gap-3 sm:gap-4 text-right min-w-0 flex-1 md:justify-end">
@@ -2033,13 +2053,23 @@ export default function ToyBoxing() {
                   </>
                 )}
 
-                <button
-                  type="button"
-                  onClick={() => setShowFirstRun(true)}
-                  className="mt-3 px-4 py-3 rounded-2xl text-sm font-bold tracking-wider border border-white/15 text-neutral-300 hover:border-blue-400/50 hover:text-blue-200 transition-all min-h-[44px]"
-                >
-                  操作教學
-                </button>
+                <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowFirstRun(true)}
+                    className="px-4 py-3 rounded-2xl text-sm font-bold tracking-wider border border-white/15 text-neutral-300 hover:border-blue-400/50 hover:text-blue-200 transition-all min-h-[44px] touch-manipulation"
+                  >
+                    操作教學
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowLore(true)}
+                    className="px-4 py-3 rounded-2xl text-sm font-bold tracking-wider border border-rose-400/40 bg-rose-950/60 text-rose-200 hover:border-rose-400/70 hover:bg-rose-900/60 transition-all min-h-[44px] touch-manipulation"
+                    aria-label="文化源流與玩法圖鑑"
+                  >
+                    📜 文化源流與圖鑑
+                  </button>
+                </div>
               </motion.div>
             )}
 

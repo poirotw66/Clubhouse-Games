@@ -9,6 +9,8 @@ import {
 } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
+import { OriginLoreModal } from '@clubhouse/shared/OriginLoreModal';
+import { MEMORY_MATCH_LORE } from '@clubhouse/shared/lore/puzzleStrategy';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { ScoreFlash } from '@clubhouse/shared/ScoreFlash';
 import {
@@ -274,6 +276,7 @@ export default function App() {
   const [sightings, setSightings] = useState<Map<number, number>>(() => new Map());
   const [reactionSamples, setReactionSamples] = useState<number[]>([]);
   const [showMobileTelemetry, setShowMobileTelemetry] = useState(false);
+  const [showLore, setShowLore] = useState(false);
   const lastActionTimeRef = useRef<number>(Date.now());
 
   const gridRef = useRef<HTMLDivElement | null>(null);
@@ -1440,6 +1443,9 @@ export default function App() {
             返回
           </button>
         </div>
+        {showLore && (
+          <OriginLoreModal dossier={MEMORY_MATCH_LORE} onClose={() => setShowLore(false)} />
+        )}
       </div>
     );
   }
@@ -1571,6 +1577,17 @@ export default function App() {
       <BackToMenu onBackToTitle={screen !== 'play' || mode !== 'classic' ? () => { setScreen('play'); setMode('classic'); restart(pairCount, 'classic'); } : undefined} />
       <h1 className="mm-title">記憶配對</h1>
       <p className="mm-title-sub">Memory Match</p>
+      <div className="flex items-center justify-center gap-2">
+        <button
+          type="button"
+          onClick={() => setShowLore(true)}
+          className="min-h-[44px] px-4 py-1.5 rounded-xl border border-cyan-400/50 bg-cyan-950/60 hover:bg-cyan-900/70 text-cyan-200 text-xs font-bold inline-flex items-center gap-1.5 transition-colors touch-manipulation shadow-sm"
+          aria-label="由來與決策心法"
+        >
+          <span>📜</span>
+          <span>由來與決策心法</span>
+        </button>
+      </div>
 
       <div className="mm-cockpit-shell">
         {/* Left Wing: Brain Telemetry Radar Cockpit */}
@@ -2241,6 +2258,9 @@ export default function App() {
             restart(pairCount, 'classic');
           }}
         />
+      )}
+      {showLore && (
+        <OriginLoreModal dossier={MEMORY_MATCH_LORE} onClose={() => setShowLore(false)} />
       )}
     </div>
   );

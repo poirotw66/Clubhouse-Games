@@ -28,6 +28,7 @@ interface Props {
   onDifficulty: (id: DifficultyId) => void;
   onOptions: (patch: Partial<RaceOptions>) => void;
   onStart: () => void;
+  onOpenLore?: () => void;
 }
 
 function StatBar({label, value}: {label: string; value: number}) {
@@ -84,6 +85,7 @@ export function MainMenu({
   onDifficulty,
   onOptions,
   onStart,
+  onOpenLore,
 }: Props) {
   const character = CHARACTERS.find((c) => c.id === charId) ?? CHARACTERS[0];
   const bricks = useMemo(() => kartBricks(character), [character]);
@@ -126,13 +128,25 @@ export function MainMenu({
             <span className="text-amber-400">積木</span>賽車
           </h1>
           <p className="mt-2 text-sm text-slate-400">{modeBlurb}</p>
-          <button
-            type="button"
-            onClick={() => setShowHowTo(true)}
-            className="mt-3 text-xs font-bold text-amber-400/90 underline-offset-2 hover:underline"
-          >
-            操作教學
-          </button>
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowHowTo(true)}
+              className="min-h-[44px] rounded-xl border border-amber-400/30 bg-slate-900/70 px-4 py-2 text-xs font-bold text-amber-300 hover:bg-slate-800 touch-manipulation"
+            >
+              操作教學
+            </button>
+            {onOpenLore && (
+              <button
+                type="button"
+                onClick={onOpenLore}
+                className="min-h-[44px] rounded-xl border border-amber-400/40 bg-amber-950/60 px-4 py-2 text-xs font-bold text-amber-200 hover:bg-amber-900/60 touch-manipulation"
+                aria-label="文化源流與玩法圖鑑"
+              >
+                📜 文化源流與玩法圖鑑
+              </button>
+            )}
+          </div>
           {(progress.cupsWon.length > 0 || ghostCount > 0) && (
             <p className="mt-2 text-[11px] text-slate-500">
               {progress.cupsWon.length > 0

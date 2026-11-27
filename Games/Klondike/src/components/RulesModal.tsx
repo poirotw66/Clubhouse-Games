@@ -1,134 +1,64 @@
 import React from 'react';
-import { X } from 'lucide-react';
 import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
+import { OriginLoreModal } from '@clubhouse/shared/OriginLoreModal';
+import { KLONDIKE_LORE } from '@clubhouse/shared/lore/cardsBoard';
 
 interface RulesModalProps {
   isOpen: boolean;
   onClose: () => void;
+  initialTab?: 'origin' | 'rules';
 }
 
-export function RulesModal({ isOpen, onClose }: RulesModalProps) {
+export function RulesModal({ isOpen, onClose, initialTab = 'origin' }: RulesModalProps) {
   if (!isOpen) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="klondike-rules-title"
-    >
-      <div className="bg-emerald-950 border border-white/15 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col text-emerald-50">
-        <div className="flex justify-between items-center p-6 border-b border-white/10">
-          <h2 id="klondike-rules-title" className="text-2xl font-bold">遊戲規則</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="min-h-[44px] min-w-[44px] p-2 text-emerald-200/70 hover:text-white hover:bg-white/10 rounded-full transition-colors touch-manipulation"
-            aria-label="關閉規則"
-          >
-            <X size={20} />
-          </button>
-        </div>
+    <OriginLoreModal
+      dossier={KLONDIKE_LORE}
+      onClose={onClose}
+      initialTab={initialTab}
+      extraTab={{
+        id: 'settings',
+        label: '規則速查與手感設定',
+        content: (
+          <div className="space-y-4">
+            <section className="rounded-2xl border border-slate-800 bg-slate-900/75 p-4 sm:p-5 space-y-2">
+              <h3 className="text-base font-bold text-emerald-300">遊戲目標與區域</h3>
+              <ul className="list-disc pl-5 space-y-1.5 text-xs sm:text-sm text-slate-300">
+                <li>
+                  將 52 張牌依 <strong className="text-white">花色</strong> 從 A 到 K 依序搬到四個回收區（Foundation）。
+                </li>
+                <li>
+                  <strong className="text-slate-100">牌疊 (Tableau)</strong>：七列，開局每列僅頂張翻開；需「紅黑交替、點數遞減」接龍，空列僅限放入 <strong className="text-slate-100">K</strong> 或以 K 為首的牌串。
+                </li>
+                <li>
+                  <strong className="text-slate-100">牌堆／廢牌堆 (Stock / Waste)</strong>：一次翻 1 或 3 張，僅廢牌堆頂張可用。
+                </li>
+              </ul>
+            </section>
 
-        <div className="p-6 overflow-y-auto space-y-8 text-sm sm:text-base text-emerald-100/90">
-          <section>
-            <h3 className="text-lg font-bold text-white mb-2">遊戲目標</h3>
-            <p>
-              將 52 張牌依 <strong>花色</strong> 從 A 到 K 依序搬到四個回收區（Foundation）；完成四疊即獲勝。
-            </p>
-          </section>
+            <section className="rounded-2xl border border-slate-800 bg-slate-900/75 p-4 sm:p-5 space-y-2">
+              <h3 className="text-base font-bold text-emerald-300">計分與挑戰模式</h3>
+              <ul className="list-disc pl-5 space-y-1.5 text-xs sm:text-sm text-slate-300">
+                <li>
+                  <strong className="text-slate-100">標準</strong>：上回收區 +10、翻蓋牌 +5、廢牌接牌 +5、拿回 −15、悔棋 −2、循環牌堆翻 1 扣 100／翻 3 扣 20、每 10 秒 −2。
+                </li>
+                <li>
+                  <strong className="text-slate-100">維加斯</strong>：開局 −52，每張上回收區 +5；翻 1 限一輪、翻 3 限三輪。
+                </li>
+                <li>
+                  <strong className="text-slate-100">可解局與每日</strong>：Solver 篩選保證可解發牌；每日挑戰依台北時間同步發牌與計算連勝。
+                </li>
+              </ul>
+            </section>
 
-          <section>
-            <h3 className="text-lg font-bold text-white mb-2">區域說明</h3>
-            <ul className="list-disc pl-5 space-y-2">
-              <li>
-                <strong>牌疊 (Tableau)</strong>：七列。發牌時每列只有最上面一張翻開，其餘蓋牌。
-              </li>
-              <li>
-                <strong>牌堆／廢牌堆 (Stock / Waste)</strong>：從牌堆翻牌到廢牌堆；只有廢牌堆頂張可打出。
-              </li>
-              <li>
-                <strong>回收區 (Foundations)</strong>：四個空位。必須從 A 開始，同花色依序 A→K。
-              </li>
-            </ul>
-          </section>
-
-          <section>
-            <h3 className="text-lg font-bold text-white mb-2">移動規則</h3>
-            <ul className="list-disc pl-5 space-y-2">
-              <li>
-                <strong>接牌</strong>：可把單張或「紅黑交替、點數遞減」的一串接到另一列頂張之下。
-              </li>
-              <li>
-                <strong>空列</strong>：只有 <strong>K</strong>（或以 K 為首的一串）可放入空列。
-              </li>
-              <li>
-                <strong>翻牌</strong>：可設為一次翻 1 張或 3 張；牌堆翻完後可再循環廢牌堆。
-              </li>
-              <li>
-                <strong>翻開蓋牌</strong>：某列翻開的牌移走後，可翻開該列最上面的蓋牌。
-              </li>
-            </ul>
-          </section>
-
-          <section>
-            <h3 className="text-lg font-bold text-white mb-2">操作方式</h3>
-            <ul className="list-disc pl-5 space-y-2">
-              <li>
-                <strong>拖曳</strong>：拖牌到目標位置。
-              </li>
-              <li>
-                <strong>點擊</strong>：點選來源，再點目標。
-              </li>
-              <li>
-                <strong>雙擊</strong>：嘗試自動收進回收區。
-              </li>
-            </ul>
-          </section>
-
-          <section>
-            <h3 className="text-lg font-bold text-white mb-2">計分</h3>
-            <ul className="list-disc pl-5 space-y-2">
-              <li>
-                <strong>標準</strong>：移上回收區 +10、翻開牌疊 +5、廢牌接到牌疊 +5；從回收區拿回 −15；每次悔棋額外 −2；循環牌堆翻 1 扣 100／翻 3 扣 20；每 10 秒 −2；通關依時間加分。
-              </li>
-              <li>
-                <strong>維加斯</strong>：開局 −52，每張上回收區 +5，分數累計為籌碼。翻 1 不可循環牌堆；翻 3 最多循環兩次（共三輪）。
-              </li>
-            </ul>
-          </section>
-
-          <section>
-            <h3 className="text-lg font-bold text-white mb-2">可解局與每日</h3>
-            <ul className="list-disc pl-5 space-y-2">
-              <li>
-                <strong>可解局</strong>：以 solver 篩選（或反向構局）保證存在完美資訊解。
-              </li>
-              <li>
-                <strong>每日</strong>：依台北時間日期種子發同一局，記錄今日最佳與連續天數，可複製分享文案。
-              </li>
-              <li>
-                <strong>挑戰</strong>：如無悔棋、步數／時間上限、標準高分、維加斯獲利等，通關時結算。
-              </li>
-            </ul>
-          </section>
-
-          <section>
-            <h3 className="text-lg font-bold text-white mb-2">打擊感與手感回饋（Juice）</h3>
-            <JuiceSettingsPanel />
-          </section>
-        </div>
-
-        <div className="p-6 border-t border-white/10 flex justify-end">
-          <button
-            type="button"
-            onClick={onClose}
-            className="min-h-[44px] px-8 py-2.5 bg-emerald-400 hover:bg-emerald-300 text-emerald-950 font-medium rounded-full transition-colors touch-manipulation"
-          >
-            了解
-          </button>
-        </div>
-      </div>
-    </div>
+            <section className="rounded-2xl border border-slate-800 bg-slate-900/75 p-4 sm:p-5">
+              <h3 className="text-base font-bold text-emerald-300 mb-2">打擊感與手感回饋（Juice）</h3>
+              <JuiceSettingsPanel className="text-slate-200" />
+            </section>
+          </div>
+        ),
+      }}
+    />
   );
 }

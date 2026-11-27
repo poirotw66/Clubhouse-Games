@@ -25,6 +25,8 @@ import {
 } from './sfx.js';
 import { haptic, particles, shake } from '@clubhouse/shared/juice';
 import { createResultOverlay } from '@clubhouse/shared/resultOverlayDom';
+import { openOriginLoreModal } from '@clubhouse/shared/originLoreDom';
+import { SAILING_LORE } from '@clubhouse/shared/lore/vanillaDom';
 import {
   bestFor,
   isUnlocked,
@@ -578,6 +580,11 @@ function startGame(gl, canvas) {
   $('#btn-help-close')?.addEventListener('click', () => {
     $('#help-panel').hidden = true;
   });
+  const openSailingLore = () => {
+    openOriginLoreModal({ dossier: SAILING_LORE });
+  };
+  $('#btn-lore')?.addEventListener('click', openSailingLore);
+  $('#btn-hud-lore')?.addEventListener('click', openSailingLore);
 
   function updateGuide() {
     const gate = marks.nextGate;

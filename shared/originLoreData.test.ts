@@ -26,7 +26,7 @@ const STRICT_SIMPLIFIED_ONLY = [
   '规', '则', '罗', '体', '双', '变', '听', '极', '获'
 ];
 
-test('all required games have complete origin and lore dossiers', () => {
+test('all required games (33 total) have complete origin and lore dossiers', () => {
   const games = [
     'pick-red',
     'koi-koi',
@@ -34,10 +34,43 @@ test('all required games have complete origin and lore dossiers', () => {
     'fifteen-puzzle',
     'roguelike-snake',
     'mystery-liquid-sort',
+    // Cards & Board (7)
+    'big-two',
+    'blackjack',
+    'checkers',
+    'connect-four',
+    'freecell',
+    'klondike',
+    'reversi',
+    // Puzzle & Strategy (7)
+    'clockwork-keep',
+    'coin-cascade',
+    'dialed-color',
+    'every-corner',
+    'instant-flash',
+    'memory-match',
+    'tetris',
+    // Sports & Arcade (8)
+    'baseball-life',
+    'brick-kart-racing',
+    'cyber-neon-rush',
+    'danmaku-abyss',
+    'dynasty',
+    'switchpoint-run',
+    'toy-baseball',
+    'toy-boxing',
+    // Vanilla DOM (5)
+    'block-the-smash',
+    'clip-clop',
+    'puyo-puyo',
+    'sailing',
+    'wall-flip',
   ];
+  assert.equal(Object.keys(ALL_LORE_DOSSIERS).length, 33);
   for (const gameId of games) {
     const dossier = ALL_LORE_DOSSIERS[gameId];
     assert.ok(dossier, `Missing dossier for game: ${gameId}`);
+    assert.equal(dossier.gameId, gameId);
     assert.ok(dossier.gameTitle.length > 0);
     assert.ok(dossier.culturalOrigin.sections.length >= 2);
     assert.ok(dossier.rulesAndStrategy.sections.length >= 2);

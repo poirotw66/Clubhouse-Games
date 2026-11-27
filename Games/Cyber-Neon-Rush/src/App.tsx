@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent, type ReactElement } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
+import { OriginLoreModal } from '@clubhouse/shared/OriginLoreModal';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { CYBER_NEON_RUSH_LORE } from '@clubhouse/shared/lore/sportsArcade';
 import { haptic, particles, shake } from '@clubhouse/shared/juice';
 import {
   playCapture,
@@ -219,6 +221,9 @@ export default function App(): ReactElement {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.repeat) return;
+      if (panel === 'lore') {
+        return;
+      }
       if (panel === 'howto' && e.code === 'Escape') {
         e.preventDefault();
         setPanel('none');
@@ -336,7 +341,7 @@ export default function App(): ReactElement {
           key={runId}
           config={runConfig}
           running={screen === 'playing' || screen === 'paused' || screen === 'gameover'}
-          paused={screen === 'paused' || screen === 'gameover'}
+          paused={screen === 'paused' || screen === 'gameover' || panel === 'lore'}
           onHud={onHud}
           onGameOver={onGameOver}
           worldRef={worldRef}
@@ -351,7 +356,7 @@ export default function App(): ReactElement {
         />
       )}
 
-      <Scoreboard hud={hud} visible={showBoard} />
+      <Scoreboard hud={hud} visible={showBoard} onOpenLore={() => setPanel('lore')} />
 
       {screen === 'menu' && (
         <div className="menu-shell" data-ui="cyber-neon-start">
@@ -412,11 +417,18 @@ export default function App(): ReactElement {
                   開始疾馳
                 </button>
                 <div className="menu-secondary-row">
-                  <button type="button" className="cta-secondary" onClick={() => setPanel('meta')}>
+                  <button type="button" className="cta-secondary min-h-[44px] touch-manipulation" onClick={() => setPanel('meta')}>
                     車庫與任務{unclaimed > 0 ? `（${unclaimed}）` : ''}
                   </button>
-                  <button type="button" className="cta-secondary" onClick={() => setPanel('howto')}>
+                  <button type="button" className="cta-secondary min-h-[44px] touch-manipulation" onClick={() => setPanel('howto')}>
                     操作教學
+                  </button>
+                  <button
+                    type="button"
+                    className="cta-secondary col-span-2 min-h-[44px] touch-manipulation"
+                    onClick={() => setPanel('lore')}
+                  >
+                    📜 文化源流與玩法圖鑑
                   </button>
                 </div>
                 <p className="hint">
@@ -484,6 +496,10 @@ export default function App(): ReactElement {
         />
       )}
 
+      {panel === 'lore' && (
+        <OriginLoreModal dossier={CYBER_NEON_RUSH_LORE} onClose={() => setPanel('none')} />
+      )}
+
       {screen === 'paused' && (
         <div className="menu-shell is-pause">
           <div className="menu-card">
@@ -497,6 +513,13 @@ export default function App(): ReactElement {
             <div className="flex flex-col gap-2 w-full mt-2">
               <button type="button" className="cta" onClick={() => setScreen('playing')}>
                 繼續疾馳
+              </button>
+              <button
+                type="button"
+                className="cta-secondary min-h-[44px] touch-manipulation"
+                onClick={() => setPanel('lore')}
+              >
+                📜 文化源流與圖鑑
               </button>
               <button
                 type="button"

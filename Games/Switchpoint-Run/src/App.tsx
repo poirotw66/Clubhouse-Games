@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
+import { OriginLoreModal } from '@clubhouse/shared/OriginLoreModal';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { haptic } from '@clubhouse/shared/juice';
+import { SWITCHPOINT_RUN_LORE } from '@clubhouse/shared/lore/sportsArcade';
 import {
   playCombo,
   playError,
@@ -107,6 +109,7 @@ export default function App(): React.ReactElement {
   const [showMobileControls, setShowMobileControls] = useState(true);
   const [showMobileDrawer, setShowMobileDrawer] = useState(false);
   const [showGuide, setShowGuide] = useState(() => !hasSeenFirstRunGuide());
+  const [showLore, setShowLore] = useState(false);
 
   const stateRef = useRef<RunState | null>(null);
   const fxRef = useRef<FxState>(createFx());
@@ -321,6 +324,7 @@ export default function App(): React.ReactElement {
   useEffect(() => {
     if (screen !== 'playing') return;
     const down = (e: KeyboardEvent): void => {
+      if (showLore) return;
       const target = e.target as HTMLElement | null;
       if (target?.closest('button') && (e.code === 'Space' || e.code === 'Enter')) return;
       if (e.metaKey || e.ctrlKey || e.altKey || target?.isContentEditable ||
@@ -377,7 +381,7 @@ export default function App(): React.ReactElement {
       window.removeEventListener('keydown', down);
       window.removeEventListener('keyup', up);
     };
-  }, [screen, paused]);
+  }, [screen, paused, showLore]);
 
   const touchStart = useRef<{ x: number; y: number } | null>(null);
   const touchHandled = useRef(false);
@@ -524,7 +528,7 @@ export default function App(): React.ReactElement {
 
       const dtReal = Math.min(0.25, (now - lastRef.current) / 1000);
       lastRef.current = now;
-      if (paused || challengeWon || s.phase !== 'playing') return;
+      if (paused || showLore || challengeWon || s.phase !== 'playing') return;
 
       // Hit-stop: hold the simulation briefly on hits (respects reduced motion).
       if (fxRef.current.hitStop > 0 && !prefersReducedMotion()) {
@@ -573,7 +577,7 @@ export default function App(): React.ReactElement {
     };
     rafRef.current = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [screen, paused, challengeWon, readInput, applyChallengeEnd, applyJuice]);
+  }, [screen, paused, showLore, challengeWon, readInput, applyChallengeEnd, applyJuice]);
 
   // Settle meta once a run ends.
   useEffect(() => {
@@ -886,11 +890,19 @@ export default function App(): React.ReactElement {
               <span className="text-emerald-400">❖</span>
               調度運轉規範與核心法則
             </span>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowLore(true)}
+                className="min-h-[44px] touch-manipulation rounded-lg border border-indigo-400/50 bg-indigo-950/60 px-3 py-1.5 text-xs font-semibold text-indigo-200 hover:bg-indigo-900/60 transition-colors"
+                aria-label="文化源流與玩法圖鑑"
+              >
+                📜 文化源流與圖鑑
+              </button>
               <button
                 type="button"
                 onClick={() => setShowGuide(true)}
-                className="rounded-lg border border-cyan-500/40 bg-cyan-950/60 px-2.5 py-1 text-xs font-semibold text-cyan-300 hover:bg-cyan-900/60 transition-colors"
+                className="min-h-[44px] touch-manipulation rounded-lg border border-cyan-500/40 bg-cyan-950/60 px-3 py-1.5 text-xs font-semibold text-cyan-300 hover:bg-cyan-900/60 transition-colors"
               >
                 新手指南
               </button>
@@ -1091,6 +1103,9 @@ export default function App(): React.ReactElement {
         )}
 
         {showGuide && <FirstRunGuide onClose={() => setShowGuide(false)} />}
+        {showLore && (
+          <OriginLoreModal dossier={SWITCHPOINT_RUN_LORE} onClose={() => setShowLore(false)} />
+        )}
       </div>
     );
   }
@@ -1116,6 +1131,9 @@ export default function App(): React.ReactElement {
       }${fxRef.current.shake > 4 ? ' sr-shake-hard' : fxRef.current.shake > 1.5 ? ' sr-shake' : ''}`}
     >
       <BackToMenu onBackToTitle={() => setScreen('menu')} />
+      {showLore && (
+        <OriginLoreModal dossier={SWITCHPOINT_RUN_LORE} onClose={() => setShowLore(false)} />
+      )}
 
       {/* Top HUD Command Strip */}
       <div className="sr-hud shrink-0 px-3 pt-12 pb-2 flex items-center justify-between text-xs sm:text-sm text-slate-300">
@@ -1145,6 +1163,15 @@ export default function App(): React.ReactElement {
           <span className="sr-hud-chip hidden sm:inline-flex text-amber-300 font-mono">
             +{estBolts} 螺栓
           </span>
+          <button
+            type="button"
+            onClick={() => setShowLore(true)}
+            className="sr-hud-chip min-h-[44px] touch-manipulation border border-indigo-400/40 bg-indigo-950/70 text-indigo-200 hover:bg-indigo-900/70 font-bold cursor-pointer"
+            aria-label="文化源流與玩法圖鑑"
+            title="文化源流與玩法圖鑑"
+          >
+            📜 圖鑑
+          </button>
         </div>
       </div>
 

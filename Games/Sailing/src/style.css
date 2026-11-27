@@ -390,6 +390,25 @@ body {
   backdrop-filter: blur(8px);
 }
 
+.title-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+}
+
+.lore-trigger-btn {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-color: rgba(34, 211, 238, 0.42);
+  background: rgba(8, 51, 68, 0.72);
+  color: #cffafe;
+  touch-action: manipulation;
+}
+
 .btn:hover,
 .btn:focus-visible {
   border-color: rgba(44, 181, 168, 0.7);

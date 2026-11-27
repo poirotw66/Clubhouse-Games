@@ -19,7 +19,7 @@ window.WallFlipLaunch = {
         <div class="wf-launch-modes"></div>
         <div class="wf-launch-course"></div>
         <details class="wf-launch-guide"><summary data-copy="guide"></summary><div class="wf-launch-guide-body"></div></details>
-        <details class="wf-launch-guide wf-launch-achievements"><summary data-copy="achievements"></summary><div class="wf-launch-achievement-body"></div></details><div class="wf-launch-extras"></div>
+        <details class="wf-launch-guide wf-launch-achievements"><summary data-copy="achievements"></summary><div class="wf-launch-achievement-body"></div></details><div class="wf-launch-extras"><button type="button" class="wf-launch-lore-btn" data-copy="lore" aria-haspopup="dialog"></button></div>
       </section>`;
     host.append(launch);
     launch.querySelector('.wf-launch-modes').append(modes);
@@ -60,6 +60,14 @@ window.WallFlipLaunch = {
     // In 3D the old backdrop starts on click; intentional controls own their events.
     launch.addEventListener('click', e => e.stopPropagation());
     launch.querySelector('.wf-launch-lang').addEventListener('click', () => onLanguage());
+    const loreBtn = launch.querySelector('.wf-launch-lore-btn');
+    if (loreBtn) {
+      loreBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        loreBtn.blur();
+        window.WallFlipOriginLore?.open();
+      });
+    }
     const credit = document.createElement('p'); credit.dataset.copy='credit'; guide.append(credit);
     let current = '';
     return {
@@ -69,9 +77,9 @@ window.WallFlipLaunch = {
         const key = [lang, course, ghost, garage?.active.id, garage?.surfaceReady, club?.paint.id, ...achievements].join('|'); if (key === current) return; current = key;
         const en = lang === 'en';
         const copy = en ? {
-          brand:'NIGHT DISTRICT / WALL FLIP', headline:'Wall Flip.', intro:'Neon streets below. Open sky above. Make the landing count.', mission:'Your first clean landing starts here.', ready:'● READY FOR TAKEOFF', title:'Ready to fly?', description:'Hold the throttle. Stick to the wall. Level out and brake before touchdown.', keyHint:'W / SPACE throttle · X suction · ← → roll · B brake', guide:'The 30-second flight guide', credit:'Inspired by tsuyatt.com 宙返りロードスター · Independent recreation.', achievements:'My stunt collection', ranking:'Leaderboard ↗', ghost:'Ghost ' + (ghost ? 'ON' : 'OFF'), start:'Launch this run →'
+          brand:'NIGHT DISTRICT / WALL FLIP', headline:'Wall Flip.', intro:'Neon streets below. Open sky above. Make the landing count.', mission:'Your first clean landing starts here.', ready:'● READY FOR TAKEOFF', title:'Ready to fly?', description:'Hold the throttle. Stick to the wall. Level out and brake before touchdown.', keyHint:'W / SPACE throttle · X suction · ← → roll · B brake', guide:'The 30-second flight guide', credit:'Inspired by tsuyatt.com 宙返りロードスター · Independent recreation.', achievements:'My stunt collection', ranking:'Leaderboard ↗', ghost:'Ghost ' + (ghost ? 'ON' : 'OFF'), lore:'📜 Origin & Strategy', start:'Launch this run →'
         } : {
-          brand:'夜航特技俱樂部 / WALL FLIP', headline:'牆上翻滾', intro:'霓虹之下起跑，翻過城市天際線。輪胎朝下，漂亮收場。', mission:'你的第一次完美著陸，從這裡開始。', ready:'● 發車準備完成', title:'選好座駕，準備起飛。', description:'油門衝上牆，反翹時吸附。離牆後扶正車身，再煞降落地。', keyHint:'W / SPACE 油門 · X 吸附 · ← → 翻滾 · B 煞降', guide:'30 秒飛行指南', credit:'靈感致敬：tsuyatt.com 宙返りロードスター · 自製復刻', achievements:'我的特技成就', ranking:'排行榜 ↗', ghost:'幽靈 ' + (ghost ? '開啟' : '關閉'), start:'帶著挑戰起飛 →'
+          brand:'夜航特技俱樂部 / WALL FLIP', headline:'牆上翻滾', intro:'霓虹之下起跑，翻過城市天際線。輪胎朝下，漂亮收場。', mission:'你的第一次完美著陸，從這裡開始。', ready:'● 發車準備完成', title:'選好座駕，準備起飛。', description:'油門衝上牆，反翹時吸附。離牆後扶正車身，再煞降落地。', keyHint:'W / SPACE 油門 · X 吸附 · ← → 翻滾 · B 煞降', guide:'30 秒飛行指南', credit:'靈感致敬：tsuyatt.com 宙返りロードスター · 自製復刻', achievements:'我的特技成就', ranking:'排行榜 ↗', ghost:'幽靈 ' + (ghost ? '開啟' : '關閉'), lore:'📜 文化源流與玩法圖鑑', start:'帶著挑戰起飛 →'
         };
         launch.querySelector('#launchHeadline').textContent=copy.headline;
         launch.querySelectorAll('[data-copy]').forEach(el => { if (copy[el.dataset.copy]) el.textContent=copy[el.dataset.copy]; });

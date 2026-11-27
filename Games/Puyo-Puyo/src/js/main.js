@@ -1838,6 +1838,7 @@
   }
 
   document.addEventListener('keydown', function (event) {
+    if (document.querySelector('[data-clubhouse-lore-modal="1"]')) return;
     if (event.ctrlKey || event.metaKey || event.altKey || event.isComposing || event.defaultPrevented) return;
     var target = event.target;
     if (target && target.closest && target.closest('input, textarea, select, [contenteditable="true"]')) return;
@@ -2276,6 +2277,16 @@
       }
     });
   }
+  function openPuyoOriginLore() {
+    var loreApi = global.ClubhouseOriginLore;
+    if (!loreApi || !loreApi.openOriginLoreModal || !loreApi.PUYO_PUYO_LORE) return;
+    pauseOnLeave();
+    loreApi.openOriginLoreModal({ dossier: loreApi.PUYO_PUYO_LORE });
+  }
+  var btnOriginLore = document.getElementById('btn-origin-lore');
+  var btnOpenOriginLore = document.getElementById('btn-open-origin-lore');
+  if (btnOriginLore) btnOriginLore.addEventListener('click', openPuyoOriginLore);
+  if (btnOpenOriginLore) btnOpenOriginLore.addEventListener('click', openPuyoOriginLore);
   if (tactical.btnHandbookClose) tactical.btnHandbookClose.addEventListener('click', closeHandbook);
   if (tactical.btnHandbookDone) tactical.btnHandbookDone.addEventListener('click', closeHandbook);
   if (tactical.strategyModal) {

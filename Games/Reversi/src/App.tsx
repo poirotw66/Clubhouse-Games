@@ -2,12 +2,12 @@ import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { TouchButton } from '@clubhouse/shared/TouchButton';
-import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
 import { haptic, particles, shake } from '@clubhouse/shared/juice';
 import { playLose, playWin } from '@clubhouse/shared/synthAudio';
 import { RefreshCw, BookOpen, Undo2, Lightbulb, Keyboard, Eye, EyeOff } from 'lucide-react';
 import { BoardGrid } from './components/BoardGrid';
 import { MenuScreen, type MenuView } from './components/MenuScreen';
+import { RulesModal } from './components/RulesModal';
 import { TacticalLeftWing } from './components/TacticalLeftWing';
 import { TacticalRightWing } from './components/TacticalRightWing';
 import { TacticalCapsuleBar } from './components/TacticalCapsuleBar';
@@ -172,6 +172,7 @@ export default function App() {
 
   const [state, setState] = useState<GameState>(getInitialState);
   const [showRules, setShowRules] = useState(false);
+  const [rulesInitialTab, setRulesInitialTab] = useState<'origin' | 'rules'>('origin');
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [tacticalVision, setTacticalVision] = useState(false);
   const [cursorCell, setCursorCell] = useState<[number, number] | null>(null);
@@ -1034,7 +1035,7 @@ export default function App() {
   ]);
 
   useEffect(() => {
-    if (state.phase !== 'over') return;
+    if (state.phase !== 'over' || showRules || showShortcutsModal) return;
     const handleOverKeyDown = (e: KeyboardEvent) => {
       if (
         e.target instanceof HTMLInputElement ||
@@ -1053,7 +1054,7 @@ export default function App() {
     };
     window.addEventListener('keydown', handleOverKeyDown);
     return () => window.removeEventListener('keydown', handleOverKeyDown);
-  }, [state.phase, playMode, puzzleSolved, puzzle, startPuzzle, replaySame]);
+  }, [state.phase, showRules, showShortcutsModal, playMode, puzzleSolved, puzzle, startPuzzle, replaySame]);
 
   // Reticle coordinate badge & tactical explanation
   const reticleReadout = useMemo(() => {
@@ -1248,12 +1249,29 @@ export default function App() {
             onClick={handleHint}
             className="p-2 rounded-lg hover:bg-white/10 transition-colors inline-flex items-center justify-center bg-transparent text-inherit border-0"
           />
+          {/* Origin Lore */}
+          <button
+            type="button"
+            onClick={() => {
+              setRulesInitialTab('origin');
+              setShowRules(true);
+            }}
+            className="min-h-[44px] px-2.5 py-1.5 rounded-lg border border-emerald-400/45 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-200 text-xs font-bold touch-manipulation inline-flex items-center gap-1"
+            aria-label="由來與圖鑑"
+            title="文化由來與決策圖鑑"
+          >
+            <span>📜</span>
+            <span className="hidden sm:inline">圖鑑</span>
+          </button>
           {/* Rules */}
           <TouchButton
             label={<BookOpen className="w-5 h-5" />}
             ariaLabel="規則"
-            title="規則"
-            onClick={() => setShowRules(true)}
+            title="規則與玩法圖解"
+            onClick={() => {
+              setRulesInitialTab('rules');
+              setShowRules(true);
+            }}
             className="p-2 rounded-lg hover:bg-white/10 transition-colors inline-flex items-center justify-center bg-transparent text-inherit border-0"
           />
           {/* Restart */}
@@ -1567,34 +1585,12 @@ export default function App() {
         onClose={() => setShowShortcutsModal(false)}
       />
 
-      {/* Rules Modal */}
+      {/* Rules & Origin Lore Modal */}
       {showRules && (
-        <div
-          className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="rules-title"
-        >
-          <div className="bg-stone-800 rounded-xl max-w-md max-h-[85vh] overflow-y-auto p-6 text-left">
-            <h2 id="rules-title" className="text-lg font-bold mb-3">規則說明</h2>
-            <ul className="text-sm text-stone-200 space-y-2 list-disc pl-4">
-              <li>8×8 棋盤，黑方先手。開局中央 2×2 為兩黑兩白（斜線相對）。</li>
-              <li>同一手可多方向翻子；至少須翻 1 枚才算合法。</li>
-              <li>無合法手時須 Pass；雙方都無法下則終局，子多者勝。</li>
-              <li>角地、機動、奇偶是中盤與殘局的核心概念——見「戰略要點」。</li>
-            </ul>
-            <div className="mt-4">
-              <JuiceSettingsPanel />
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowRules(false)}
-              className="mt-4 w-full py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 font-medium"
-            >
-              關閉
-            </button>
-          </div>
-        </div>
+        <RulesModal
+          onClose={() => setShowRules(false)}
+          initialTab={rulesInitialTab}
+        />
       )}
     </div>
   );

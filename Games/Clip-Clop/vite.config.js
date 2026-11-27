@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
+import { clubhouseSharedAlias } from '../../shared/vite-alias.mjs';
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -12,6 +13,11 @@ export default defineConfig(() => {
       port: 3000,
       host: '0.0.0.0',
       fs: { allow: [path.resolve(rootDir, '../..')] },
+    },
+    resolve: {
+      alias: {
+        ...clubhouseSharedAlias(),
+      },
     },
     build: {
       outDir: 'dist',

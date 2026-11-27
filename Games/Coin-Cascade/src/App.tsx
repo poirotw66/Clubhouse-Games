@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { OriginLoreModal } from '@clubhouse/shared/OriginLoreModal';
+import { COIN_CASCADE_LORE } from '@clubhouse/shared/lore/puzzleStrategy';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { shake } from '@clubhouse/shared/juice';
 import { GameCanvas } from './components/GameCanvas';
@@ -156,6 +158,7 @@ export default function App(): React.ReactElement {
   const [meta, setMeta] = useState<MetaProgress>(() => loadMetaProgress());
   const [dailyProgress, setDailyProgress] = useState<DailyProgress>(() => loadDailyProgress());
   const [menuPanel, setMenuPanel] = useState<MenuPanel>(null);
+  const [showLore, setShowLore] = useState(false);
   const [selectedTable, setSelectedTable] = useState<TableId>('classic');
   const [special, setSpecial] = useState<Special>('normal');
   const [hud, setHud] = useState<RunState | null>(null);
@@ -797,6 +800,15 @@ export default function App(): React.ReactElement {
                 <small>幣面與特殊幣</small>
               </button>
             </div>
+            <button
+              type="button"
+              onClick={() => setShowLore(true)}
+              className="min-h-[44px] w-full rounded-xl border border-amber-400/50 bg-amber-950/60 hover:bg-amber-900/70 px-4 py-2 text-xs font-bold text-amber-200 inline-flex items-center justify-center gap-1.5 transition-colors touch-manipulation shadow-md"
+              aria-label="由來與決策心法"
+            >
+              <span>📜</span>
+              <span>由來與決策心法</span>
+            </button>
           </div>
         </div>
 
@@ -1044,6 +1056,9 @@ export default function App(): React.ReactElement {
             </section>
           </MenuDialog>
         )}
+        {showLore && (
+          <OriginLoreModal dossier={COIN_CASCADE_LORE} onClose={() => setShowLore(false)} />
+        )}
       </div>
     );
   }
@@ -1176,14 +1191,26 @@ export default function App(): React.ReactElement {
           )}
           {winding && <span className="cc-hud-chip text-emerald-200">結算中…</span>}
         </div>
-        <div className="cc-hud-chip cc-hud-chip--score cc-display tabular-nums text-lg font-extrabold text-amber-200">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowLore(true)}
+            className="min-h-[44px] px-3 py-1.5 rounded-xl border border-amber-400/45 bg-amber-950/60 hover:bg-amber-900/70 text-amber-200 text-xs font-bold inline-flex items-center gap-1 transition-colors touch-manipulation"
+            aria-label="由來與決策心法"
+            title="由來與決策心法"
+          >
+            <span>📜</span>
+            <span>心法圖鑑</span>
+          </button>
+          <div className="cc-hud-chip cc-hud-chip--score cc-display tabular-nums text-lg font-extrabold text-amber-200">
           {(s?.score ?? 0).toLocaleString('zh-Hant')}
           {activeMode?.goal.kind === 'score' ? (
             <span className="ml-1 text-xs font-normal opacity-70">/{activeMode.goal.min}</span>
           ) : null}
-          {isDaily && activeDaily ? (
-            <span className="ml-1 text-xs font-normal opacity-70">/{activeDaily.targetScore}</span>
-          ) : null}
+            {isDaily && activeDaily ? (
+              <span className="ml-1 text-xs font-normal opacity-70">/{activeDaily.targetScore}</span>
+            ) : null}
+          </div>
         </div>
       </div>
 
@@ -1718,6 +1745,9 @@ export default function App(): React.ReactElement {
           secondaryLabel="回到主選單"
           onSecondary={() => setScreen('menu')}
         />
+      )}
+      {showLore && (
+        <OriginLoreModal dossier={COIN_CASCADE_LORE} onClose={() => setShowLore(false)} />
       )}
     </div>
   );

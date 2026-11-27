@@ -3,6 +3,8 @@ import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { TouchButton } from '@clubhouse/shared/TouchButton';
 import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
+import { OriginLoreModal } from '@clubhouse/shared/OriginLoreModal';
+import { CHECKERS_LORE } from '@clubhouse/shared/lore/cardsBoard';
 import { haptic, particles, shake } from '@clubhouse/shared/juice';
 import {
   playCapture,
@@ -241,6 +243,7 @@ export default function App() {
   const [state, setState] = useState<GameState>(() => getInitialState(ruleset));
   const [selected, setSelected] = useState<[number, number] | null>(null);
   const [showRules, setShowRules] = useState(false);
+  const [rulesInitialTab, setRulesInitialTab] = useState<'origin' | 'rules'>('origin');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [lastMove, setLastMove] = useState<LastMove | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -933,7 +936,7 @@ export default function App() {
   ]);
 
   useEffect(() => {
-    if (state.phase !== 'over' || showReview) return;
+    if (state.phase !== 'over' || showReview || showRules) return;
     const handleOverKeyDown = (e: KeyboardEvent) => {
       if (
         e.target instanceof HTMLInputElement ||
@@ -951,7 +954,7 @@ export default function App() {
     };
     window.addEventListener('keydown', handleOverKeyDown);
     return () => window.removeEventListener('keydown', handleOverKeyDown);
-  }, [state.phase, showReview, gameMode, match.matchOver, matchTarget, resetGame]);
+  }, [state.phase, showReview, showRules, gameMode, match.matchOver, matchTarget, resetGame]);
 
   const hintPathSet = hintMove
     ? new Set(hintMove.path.map(([r, c]) => sq(r, c)))
@@ -1099,10 +1102,27 @@ export default function App() {
             onClick={handleHint}
             className="p-2 rounded-lg hover:bg-white/10 transition-colors inline-flex items-center justify-center bg-transparent text-inherit border-0"
           />
+          <button
+            type="button"
+            onClick={() => {
+              setRulesInitialTab('origin');
+              setShowRules(true);
+            }}
+            className="min-h-[44px] px-2.5 py-1.5 rounded-lg border border-amber-400/45 bg-amber-500/15 hover:bg-amber-500/25 text-amber-200 text-xs font-bold touch-manipulation inline-flex items-center gap-1"
+            aria-label="由來與圖鑑"
+            title="文化由來與決策圖鑑"
+          >
+            <span>📜</span>
+            <span>圖鑑</span>
+          </button>
           <TouchButton
             label={<BookOpen className="w-4 h-4" />}
             ariaLabel="規則說明"
-            onClick={() => setShowRules(true)}
+            title="規則說明"
+            onClick={() => {
+              setRulesInitialTab('rules');
+              setShowRules(true);
+            }}
             className="p-2 rounded-lg hover:bg-white/10 transition-colors inline-flex items-center justify-center bg-transparent text-inherit border-0"
           />
           <TouchButton
@@ -1656,47 +1676,47 @@ export default function App() {
       )}
 
       {showRules && (
-        <div
-          className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-10"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="checkers-rules-title"
-        >
-          <div className="bg-stone-800 rounded-xl max-w-md max-h-[85vh] overflow-y-auto p-6 text-left">
-            <h2 id="checkers-rules-title" className="text-lg font-bold mb-3">
-              規則說明（{rules.label}）
-            </h2>
-            <ul className="text-sm text-stone-200 space-y-2 list-disc pl-4">
-              <li>
-                僅使用深色格；雙方各 {piecesPerSide} 子，黑方先手（謎題依題目）。
-              </li>
-              <li>兵斜向移動一格；可跳吃，可連續跳且必須跳完。</li>
-              {ruleset === 'american' ? (
-                <>
-                  <li>兵僅向前跳吃；王斜向一格任意方向（短王）。</li>
-                  <li>若可吃子則必須吃。</li>
-                </>
-              ) : (
-                <>
-                  <li>兵可向前或向後跳吃；王為飛王，可沿斜線任意格數移動與遠距跳吃。</li>
-                  <li>多種吃法時必須選擇吃子數最多的序列。</li>
-                </>
-              )}
-              <li>無合法移動或無子的一方輸；連續 40 回合無吃子且無兵前進，或同一局面重複三次，判為和局。</li>
-              <li>模式：雙人／電腦名冊／系列賽／殘局謎題；提示會說明建議理由。</li>
-            </ul>
-            <div className="mt-4">
-              <JuiceSettingsPanel />
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowRules(false)}
-              className="mt-4 w-full py-2 rounded-lg bg-amber-600 hover:bg-amber-500 font-medium min-h-[44px]"
-            >
-              關閉
-            </button>
-          </div>
-        </div>
+        <OriginLoreModal
+          dossier={CHECKERS_LORE}
+          onClose={() => setShowRules(false)}
+          initialTab={rulesInitialTab}
+          extraTab={{
+            id: 'settings',
+            label: `規則速查與手感 (${rules.label})`,
+            content: (
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-slate-800 bg-slate-900/75 p-4 sm:p-5">
+                  <h3 className="text-base font-bold text-amber-300 mb-2">
+                    目前模式規則（{rules.label}）
+                  </h3>
+                  <ul className="text-xs sm:text-sm text-slate-300 space-y-2 list-disc pl-4">
+                    <li>
+                      僅使用深色格；雙方各 {piecesPerSide} 子，黑方先手（謎題依題目）。
+                    </li>
+                    <li>兵斜向移動一格；可跳吃，可連續跳且必須跳完。</li>
+                    {ruleset === 'american' ? (
+                      <>
+                        <li>兵僅向前跳吃；王斜向一格任意方向（短王）。</li>
+                        <li>若可吃子則必須吃。</li>
+                      </>
+                    ) : (
+                      <>
+                        <li>兵可向前或向後跳吃；王為飛王，可沿斜線任意格數移動與遠距跳吃。</li>
+                        <li>多種吃法時必須選擇吃子數最多的序列。</li>
+                      </>
+                    )}
+                    <li>無合法移動或無子的一方輸；連續 40 回合無吃子且無兵前進，或同一局面重複三次，判為和局。</li>
+                    <li>模式：雙人／電腦名冊／系列賽／殘局謎題；提示會說明建議理由。</li>
+                  </ul>
+                </div>
+                <div className="rounded-2xl border border-slate-800 bg-slate-900/75 p-4 sm:p-5">
+                  <h3 className="text-base font-bold text-amber-300 mb-2">手感反饋與特效設定</h3>
+                  <JuiceSettingsPanel className="text-slate-200" />
+                </div>
+              </div>
+            ),
+          }}
+        />
       )}
     </div>
   );
