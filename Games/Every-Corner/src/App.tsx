@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { OriginLoreModal } from '@clubhouse/shared/OriginLoreModal';
+import { EVERY_CORNER_LORE } from '@clubhouse/shared/lore/puzzleStrategy';
 import { haptic, particles, shake } from '@clubhouse/shared/juice';
 import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
@@ -98,6 +100,7 @@ export default function App(): React.ReactElement {
   const [muted, setMuted] = useState(isAudioMuted);
   const [strictMode, setStrictMode] = useState<boolean>(() => loadStrictMode());
   const [waypointTwist, setWaypointTwist] = useState<boolean>(false);
+  const [showLore, setShowLore] = useState(false);
 
   const today = dateKey();
   const currentWeek = weekKey();
@@ -542,6 +545,9 @@ export default function App(): React.ReactElement {
           </ul>
         </div>
         <AchievementToast ids={toastIds} onDismiss={() => setToastIds([])} />
+        {showLore && (
+          <OriginLoreModal dossier={EVERY_CORNER_LORE} onClose={() => setShowLore(false)} />
+        )}
       </div>
     );
   }
@@ -614,6 +620,9 @@ export default function App(): React.ReactElement {
           </ul>
         </div>
         <AchievementToast ids={toastIds} onDismiss={() => setToastIds([])} />
+        {showLore && (
+          <OriginLoreModal dossier={EVERY_CORNER_LORE} onClose={() => setShowLore(false)} />
+        )}
       </div>
     );
   }
@@ -643,6 +652,17 @@ export default function App(): React.ReactElement {
               累計 {stats.totalSolved} 題・成就 {stats.achievements.length}/{ACHIEVEMENTS.length}
               {dailyStats.streak > 0 && `・連勝 ${dailyStats.streak} 天`}
             </p>
+            <div className="mt-3 flex justify-center">
+              <button
+                type="button"
+                onClick={() => setShowLore(true)}
+                className="min-h-[44px] px-4 py-2 rounded-xl border border-violet-400/50 bg-violet-950/60 hover:bg-violet-900/70 text-violet-200 text-xs font-bold inline-flex items-center gap-1.5 transition-colors touch-manipulation shadow-md"
+                aria-label="由來與決策心法"
+              >
+                <span>📜</span>
+                <span>由來與決策心法</span>
+              </button>
+            </div>
           </header>
 
           <section className="ec-card p-4">
@@ -787,6 +807,9 @@ export default function App(): React.ReactElement {
           </section>
         </div>
         <AchievementToast ids={toastIds} onDismiss={() => setToastIds([])} />
+        {showLore && (
+          <OriginLoreModal dossier={EVERY_CORNER_LORE} onClose={() => setShowLore(false)} />
+        )}
       </div>
     );
   }
@@ -816,7 +839,17 @@ export default function App(): React.ReactElement {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowLore(true)}
+              className="min-h-[44px] px-3 py-1.5 rounded-lg border border-violet-400/45 bg-violet-950/60 hover:bg-violet-900/70 text-violet-200 text-xs font-bold inline-flex items-center gap-1 transition-colors touch-manipulation"
+              aria-label="由來與決策心法"
+              title="由來與決策心法"
+            >
+              <span>📜</span>
+              <span>由來與心法</span>
+            </button>
             <TouchButton
               label={strictMode ? '⚖️ 純淨邏輯：開' : '⚖️ 純淨邏輯：關'}
               ariaLabel="純淨邏輯模式：抑制自動死路紅光提示，回歸純粹紙筆推理"
@@ -1279,6 +1312,9 @@ export default function App(): React.ReactElement {
         </p>
       </div>
       <AchievementToast ids={toastIds} onDismiss={() => setToastIds([])} />
+      {showLore && (
+        <OriginLoreModal dossier={EVERY_CORNER_LORE} onClose={() => setShowLore(false)} />
+      )}
     </>
   );
 }

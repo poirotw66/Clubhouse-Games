@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
+import { OriginLoreModal } from '@clubhouse/shared/OriginLoreModal';
+import { INSTANT_FLASH_LORE } from '@clubhouse/shared/lore/puzzleStrategy';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { haptic } from '@clubhouse/shared/juice';
 import { playLose, playWin } from '@clubhouse/shared/synthAudio';
@@ -49,6 +51,7 @@ export default function App() {
   const [activeOpponent, setActiveOpponent] = useState<OpponentDef | null>(null);
   const [lastStats, setLastStats] = useState<GameStats | null>(null);
   const [best, setBest] = useState<BestRecord>(() => loadBest());
+  const [showLore, setShowLore] = useState(false);
   const previousStateRef = useRef<GameState>(GameState.MENU);
 
   const today = dateKey();
@@ -397,9 +400,19 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setMenuView('practice')}
-                  className="w-full px-8 py-3 bg-slate-800/90 text-emerald-300 font-display font-bold text-lg tracking-wider border border-emerald-500/40 hover:bg-slate-700/90 transition-colors"
+                  className="w-full px-8 py-3 bg-slate-800/90 text-emerald-300 font-display font-bold text-lg tracking-wider border border-emerald-500/40 hover:bg-slate-700/90 transition-colors min-h-[44px] touch-manipulation"
                 >
                   練習設定
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowLore(true)}
+                  className="w-full px-8 py-3 bg-emerald-950/70 text-emerald-200 font-display font-bold text-base tracking-wider border border-emerald-400/50 hover:bg-emerald-900/80 transition-colors min-h-[44px] touch-manipulation flex items-center justify-center gap-2"
+                  aria-label="由來與決策心法"
+                >
+                  <span>📜</span>
+                  <span>由來與決策心法</span>
                 </button>
               </div>
             )}
@@ -688,6 +701,8 @@ export default function App() {
           seed={runSeed}
           onGameOver={handleGameOver}
           onRestart={restartSame}
+          paused={showLore}
+          onOpenLore={() => setShowLore(true)}
           onBackToMenu={() => {
             setGameState(GameState.MENU);
             setMenuView('home');
@@ -755,6 +770,10 @@ export default function App() {
             setLastStats(null);
           }}
         />
+      )}
+
+      {showLore && (
+        <OriginLoreModal dossier={INSTANT_FLASH_LORE} onClose={() => setShowLore(false)} />
       )}
     </div>
   );

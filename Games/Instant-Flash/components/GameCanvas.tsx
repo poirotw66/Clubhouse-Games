@@ -108,6 +108,8 @@ interface GameCanvasProps {
   seed?: number | null;
   onRestart?: () => void;
   onBackToMenu?: () => void;
+  paused?: boolean;
+  onOpenLore?: () => void;
 }
 
 function finalizeRank(stats: GameStats): void {
@@ -148,6 +150,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   seed = null,
   onRestart,
   onBackToMenu,
+  paused = false,
+  onOpenLore,
 }) => {
   const lastFrameTime = useRef<number>(0);
   const nextAttackTime = useRef<number>(0);
@@ -178,6 +182,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
   const baseTierRef = useRef<PracticeIntensity>(baseTier);
   baseTierRef.current = baseTier;
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
   const scenarioRef = useRef<PracticeScenario>(scenario);
   scenarioRef.current =
     playMode === 'practice'
@@ -656,6 +662,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
   // Keyboard
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      if (pausedRef.current) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.target instanceof HTMLElement && e.target.closest('input, textarea, select, [contenteditable="true"]')) return;
       if (['ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
@@ -725,6 +732,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     const loop = (time: number) => {
       const deltaTime = time - lastFrameTime.current;
       lastFrameTime.current = time;
+
+      if (pausedRef.current) {
+        nextAttackTime.current += deltaTime;
+        warningStartTime.current += deltaTime;
+        impactTime.current += deltaTime;
+        raf = requestAnimationFrame(loop);
+        return;
+      }
 
       if (hitStopTimer.current > 0) {
         hitStopTimer.current -= deltaTime;
@@ -1050,6 +1065,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
         combo={stats.current.combo}
         onToggleLeftWing={() => setMobileDrawer((d) => (d === 'left' ? null : 'left'))}
         onToggleRightWing={() => setMobileDrawer((d) => (d === 'right' ? null : 'right'))}
+        onOpenLore={onOpenLore}
       />
 
       {/* Touch / mouse side zones (pointer capture prevents drift from firing premature releases) */}

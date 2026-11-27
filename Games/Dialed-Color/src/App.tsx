@@ -23,6 +23,8 @@ import {
   Sliders,
 } from 'lucide-react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { OriginLoreModal } from '@clubhouse/shared/OriginLoreModal';
+import { DIALED_COLOR_LORE } from '@clubhouse/shared/lore/puzzleStrategy';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
 import { haptic, particles, shake } from '@clubhouse/shared/juice';
@@ -121,6 +123,7 @@ export default function App() {
     key: number;
   } | null>(null);
   const [showModal, setShowModal] = useState<'privacy' | 'scoring' | null>(null);
+  const [showLore, setShowLore] = useState(false);
   const [bests, setBests] = useState<BestRecords>(() => loadBests());
   const [stats, setStats] = useState<GameStats>(() => loadStats());
   const [dailyRecords, setDailyRecords] = useState(() => loadDailyRecords());
@@ -625,6 +628,19 @@ export default function App() {
 
       {/* Main Cockpit Stage Container */}
       <div ref={boardRef} className="stage-content w-full max-w-7xl flex flex-col items-center justify-center py-6 sm:py-10">
+        {gameState !== 'landing' && (
+          <div className="w-full flex items-center justify-end mb-2 px-1">
+            <button
+              type="button"
+              onClick={() => setShowLore(true)}
+              className="min-h-[44px] px-3 py-1.5 rounded-xl border border-cyan-400/40 bg-cyan-950/50 hover:bg-cyan-900/60 text-cyan-200 text-xs font-bold inline-flex items-center gap-1.5 transition-colors touch-manipulation shadow-sm"
+              aria-label="由來與決策心法"
+            >
+              <span>📜</span>
+              <span>由來與決策心法</span>
+            </button>
+          </div>
+        )}
         {/* Mobile Tactical Bar (Visible < lg screens) */}
         <TacticalMobileBar
           activeTab={mobileTab}
@@ -885,6 +901,18 @@ export default function App() {
                       className="link-quiet inline-flex items-center gap-1"
                     >
                       <Shield size={13} /> 隱私
+                    </button>
+                  </div>
+
+                  <div className="flex justify-center">
+                    <button
+                      type="button"
+                      onClick={() => setShowLore(true)}
+                      className="min-h-[44px] px-4 py-2 rounded-xl border border-cyan-400/45 bg-cyan-950/50 hover:bg-cyan-900/60 text-cyan-200 text-xs font-bold inline-flex items-center gap-1.5 transition-colors touch-manipulation shadow-md"
+                      aria-label="由來與決策心法"
+                    >
+                      <span>📜</span>
+                      <span>由來與決策心法</span>
                     </button>
                   </div>
                 </motion.div>
@@ -1291,6 +1319,10 @@ export default function App() {
       <p className="stage-content fixed bottom-3 left-0 right-0 text-center kicker pointer-events-none opacity-40">
         Dialed Color · Chromatic Lab
       </p>
+
+      {showLore && (
+        <OriginLoreModal dossier={DIALED_COLOR_LORE} onClose={() => setShowLore(false)} />
+      )}
     </div>
   );
 }
