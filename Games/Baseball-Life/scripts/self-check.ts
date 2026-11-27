@@ -22,7 +22,7 @@ import {
 } from '../src/game/challenges.js';
 import { POSITIONS, halfOveralls, overall } from '../src/game/config.js';
 import { careerMilestones, careerTotals, seasonFeats } from '../src/game/milestones.js';
-import { breakingFromArsenal } from '../src/game/pitches.js';
+import { breakingFromArsenal, syncBreaking } from '../src/game/pitches.js';
 import {
   EMPTY_RECORDS,
   applyCareerToRecords,
@@ -35,6 +35,8 @@ import { buildLegacyOptions, pendingFromCareer } from '../src/game/legacy.js';
 import { createRng } from '../src/game/rng.js';
 import { simulateSeason, simulateTwoWay, TWO_WAY_WORKLOAD } from '../src/game/season.js';
 import { SITUATIONS, situationById } from '../src/game/situations.js';
+import { loadQuickTraining, saveQuickTraining } from '../src/game/storage.js';
+import { stepTrainingSelection } from '../src/game/trainingFlow.js';
 import { traitEffects } from '../src/game/traits.js';
 import type { Attributes, BatterLine, Decision, GameState, PitcherLine, Position, SeasonRecord, StatLine } from '../src/game/types.js';
 
@@ -1484,6 +1486,9 @@ const checks: [string, () => void][] = [
   ['career injury risk models and veteran decline', expectInjuryRiskRecoveryAndVeteranDecline],
   ['milestone records and hall of fame induction math', expectMilestoneRecordsAndHofInductionMath],
   ['seeded multi-career archive backfill and world line branch determinism', expectWorldLineBranchDeterminismAndMultiArchiveBackfill],
+  ['veteran craft growth resists late-career age decay', expectVeteranCraftGrowthAndMenu],
+  ['veteran hofScore stays balanced across 200 seeds', expectVeteranHofScoreBalanceAcross200Seeds],
+  ['training quick-select and confirmation flow', expectTrainingQuickSelectAndConfirmationFlow],
 ];
 
 /** Choosing closer / surgery options must write durable career flags. */
@@ -2248,6 +2253,297 @@ function expectWorldLineBranchDeterminismAndMultiArchiveBackfill(): void {
   const reMerged = mergeArchiveIntoRecords(archiveData, mergedRecords);
   assert.equal(reMerged.bestByPosition.IF?.hofScore, 2450);
   assert.equal(reMerged.bestByPosition.TW?.hofScore, 1820);
+}
+
+/**
+ * Age 28+ veteran refinement/craft drills must appear only in pro age 28+,
+ * surface their craft badge in training previews, and resist steep age decay.
+ */
+function expectVeteranCraftGrowthAndMenu(): void {
+  // Advance naturally to pro for batter, pitcher, and two-way, then check menu gating at age 26 vs 28+.
+  const advanceToPro = (seedCode: string, position: Position): GameState => {
+    let s = createGame({ seedCode, name: '進職', position, originId: rollOrigins(seedCode)[0].id });
+    let guard = 0;
+    while (!s.retired && (s.stage !== 'pro' || s.decision?.kind !== 'training') && guard < 150) {
+      s = acknowledge(resolve(s, firstChoice(s.decision!, guard)));
+      guard += 1;
+    }
+    assert.equal(s.stage, 'pro', `failed to reach pro for ${position}`);
+    return s;
+  };
+
+  const hsCheck = drainNonTraining(
+    createGame({ seedCode: 'veths00', name: '高中', position: 'OF', originId: rollOrigins('veths00')[0].id }),
+  );
+  assert.ok(
+    !hsCheck.decision?.options.some((o) => o.id.startsWith('craft-')),
+    'high school must not offer veteran craft drills',
+  );
+
+  const batterPro = advanceToPro('vetmenu1', 'OF');
+  assert.ok(batterPro.age < 28);
+  assert.ok(
+    !batterPro.decision?.options.some((o) => o.id.startsWith('craft-')),
+    'pro below age 28 must not unlock veteran craft drills',
+  );
+
+  // Advance batterPro to age 32 spring training by stepping carefully.
+  let vetBatter = batterPro;
+  let stepGuard = 0;
+  while (!vetBatter.retired && (vetBatter.age < 32 || vetBatter.proTurn !== 0 || vetBatter.decision?.kind !== 'training') && stepGuard < 260) {
+    vetBatter = acknowledge(resolve(vetBatter, firstChoice(vetBatter.decision!, stepGuard)));
+    stepGuard += 1;
+  }
+  assert.ok(!vetBatter.retired && vetBatter.age >= 32, 'batter should reach age 32 in pro');
+  assert.equal(vetBatter.decision?.kind, 'training');
+  const batterCraftIds = vetBatter.decision!.options.filter((o) => o.veteranCraft).map((o) => o.id);
+  assert.ok(batterCraftIds.includes('craft-discipline'), 'veteran batter must see craft-discipline');
+  assert.ok(batterCraftIds.includes('craft-veteran-iq'), 'veteran batter must see craft-veteran-iq');
+
+  const craftPreview = previewTrainingPlan(vetBatter, 'craft-discipline');
+  const normalPreview = previewTrainingPlan(vetBatter, 'swing');
+  assert.equal(craftPreview?.cards[0]?.veteranCraft, true, 'preview must mark veteran craft card');
+  assert.equal(normalPreview?.cards[0]?.veteranCraft, false, 'normal card must not be marked veteranCraft');
+
+  // Compare age-32 growth on forced-6 (destiny) between standard swing vs craft-discipline.
+  const preparedBatter = structuredClone(vetBatter);
+  preparedBatter.meta.destiny = 100;
+  preparedBatter.attrs.eye = 55;
+  preparedBatter.attrs.contact = 55;
+  preparedBatter.potential.eye = 85;
+  preparedBatter.potential.contact = 85;
+  const afterNormalBatter = resolve(preparedBatter, 'swing', true);
+  const afterCraftBatter = resolve(preparedBatter, 'craft-discipline', true);
+  const normalBatGain =
+    (afterNormalBatter.report?.deltas.eye ?? 0) + (afterNormalBatter.report?.deltas.contact ?? 0);
+  const craftBatGain =
+    (afterCraftBatter.report?.deltas.eye ?? 0) + (afterCraftBatter.report?.deltas.contact ?? 0);
+  assert.ok(
+    craftBatGain > normalBatGain,
+    `age 32 craft-discipline gain (${craftBatGain}) must exceed standard swing gain (${normalBatGain})`,
+  );
+
+  // Pitcher age 32 check (command + breaking-ball mastery).
+  let vetPitcher = advanceToPro('vetpit02', 'P');
+  stepGuard = 0;
+  while (!vetPitcher.retired && (vetPitcher.age < 32 || vetPitcher.proTurn !== 0 || vetPitcher.decision?.kind !== 'training') && stepGuard < 260) {
+    vetPitcher = acknowledge(resolve(vetPitcher, firstChoice(vetPitcher.decision!, stepGuard)));
+    stepGuard += 1;
+  }
+  assert.ok(!vetPitcher.retired && vetPitcher.age >= 32, 'pitcher should reach age 32 in pro');
+  const pitcherCraftIds = vetPitcher.decision!.options.filter((o) => o.veteranCraft).map((o) => o.id);
+  assert.ok(pitcherCraftIds.includes('craft-command'), 'veteran pitcher must see craft-command');
+  assert.ok(pitcherCraftIds.includes('craft-pitch-craft'), 'veteran pitcher must see craft-pitch-craft');
+
+  const preparedPitcher = structuredClone(vetPitcher);
+  preparedPitcher.meta.destiny = 100;
+  preparedPitcher.attrs.control = 55;
+  preparedPitcher.attrs.guts = 55;
+  preparedPitcher.attrs.velocity = 55;
+  preparedPitcher.potential.control = 85;
+  preparedPitcher.potential.guts = 85;
+  preparedPitcher.potential.velocity = 85;
+  preparedPitcher.potential.breaking = 88;
+  if (preparedPitcher.arsenal.length > 0) {
+    const bestPitch = [...preparedPitcher.arsenal].sort((a, b) => b.level - a.level)[0];
+    bestPitch.level = Math.min(bestPitch.level, 50);
+    syncBreaking(preparedPitcher);
+  }
+  const afterNormalPitcher = resolve(preparedPitcher, 'longtoss', true);
+  const afterCraftCommand = resolve(preparedPitcher, 'craft-command', true);
+  const afterCraftPitch = resolve(preparedPitcher, 'craft-pitch-craft', true);
+  const normalPitGain = afterNormalPitcher.report?.deltas.velocity ?? 0;
+  const craftCmdGain =
+    (afterCraftCommand.report?.deltas.control ?? 0) + (afterCraftCommand.report?.deltas.guts ?? 0);
+  assert.ok(
+    craftCmdGain > normalPitGain,
+    `age 32 craft-command gain (${craftCmdGain}) must exceed standard longtoss (${normalPitGain})`,
+  );
+  const craftPitchGain =
+    (afterCraftPitch.report?.deltas.breaking ?? 0) + (afterCraftPitch.report?.deltas.guts ?? 0);
+  assert.ok(craftPitchGain >= 2, `age 32 craft-pitch-craft must resist decay (got ${craftPitchGain})`);
+
+  // Two-way age 28+ menu check.
+  let vetTwoWay = advanceToPro('vettw003', 'TW');
+  stepGuard = 0;
+  while (!vetTwoWay.retired && (vetTwoWay.age < 28 || vetTwoWay.decision?.kind !== 'training') && stepGuard < 260) {
+    vetTwoWay = acknowledge(resolve(vetTwoWay, firstChoice(vetTwoWay.decision!, stepGuard)));
+    stepGuard += 1;
+  }
+  if (!vetTwoWay.retired && vetTwoWay.age >= 28) {
+    const twCraftIds = vetTwoWay.decision!.options.filter((o) => o.veteranCraft).map((o) => o.id);
+    assert.ok(twCraftIds.includes('craft-discipline') && twCraftIds.includes('craft-command'));
+  }
+}
+
+/**
+ * 200-seed simulation check verifying late-career craft drills elevate age 28+
+ * attribute development while keeping career hofScore and lifespan balanced.
+ */
+function expectVeteranHofScoreBalanceAcross200Seeds(): void {
+  const positions: Position[] = ['OF', 'P', 'IF', 'C', 'TW'];
+  const simMode = (preferCraft: boolean) => {
+    const hofs: number[] = [];
+    let totalGain28Plus = 0;
+    let totalAge = 0;
+    for (let i = 0; i < 200; i++) {
+      const seedCode = `bal${String(i).padStart(4, '0')}`;
+      const pos = positions[i % positions.length];
+      let state = createGame({
+        seedCode,
+        name: '平衡模擬',
+        position: pos,
+        originId: rollOrigins(seedCode)[0].id,
+      });
+      let step = 0;
+      while (!state.retired && step < GUARD) {
+        const decision = state.decision;
+        if (!decision || decision.kind === 'continue' || decision.options.length === 0) break;
+        const ids = enabled(decision);
+        let pick = ids[0];
+        if (decision.kind === 'event') pick = ids[ids.length - 1] ?? ids[0];
+        else if (decision.kind === 'training') {
+          if (ids.some((id) => id.startsWith('t-'))) {
+            pick = ids.find((id) => id === 't-allin') ?? ids[0];
+          } else {
+            let drills = ids.filter((id) => id !== 'rest');
+            if (preferCraft && state.stage === 'pro' && state.age >= 28) {
+              const crafts = drills.filter((id) => id.startsWith('craft-'));
+              if (crafts.length > 0) drills = crafts;
+            } else if (!preferCraft) {
+              drills = drills.filter((id) => !id.startsWith('craft-'));
+            }
+            pick = drills.length > 0 ? drills[step % drills.length] : ids[0];
+          }
+        }
+        const beforeAge = state.age;
+        const beforeStage = state.stage;
+        state = resolve(state, pick);
+        if (beforeStage === 'pro' && beforeAge >= 28 && decision.kind === 'training' && state.report) {
+          for (const [key, val] of Object.entries(state.report.deltas)) {
+            if (!['body', 'mind', 'fame', 'fatigue', 'motivation', 'destiny'].includes(key) && (val ?? 0) > 0) {
+              totalGain28Plus += val!;
+            }
+          }
+        }
+        state = acknowledge(state);
+        step += 1;
+      }
+      assert.ok(state.summary, `seed ${seedCode} did not finish`);
+      hofs.push(state.summary.hofScore);
+      totalAge += state.age;
+    }
+    hofs.sort((a, b) => a - b);
+    const avgHof = hofs.reduce((a, b) => a + b, 0) / hofs.length;
+    const medianHof = hofs[Math.floor(hofs.length / 2)];
+    return {
+      avgHof,
+      medianHof,
+      avgAge: totalAge / hofs.length,
+      avgGain28Plus: totalGain28Plus / hofs.length,
+    };
+  };
+
+  const baseline = simMode(false);
+  const craft = simMode(true);
+  assert.ok(
+    craft.avgGain28Plus > baseline.avgGain28Plus * 1.25,
+    `craft policy must meaningfully lift age 28+ skill gains (${craft.avgGain28Plus.toFixed(2)} vs ${baseline.avgGain28Plus.toFixed(2)})`,
+  );
+  const hofRatio = craft.avgHof / Math.max(1, baseline.avgHof);
+  assert.ok(
+    hofRatio >= 0.9 && hofRatio <= 1.15,
+    `craft avg hofScore (${craft.avgHof.toFixed(0)}) drifted too far from baseline (${baseline.avgHof.toFixed(0)})`,
+  );
+  const medianRatio = craft.medianHof / Math.max(1, baseline.medianHof);
+  assert.ok(
+    medianRatio >= 0.9 && medianRatio <= 1.15,
+    `craft median hofScore (${craft.medianHof}) drifted too far from baseline (${baseline.medianHof})`,
+  );
+  assert.ok(craft.avgAge < 36, `average retirement age inflated too high (${craft.avgAge.toFixed(2)})`);
+}
+
+/**
+ * Training selection pacing: preview-confirm (1st click previews, 2nd click on
+ * same card commits) vs 1-click quick-select mode + localStorage persistence.
+ */
+function expectTrainingQuickSelectAndConfirmationFlow(): void {
+  // Invalid/non-previewable option never commits or mutates preview selection.
+  assert.deepEqual(
+    stepTrainingSelection({
+      optionId: 'missing',
+      selectedOptionId: 'swing',
+      quickConfirm: false,
+      canPreview: false,
+    }),
+    { action: 'ignore', nextSelectedId: 'swing' },
+  );
+
+  // Preview-confirm mode (quickConfirm = false): 1st click previews, switching
+  // cards updates preview, and 2nd click on the same card commits cleanly.
+  assert.deepEqual(
+    stepTrainingSelection({
+      optionId: 'swing',
+      selectedOptionId: null,
+      quickConfirm: false,
+      canPreview: true,
+    }),
+    { action: 'preview', nextSelectedId: 'swing' },
+  );
+  assert.deepEqual(
+    stepTrainingSelection({
+      optionId: 'weight',
+      selectedOptionId: 'swing',
+      quickConfirm: false,
+      canPreview: true,
+    }),
+    { action: 'preview', nextSelectedId: 'weight' },
+  );
+  assert.deepEqual(
+    stepTrainingSelection({
+      optionId: 'weight',
+      selectedOptionId: 'weight',
+      quickConfirm: false,
+      canPreview: true,
+    }),
+    { action: 'commit', optionId: 'weight', nextSelectedId: null },
+  );
+
+  // 1-click quick-select mode (quickConfirm = true): first click commits immediately.
+  assert.deepEqual(
+    stepTrainingSelection({
+      optionId: 'swing',
+      selectedOptionId: null,
+      quickConfirm: true,
+      canPreview: true,
+    }),
+    { action: 'commit', optionId: 'swing', nextSelectedId: null },
+  );
+
+  // Preference persistence via localStorage.
+  const store = new Map<string, string>();
+  const prevWindow = (globalThis as { window?: unknown }).window;
+  (globalThis as { window?: unknown }).window = {
+    localStorage: {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, val: string) => {
+        store.set(key, val);
+      },
+    },
+  };
+  try {
+    assert.equal(loadQuickTraining(), false, 'quick training should default to false');
+    saveQuickTraining(true);
+    assert.equal(loadQuickTraining(), true, 'quick training true should persist');
+    saveQuickTraining(false);
+    assert.equal(loadQuickTraining(), false, 'quick training false should persist');
+  } finally {
+    if (prevWindow === undefined) {
+      delete (globalThis as { window?: unknown }).window;
+    } else {
+      (globalThis as { window?: unknown }).window = prevWindow;
+    }
+  }
 }
 
 let failed = 0;

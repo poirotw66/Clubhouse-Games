@@ -4,6 +4,8 @@ import { haptic, shake } from '@clubhouse/shared/juice';
 import type { CareerChallenge } from '../game/challenges';
 import { ATTR_LABELS, LEAGUES, formatMoney } from '../game/config';
 import { DESTINY_COST, deltaLabel, previewTrainingPlan } from '../game/engine';
+import { loadQuickTraining, saveQuickTraining } from '../game/storage';
+import { stepTrainingSelection } from '../game/trainingFlow';
 import { TrainingPayoff, TrainingPlan, signed } from './TrainingPlan';
 import { DESTINY_SITUATION_COST, situationById } from '../game/situations';
 import { describeLine } from '../game/season';
@@ -79,7 +81,10 @@ export function PlayScreen({
   const [useDestiny, setUseDestiny] = useState(false);
   const lastDraftReportKey = useRef<string | null>(null);
   const [trainingSelection, setTrainingSelection] = useState<{ state: GameState; id: string } | null>(null);
+  const [quickTraining, setQuickTraining] = useState<boolean>(() => loadQuickTraining());
   const selectedTrainingId = trainingSelection?.state === state ? trainingSelection.id : null;
+  const activePreviewId = selectedTrainingId ?? (quickTraining ? hoveredOptionId : null);
+  const isHoveredPreview = !selectedTrainingId && Boolean(quickTraining && hoveredOptionId);
   const decisionPanel = useRef<HTMLElement>(null);
   const reportPanel = useRef<HTMLElement>(null);
   const lastCommit = useRef<GameState | null>(null);
@@ -87,7 +92,10 @@ export function PlayScreen({
   const { report, decision } = state;
 
   const hoveredOption = decision?.options.find((o) => o.id === hoveredOptionId);
-  const highlightKeys = decision?.options.find((option) => option.id === selectedTrainingId)?.focus ?? hoveredOption?.focus ?? [];
+  const highlightKeys =
+    decision?.options.find((option) => option.id === activePreviewId)?.focus ??
+    hoveredOption?.focus ??
+    [];
   const situationDestiny =
     decision?.kind === 'event' && state.pendingSituation
       ? situationById(state.pendingSituation)
@@ -200,12 +208,35 @@ export function PlayScreen({
     }
   };
 
+  const toggleQuickTraining = () => {
+    setQuickTraining((prev) => {
+      const next = !prev;
+      saveQuickTraining(next);
+      if (next) setTrainingSelection(null);
+      haptic('tap');
+      return next;
+    });
+  };
+
   const handleChooseOption = (optionId: string) => {
     if (decision?.kind === 'training') {
-      if (previewTrainingPlan(state, optionId)) {
+      const step = stepTrainingSelection({
+        optionId,
+        selectedOptionId: selectedTrainingId,
+        quickConfirm: quickTraining,
+        canPreview: Boolean(previewTrainingPlan(state, optionId)),
+      });
+      if (step.action === 'commit') {
+        setTrainingSelection(null);
+        commitOption(step.optionId);
+      } else if (step.action === 'preview') {
         haptic('tap');
-        setTrainingSelection({ state, id: optionId });
-        requestAnimationFrame(() => decisionPanel.current?.querySelector('[data-training-workspace]')?.scrollIntoView({ block: 'nearest' }));
+        setTrainingSelection({ state, id: step.nextSelectedId });
+        requestAnimationFrame(() =>
+          decisionPanel.current
+            ?.querySelector('[data-training-workspace]')
+            ?.scrollIntoView({ block: 'nearest' }),
+        );
       }
       return;
     }
@@ -221,7 +252,7 @@ export function PlayScreen({
       if (event.metaKey || event.ctrlKey || event.altKey || showDraftShowcase) return;
       const target = event.target as HTMLElement | null;
       if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
-      if (event.repeat && /^(?:[1-9]|Enter|Backspace|[dDhHmM])$/.test(event.key)) {
+      if (event.repeat && /^(?:[1-9]|Enter|Backspace|[dDhHmMqQ])$/.test(event.key)) {
         event.preventDefault();
         return;
       }
@@ -242,6 +273,12 @@ export function PlayScreen({
       if (event.key === 'h' || event.key === 'H') {
         event.preventDefault();
         setShowCareer((v) => !v);
+        return;
+      }
+
+      if ((event.key === 'q' || event.key === 'Q') && !ended && decision?.kind === 'training') {
+        event.preventDefault();
+        toggleQuickTraining();
         return;
       }
 
@@ -289,6 +326,8 @@ export function PlayScreen({
   }, [
     ended,
     pickable,
+    decision?.kind,
+    quickTraining,
     showDraftShowcase,
     selectedTrainingId,
     canUndo,
@@ -579,12 +618,28 @@ export function PlayScreen({
                 </button>
               )}
 
-              {decision.kind === 'training' && <TrainingPlan state={state} optionId={selectedTrainingId} onConfirm={() => { if (selectedTrainingId) commitOption(selectedTrainingId); }} />}
+              {decision.kind === 'training' && (
+                <TrainingPlan
+                  state={state}
+                  optionId={activePreviewId}
+                  quickConfirm={quickTraining}
+                  isHoveredPreview={isHoveredPreview}
+                  onToggleQuickConfirm={toggleQuickTraining}
+                  onConfirm={() => {
+                    if (selectedTrainingId) commitOption(selectedTrainingId);
+                  }}
+                />
+              )}
 
               <div className={`mt-4 gap-2 ${decision.kind === 'training' ? 'bl-training-options' : 'flex flex-col'}`}>
                 {decision.options.map((option) => {
                   const hotkey = pickable.findIndex((o) => o.id === option.id);
                   const trainingCost = decision.kind === 'training' ? previewTrainingPlan(state, option.id) : null;
+                  const cardActionLabel = quickTraining
+                    ? '點選即執行'
+                    : selectedTrainingId === option.id
+                      ? '已選・再點確認 ✓'
+                      : '點選預覽';
                   return (
                     <button
                       key={option.id}
@@ -606,13 +661,18 @@ export function PlayScreen({
                           </kbd>
                         )}
                         <span className="text-base font-bold text-slate-100">{option.label}</span>
+                        {option.veteranCraft && (
+                          <span className="ml-auto rounded border border-amber-400/40 bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-bold text-amber-300">
+                            老將火候
+                          </span>
+                        )}
                       </span>
                       <span className="mt-0.5 block text-xs leading-snug text-slate-400">
                         {option.disabled && option.disabledReason
                           ? `${option.hint}（${option.disabledReason}）`
                           : option.hint}
                       </span>
-                      {trainingCost && <span className="bl-card-load">{state.pendingPrimaryId ? '合計課表' : '本課'}疲勞 <b className={trainingCost.fatigueChange > 0 ? 'bl-cost-up' : 'bl-cost-down'}>{signed(trainingCost.fatigueChange)}</b><span>{selectedTrainingId === option.id ? '預覽中 ✓' : '點選預覽'}</span></span>}
+                      {trainingCost && <span className="bl-card-load">{state.pendingPrimaryId ? '合計課表' : '本課'}疲勞 <b className={trainingCost.fatigueChange > 0 ? 'bl-cost-up' : 'bl-cost-down'}>{signed(trainingCost.fatigueChange)}</b><span>{cardActionLabel}</span></span>}
                       {option.focus && option.focus.length > 0 && (
                         <span className="mt-1.5 flex flex-wrap gap-1">
                           {option.focus.map((key: AttrKey) => (
@@ -640,7 +700,13 @@ export function PlayScreen({
                   ← 上一步
                 </button>
                 <p className="hidden text-right text-[10px] text-slate-500 sm:block">
-                  按 1–{Math.min(pickable.length, 9)} {decision.kind === 'training' ? '預覽・Enter 確認' : '選擇'}・D 傾注天命・H 成績・M 靜音・Backspace 上一步
+                  按 1–{Math.min(pickable.length, 9)}{' '}
+                  {decision.kind === 'training'
+                    ? quickTraining
+                      ? '直接執行・Q 預覽模式'
+                      : '預覽（再按或 Enter 確認）・Q 單擊模式'
+                    : '選擇'}
+                  ・D 傾注天命・H 成績・M 靜音・Backspace 上一步
                 </p>
               </div>
             </section>

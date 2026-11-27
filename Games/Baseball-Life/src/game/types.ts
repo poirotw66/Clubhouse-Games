@@ -240,6 +240,8 @@ export interface Option {
   hint: string;
   /** Attribute focus previewed on the card; the dice decide the magnitude. */
   focus?: AttrKey[];
+  /** True for late-career (age 28+) refinement options that resist age decay. */
+  veteranCraft?: boolean;
   disabled?: boolean;
   disabledReason?: string;
 }
