@@ -133,6 +133,7 @@ export function analyzeTacticalRadar(
   playerKoiKoiCount: number,
   botScore: number,
   winScore: number,
+  sevenMonMultiplier: boolean = true,
 ): TacticalRadarState {
   const locMap = buildCardLocationMap(playerCaptured, playerHand, field, botCaptured);
 
@@ -724,6 +725,10 @@ export function analyzeTacticalRadar(
     recommendation = 'take_points';
     recommendationLabel = '穩健勝負';
     advice = '對手已具備極高成役威脅，若被截胡將失分加倍甚至直接輸掉整場！建議見好就收，立即結算。';
+  } else if (sevenMonMultiplier && playerPoints >= 5 && playerPoints < 7 && canExpandYaku && botHandCount >= 2 && level !== 'high') {
+    recommendation = 'call_koi_koi';
+    recommendationLabel = '搏七文倍額';
+    advice = `目前 ${playerPoints} 分，加碼追「${expandableNames.slice(0, 2).join('、')}」若滿 7 分將觸發七文倍額自動翻倍（×2），期望值極高！`;
   } else if (level === 'low' && canExpandYaku && botHandCount >= 2) {
     recommendation = 'call_koi_koi';
     recommendationLabel = '大膽來來';
@@ -738,9 +743,14 @@ export function analyzeTacticalRadar(
     advice = '當前無明顯易追之後續役種，及時勝負落袋為安為上策。';
   }
 
+  let projectedMultiplier = playerKoiKoiCount > 0 ? 2 : 1;
+  if (sevenMonMultiplier && playerPoints >= 7) {
+    projectedMultiplier *= 2;
+  }
+
   const koiKoiRisk: KoiKoiRiskScale = {
     currentPoints: playerPoints,
-    projectedMultiplier: playerKoiKoiCount > 0 ? 2 : 1,
+    projectedMultiplier,
     opponentThreatScore: threatScore,
     recommendation,
     recommendationLabel,

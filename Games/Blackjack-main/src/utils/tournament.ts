@@ -2,9 +2,27 @@
  * Tin Cup tournament — fixed buy-in, fixed hands, named CPU rivals.
  * Free recovery is disabled inside a tournament session.
  */
+import type { Card } from '../types.ts';
 import { hashString } from './rng.ts';
-import { createSeededShoe, type ShoeState } from './shoe.ts';
-import { simulateRound, type SimRules } from './simulateRound.ts';
+import {
+  blackjackPayout,
+  calculateScore,
+  dealerShouldHit,
+  isBlackjack,
+} from './rules.ts';
+import {
+  createSeededShoe,
+  drawCard,
+  drawCards,
+  maybeReshuffle,
+  type ShoeState,
+} from './shoe.ts';
+import {
+  playPlayerHands,
+  settle,
+  type SimHand,
+  type SimRules,
+} from './simulateRound.ts';
 
 export const TOURNAMENT_STORAGE_KEY = 'clubhouse-blackjack-tournament:v1';
 
@@ -99,19 +117,17 @@ export function tournamentSeed(salt: string = String(Date.now())): number {
   return hashString(`blackjack-tin:${salt}`);
 }
 
-export function createRivalStates(seed: number): RivalState[] {
-  return TIN_RIVALS.map((rival, i) => ({
+export function createRivalStates(seed: number, sharedShoe?: ShoeState): RivalState[] {
+  const tableShoe =
+    sharedShoe ?? createSeededShoe(TIN_DECK_COUNT, seed, TIN_PENETRATION);
+  return TIN_RIVALS.map(rival => ({
     id: rival.id,
     name: rival.name,
     style: rival.style,
     balance: TIN_START_CHIPS,
     lastProfit: 0,
     eliminated: false,
-    shoe: createSeededShoe(
-      TIN_DECK_COUNT,
-      (seed ^ Math.imul(i + 1, 0x85ebca6b)) >>> 0,
-      TIN_PENETRATION,
-    ),
+    shoe: tableShoe,
   }));
 }
 
@@ -156,28 +172,182 @@ export function chooseRivalBet(
   }
 }
 
-/** Advance every non-eliminated rival by one auto-played hand. */
+export interface TournamentRoundContext {
+  /** Table shoe shared with all rivals in the tournament round. */
+  tableShoe?: ShoeState;
+  /**
+   * Final dealer cards resolved on the table.
+   * If provided, all rivals settle against this shared dealer hand outcome.
+   */
+  dealerCards?: Card[];
+}
+
+/**
+ * Advance every non-eliminated rival by one round.
+ * All rivals share the table shoe and settle against the single round dealer hand.
+ */
 export function advanceRivalsOneHand(
   rivals: RivalState[],
   handIndex: number,
   rules: SimRules = TIN_SIM_RULES,
+  context?: TournamentRoundContext,
 ): RivalState[] {
-  return rivals.map(rival => {
+  // Use the shared table shoe if provided, or the first active rival's shoe
+  let shoe = maybeReshuffle(
+    context?.tableShoe ??
+      rivals.find(r => !r.eliminated)?.shoe ??
+      rivals[0]?.shoe ??
+      createSeededShoe(TIN_DECK_COUNT, 0, TIN_PENETRATION),
+  );
+
+  // Determine dealer hand: reuse table dealer if provided, or deal from shared shoe
+  let dealerUp: Card;
+  let finalDealerCards: Card[];
+  const providedDealerCards =
+    context?.dealerCards && context.dealerCards.length >= 2
+      ? context.dealerCards.map(c => ({ ...c, isHidden: false }))
+      : null;
+
+  if (providedDealerCards) {
+    dealerUp = providedDealerCards[0];
+    finalDealerCards = providedDealerCards;
+  } else {
+    const dDrawn = drawCards(shoe, 2);
+    shoe = dDrawn.shoe;
+    dealerUp = dDrawn.cards[0];
+    finalDealerCards = [dealerUp, dDrawn.cards[1]];
+  }
+
+  const dealerBJ = isBlackjack(finalDealerCards.slice(0, 2));
+
+  interface PendingRival {
+    profit: number;
+    nextBalance: number;
+    eliminated: boolean;
+    hands?: SimHand[];
+    bet?: number;
+    spent?: number;
+  }
+
+  const allPlayedHands: SimHand[] = [];
+  const rivalResults: Map<string, PendingRival> = new Map();
+
+  for (const rival of rivals) {
     if (rival.eliminated || rival.balance < TIN_MIN_BET) {
-      return { ...rival, eliminated: true, balance: rival.balance, lastProfit: 0 };
+      rivalResults.set(rival.id, {
+        profit: 0,
+        nextBalance: rival.balance,
+        eliminated: true,
+      });
+      continue;
     }
+
     const bet = chooseRivalBet(rival.style, rival.balance, handIndex, rival.lastProfit);
     if (bet <= 0) {
-      return { ...rival, eliminated: true };
+      rivalResults.set(rival.id, {
+        profit: 0,
+        nextBalance: rival.balance,
+        eliminated: true,
+      });
+      continue;
     }
-    const result = simulateRound(rival.shoe, bet, rival.balance, rules);
-    const nextBalance = rival.balance + result.profit;
+
+    // Deal 2 initial cards from shared shoe for this rival
+    const drawn = drawCards(shoe, 2);
+    shoe = drawn.shoe;
+    const playerCards = drawn.cards;
+
+    // Check blackjack
+    if (isBlackjack(playerCards)) {
+      if (dealerBJ) {
+        rivalResults.set(rival.id, {
+          profit: 0,
+          nextBalance: rival.balance,
+          eliminated: false,
+        });
+      } else {
+        const profit = blackjackPayout(bet, rules.bjPayout) - bet;
+        const nextBalance = rival.balance + profit;
+        rivalResults.set(rival.id, {
+          profit,
+          nextBalance,
+          eliminated: nextBalance < TIN_MIN_BET,
+        });
+      }
+      continue;
+    }
+
+    // If dealer has natural blackjack and player doesn't: player loses bet
+    if (dealerBJ) {
+      const nextBalance = rival.balance - bet;
+      rivalResults.set(rival.id, {
+        profit: -bet,
+        nextBalance: Math.max(0, nextBalance),
+        eliminated: nextBalance < TIN_MIN_BET,
+      });
+      continue;
+    }
+
+    // Play player hands against dealer upcard
+    const played = playPlayerHands(
+      { cards: playerCards, bet, status: 'playing' },
+      dealerUp,
+      shoe,
+      rival.balance - bet,
+      rules,
+    );
+    shoe = played.shoe;
+    allPlayedHands.push(...played.hands);
+
+    rivalResults.set(rival.id, {
+      profit: 0,
+      nextBalance: rival.balance,
+      eliminated: false,
+      hands: played.hands,
+      bet,
+      spent: played.spent,
+    });
+  }
+
+  // If dealer was NOT provided externally, dealer draws cards if needed
+  if (!providedDealerCards) {
+    const needsDealer = allPlayedHands.some(
+      h => h.status === 'stood' || h.status === 'playing' || h.status === 'blackjack',
+    );
+    if (needsDealer) {
+      const hitSoft17 = rules.dealerRule === 'H17';
+      while (dealerShouldHit(finalDealerCards, hitSoft17)) {
+        const hit = drawCard(shoe);
+        shoe = hit.shoe;
+        finalDealerCards.push(hit.card);
+      }
+    }
+  }
+
+  // Settle each active rival against finalDealerCards
+  return rivals.map(rival => {
+    const res = rivalResults.get(rival.id);
+    if (!res) return { ...rival, shoe };
+
+    if (res.hands && res.bet !== undefined && res.spent !== undefined) {
+      const returned = settle(res.hands, finalDealerCards, rules);
+      const profit = returned - res.bet - res.spent;
+      const nextBalance = Math.max(0, rival.balance + profit);
+      return {
+        ...rival,
+        shoe,
+        balance: nextBalance,
+        lastProfit: profit,
+        eliminated: nextBalance < TIN_MIN_BET,
+      };
+    }
+
     return {
       ...rival,
-      shoe: result.shoe,
-      balance: Math.max(0, nextBalance),
-      lastProfit: result.profit,
-      eliminated: nextBalance < TIN_MIN_BET,
+      shoe,
+      balance: Math.max(0, res.nextBalance),
+      lastProfit: res.profit,
+      eliminated: res.eliminated,
     };
   });
 }
