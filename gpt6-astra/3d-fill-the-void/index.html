@@ -616,7 +616,7 @@
           <div id="toast" role="status">Choose a piece to get started</div>
 
           <div class="meter" aria-live="polite">
-            <span id="meter-rotations">Rotations 0 / par 0</span>
+            <span id="meter-rotations">Moves 0 / par 0</span>
             <span id="meter-undos">Undos 0</span>
             <span id="meter-stars">Best ★☆☆</span>
           </div>
@@ -686,7 +686,7 @@
       <div class="mode-row">
         <button type="button" class="mode-card active" id="mode-campaign" data-mode="campaign">
           <strong>Campaign</strong>
-          <span>Unlock packs as you clear. Chase three stars with no undo and rotations at par.</span>
+          <span>Unlock packs as you clear. Chase three stars with no undo and moves at par.</span>
         </button>
         <button type="button" class="mode-card" id="mode-daily" data-mode="daily">
           <strong>Daily calm</strong>
@@ -719,12 +719,12 @@
       isPackUnlocked,
       levelsInPack,
       migrateProgress,
-      parRotationsFor,
+      parMovesFor,
       rateStars,
       recordClear,
       recordDailyClear,
       rotateCells,
-      scrambleTurns,
+      scramblePiece,
       totalStars,
     } from './rules.mjs';
     import { playError, playFlip, playMove, playSelect, playStar, playWin } from '../shared/sfx.mjs';
@@ -779,9 +779,9 @@
     let boardGroup = null;
     let pieceGroups = new Map();
     const falling = [];
-    let rotationsUsed = 0;
+    let movesUsed = 0;
     let undosUsed = 0;
-    let parRotations = 0;
+    let parMoves = 0;
     let runStars = 0;
 
     const canvas = $('canvas');
@@ -947,7 +947,7 @@
     }
 
     function updateMeters() {
-      $('meter-rotations').textContent = `Rotations ${rotationsUsed} / par ${parRotations}`;
+      $('meter-rotations').textContent = `Moves ${movesUsed} / par ${parMoves}`;
       $('meter-undos').textContent = `Undos ${undosUsed}`;
       const best = mode === 'daily'
         ? (progress.daily?.dateKey === dailyMeta.dateKey ? progress.daily.stars : 0)
@@ -1027,7 +1027,7 @@
       const piece = pieces.find((p) => p.id === selected);
       if (!piece || completed) return;
       piece.cells = rotateCells(piece.cells);
-      rotationsUsed += 1;
+      movesUsed += 1;
       playFlip();
       renderPieces();
       rebuildGhost();
@@ -1039,7 +1039,7 @@
       const piece = pieces.find((p) => p.id === selected);
       if (!piece || completed) return;
       piece.cells = flipCells(piece.cells);
-      rotationsUsed += 1;
+      movesUsed += 1;
       playFlip();
       renderPieces();
       rebuildGhost();
@@ -1069,12 +1069,12 @@
           ? 'Beautifully settled.'
           : 'Everything belongs.';
       $('win-copy').textContent = stars >= 3
-        ? 'No second guesses — and rotations within par. Soft applause.'
+        ? 'No second guesses — and moves within par. Soft applause.'
         : stars === 2
           ? 'A calm clear. Try again for three stars when you like.'
           : 'The void is full. Undo less next time for brighter stars.';
       $('win-stats').innerHTML = `
-        <div><span>Rotations</span><strong>${rotationsUsed} / par ${parRotations}</strong></div>
+        <div><span>Moves</span><strong>${movesUsed} / par ${parMoves}</strong></div>
         <div><span>Undos</span><strong>${undosUsed}</strong></div>
         <div><span>Stars</span><strong>${starGlyph(stars)}</strong></div>
       `;
@@ -1145,8 +1145,8 @@
         completed = true;
         const stars = rateStars({
           undos: undosUsed,
-          rotations: rotationsUsed,
-          parRotations,
+          moves: movesUsed,
+          parMoves,
         });
         if (mode === 'daily') {
           progress = recordDailyClear(progress, dailyMeta.dateKey, stars);
@@ -1154,7 +1154,7 @@
           progress = recordClear(progress, activeLevel.id, {
             stars,
             undos: undosUsed,
-            rotations: rotationsUsed,
+            moves: movesUsed,
           });
           progress.currentId = activeLevel.id;
         }
@@ -1204,7 +1204,7 @@
       selected = null;
       hover = null;
       history = [];
-      rotationsUsed = 0;
+      movesUsed = 0;
       undosUsed = 0;
       runStars = 0;
       ghost.clear();
@@ -1216,20 +1216,15 @@
       width = level.rows[0].length;
       occupied = Array(width * depth).fill(null);
       const scrambleAt = scrambleIndex();
-      parRotations = parRotationsFor(level, scrambleAt);
+      parMoves = parMovesFor(level, scrambleAt);
 
       const extracted = extractPieces(level.rows);
-      pieces = extracted.map((item, i) => {
-        let shape = item.cells;
-        const turns = scrambleTurns(i, scrambleAt);
-        for (let r = 0; r < turns; r++) shape = rotateCells(shape);
-        return {
-          id: item.id,
-          cells: shape,
-          color: colors[i % colors.length],
-          placed: false,
-        };
-      });
+      pieces = extracted.map((item, i) => ({
+        id: item.id,
+        cells: scramblePiece(item.cells, i, scrambleAt),
+        color: colors[i % colors.length],
+        placed: false,
+      }));
 
       buildBoard();
       renderPieces();
@@ -1517,6 +1512,8 @@
         getProgress: () => progress,
         getLevel: () => activeLevel,
         getMode: () => mode,
+        getMoves: () => movesUsed,
+        getPar: () => parMoves,
         getPieces: () => pieces.map((p) => ({ ...p, cells: p.cells.map((c) => [...c]) })),
         selectPiece,
         rotateSelected,

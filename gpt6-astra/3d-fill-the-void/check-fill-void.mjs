@@ -19,13 +19,17 @@ import {
   levelIsSolvable,
   localDateKey,
   migrateProgress,
+  minTransformMoves,
   orientationsOf,
   packCleared,
+  parMovesFor,
   parRotationsFor,
   rateStars,
   recordClear,
   recordDailyClear,
   rotateCells,
+  scrambleFlips,
+  scramblePiece,
   scrambleTurns,
   seedFromString,
   totalStars,
@@ -65,10 +69,51 @@ for (const [list, label] of [
     const result = levelIsSolvable(level, index);
     assert.equal(result.ok, true, `${label} ${level.id}: ${result.reason}`);
     solvable += 1;
-    assert.ok(parRotationsFor(level, index) >= 0);
+    const expectedPar = extractPieces(level.rows).reduce(
+      (sum, piece, pieceIdx) =>
+        sum + minTransformMoves(scramblePiece(piece.cells, pieceIdx, index), piece.cells),
+      0,
+    );
+    assert.equal(parMovesFor(level, index), expectedPar);
+    assert.equal(parRotationsFor(level, index), expectedPar);
+    assert.equal(result.parMoves, expectedPar);
+    assert.ok(parMovesFor(level, index) >= 0);
   });
 }
 assert.equal(solvable, CAMPAIGN.length + DAILY_POOL.length);
+
+// Par calculation accurately counts flips as well as rotations.
+{
+  // Symmetric 2x2 square requires 0 moves regardless of scramble.
+  const square = [
+    [0, 0],
+    [1, 0],
+    [0, 1],
+    [1, 1],
+  ];
+  assert.equal(minTransformMoves(scramblePiece(square, 1, 0), square), 0);
+
+  // Symmetric T-tetromino rotated 1 CW turn restores in 2 moves (Flip + Rotate) instead of 3 CW rotations.
+  const tTetromino = [
+    [0, 0],
+    [1, 0],
+    [2, 0],
+    [1, 1],
+  ];
+  assert.equal(minTransformMoves(rotateCells(tTetromino), tTetromino), 2);
+
+  // Chiral L-tetromino flipped + rotated requires flip move(s) to restore.
+  const chiralL = [
+    [0, 0],
+    [0, 1],
+    [0, 2],
+    [1, 2],
+  ];
+  assert.equal(minTransformMoves(flipCells(chiralL), chiralL), 1);
+  assert.equal(minTransformMoves(rotateCells(flipCells(chiralL)), chiralL), 2);
+  assert.equal(scrambleFlips(1, 0), true);
+  assert.equal(scrambleFlips(0, 0), false);
+}
 
 const shape = [
   [0, 0],
@@ -91,6 +136,8 @@ for (let i = 0; i < 4; i++) spun = rotateCells(spun);
 assert.equal(cellsKey(spun), cellsKey(shape));
 
 assert.equal(scrambleTurns(0, 0), 1);
+assert.equal(rateStars({ undos: 0, moves: 4, parMoves: 4 }), 3);
+assert.equal(rateStars({ undos: 0, moves: 5, parMoves: 4 }), 2);
 assert.equal(rateStars({ undos: 0, rotations: 4, parRotations: 4 }), 3);
 assert.equal(rateStars({ undos: 0, rotations: 5, parRotations: 4 }), 2);
 assert.equal(rateStars({ undos: 1, rotations: 99, parRotations: 4 }), 2);

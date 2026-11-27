@@ -6,6 +6,51 @@
 export const STORAGE_PROGRESS = 'windward-progress-v1';
 export const STORAGE_GHOSTS = 'windward-ghosts-v1';
 
+/** Manual sail trim is active by default; auto-trim assist is opt-in. */
+export const DEFAULT_AUTO_TRIM = false;
+export const INITIAL_SAIL_TRIM = 0.55;
+
+/**
+ * Ideal sail ease (0 = sheeted tight, 1 = eased wide) for the current point of sail.
+ * @param {number} alignment Cosine of angle between boat heading and wind direction (-1..1).
+ */
+export function optimalSailTrim(alignment) {
+  const clamped = Math.max(-1, Math.min(1, alignment));
+  return Math.max(0.22, Math.min(0.95, 0.56 + 0.36 * clamped));
+}
+
+/**
+ * Wind efficiency from point-of-sail aerodynamics and manual sail trim match.
+ * Pointing directly into the wind ("in irons") drops efficiency sharply.
+ * @param {number} alignment Cosine of boat heading vs wind direction (-1..1).
+ * @param {number} sailTrim Current sail ease (0..1).
+ */
+export function computeWindEfficiency(alignment, sailTrim) {
+  const clampedAlignment = Math.max(-1, Math.min(1, alignment));
+  const clampedTrim = Math.max(0, Math.min(1, sailTrim));
+  const optimalTrim = optimalSailTrim(clampedAlignment);
+  const inIronsPenalty =
+    clampedAlignment < -0.65 ? Math.min(0.55, (-0.65 - clampedAlignment) * 1.5) : 0;
+  const pointOfSail = Math.max(
+    0.14,
+    Math.min(
+      1,
+      0.88 +
+        0.24 * clampedAlignment -
+        0.3 * clampedAlignment * clampedAlignment -
+        inIronsPenalty,
+    ),
+  );
+  const trimError = Math.abs(clampedTrim - optimalTrim);
+  const trimMatch = Math.max(0.28, Math.min(1, 1 - trimError * 1.15));
+  return {
+    efficiency: Math.max(0.12, Math.min(1, pointOfSail * trimMatch)),
+    optimalTrim,
+    trimMatch,
+    inIrons: clampedAlignment < -0.72,
+  };
+}
+
 const SAMPLE_HZ = 8;
 const MAX_SAMPLES = 2400;
 

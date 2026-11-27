@@ -40,9 +40,54 @@ export function scrambleTurns(pieceIndex, levelIndex) {
   return (pieceIndex * 3 + levelIndex + 1) % 4;
 }
 
+/** Deterministic mirror flag for scrambling a piece. */
+export function scrambleFlips(pieceIndex, levelIndex) {
+  return (pieceIndex + levelIndex) % 2 === 1;
+}
+
+/** Apply deterministic flip + CW rotations to scramble a solution piece. */
+export function scramblePiece(cells, pieceIndex, levelIndex) {
+  let out = normalize(cells);
+  if (scrambleFlips(pieceIndex, levelIndex)) {
+    out = flipCells(out);
+  }
+  const turns = scrambleTurns(pieceIndex, levelIndex);
+  for (let r = 0; r < turns; r++) {
+    out = rotateCells(out);
+  }
+  return out;
+}
+
 /** Minimum CW rotations to undo a scramble of `turns` (0–3). */
 export function rotationsToUndo(turns) {
   return (4 - (turns % 4)) % 4;
+}
+
+/**
+ * Minimum single-step moves (CW 90° rotation or horizontal flip) to transform
+ * `fromCells` into an orientation matching `toCells`.
+ * @param {Cell[]} fromCells
+ * @param {Cell[]} toCells
+ */
+export function minTransformMoves(fromCells, toCells) {
+  const targetKey = cellsKey(toCells);
+  const startKey = cellsKey(fromCells);
+  if (startKey === targetKey) return 0;
+
+  const seen = new Set([startKey]);
+  const queue = [{ cells: normalize(fromCells), moves: 0 }];
+  while (queue.length > 0) {
+    const { cells, moves } = queue.shift();
+    for (const nextCells of [rotateCells(cells), flipCells(cells)]) {
+      const nextKey = cellsKey(nextCells);
+      if (nextKey === targetKey) return moves + 1;
+      if (!seen.has(nextKey)) {
+        seen.add(nextKey);
+        queue.push({ cells: nextCells, moves: moves + 1 });
+      }
+    }
+  }
+  throw new Error('Target shape is not in the dihedral orbit of source shape');
 }
 
 /**
@@ -118,24 +163,32 @@ export function validateLevel(level) {
 }
 
 /**
- * Par rotations = total CW turns needed to restore each piece from scramble.
+ * Par moves = minimum rotations + flips needed to restore each scrambled piece
+ * to its solution orientation.
  * @param {object} level
  * @param {number} levelIndex
  */
-export function parRotationsFor(level, levelIndex) {
+export function parMovesFor(level, levelIndex) {
   const pieces = extractPieces(level.rows);
-  return pieces.reduce(
-    (sum, _p, i) => sum + rotationsToUndo(scrambleTurns(i, levelIndex)),
-    0,
-  );
+  return pieces.reduce((sum, piece, i) => {
+    const scrambled = scramblePiece(piece.cells, i, levelIndex);
+    return sum + minTransformMoves(scrambled, piece.cells);
+  }, 0);
+}
+
+/** Backward-compatible alias for parMovesFor. */
+export function parRotationsFor(level, levelIndex) {
+  return parMovesFor(level, levelIndex);
 }
 
 /**
  * Star rating from a finished attempt.
- * 1★ clear · 2★ ≤1 undo · 3★ no undo + rotations ≤ par
+ * 1★ clear · 2★ ≤1 undo · 3★ no undo + moves (rotations + flips) ≤ par
  */
-export function rateStars({ undos, rotations, parRotations }) {
-  if (undos === 0 && rotations <= parRotations) return 3;
+export function rateStars({ undos, moves, parMoves, rotations, parRotations }) {
+  const actualMoves = moves ?? rotations ?? 0;
+  const targetPar = parMoves ?? parRotations ?? 0;
+  if (undos === 0 && actualMoves <= targetPar) return 3;
   if (undos <= 1) return 2;
   return 1;
 }
@@ -196,7 +249,8 @@ export function isLevelUnlocked(progress, levelId) {
   return (progress.clears[prev.id]?.stars ?? 0) >= 1;
 }
 
-export function recordClear(progress, levelId, { stars, undos, rotations }) {
+export function recordClear(progress, levelId, { stars, undos, moves, rotations }) {
+  const actualMoves = moves ?? rotations ?? 0;
   const next = {
     ...progress,
     clears: { ...progress.clears },
@@ -204,12 +258,20 @@ export function recordClear(progress, levelId, { stars, undos, rotations }) {
   };
   const prev = next.clears[levelId];
   if (!prev || stars > prev.stars) {
-    next.clears[levelId] = { stars, bestUndos: undos, bestRotations: rotations };
+    next.clears[levelId] = {
+      stars,
+      bestUndos: undos,
+      bestMoves: actualMoves,
+      bestRotations: actualMoves,
+    };
   } else if (stars === prev.stars) {
+    const prevBest = prev.bestMoves ?? prev.bestRotations ?? actualMoves;
+    const bestMoves = Math.min(prevBest, actualMoves);
     next.clears[levelId] = {
       stars,
       bestUndos: Math.min(prev.bestUndos, undos),
-      bestRotations: Math.min(prev.bestRotations, rotations),
+      bestMoves,
+      bestRotations: bestMoves,
     };
   }
   return next;
@@ -376,20 +438,20 @@ export function levelIsSolvable(level, levelIndex = 0) {
 
   // Known solution exists in the letter grid — solvability is guaranteed if
   // pieces stay connected. Still run packer on scrambled→all-orients for safety.
-  const pieces = extractPieces(level.rows).map((p, i) => {
-    let cells = p.cells;
-    const turns = scrambleTurns(i, levelIndex);
-    for (let r = 0; r < turns; r++) cells = rotateCells(cells);
-    return { id: p.id, cells };
-  });
+  const pieces = extractPieces(level.rows).map((p, i) => ({
+    id: p.id,
+    cells: scramblePiece(p.cells, i, levelIndex),
+  }));
 
   const width = level.rows[0].length;
   const depth = level.rows.length;
   const packed = canPack(pieces, width, depth);
   if (!packed) return { ok: false, reason: 'unsolvable-pack' };
+  const parMoves = parMovesFor(level, levelIndex);
   return {
     ok: true,
-    parRotations: parRotationsFor(level, levelIndex),
+    parMoves,
+    parRotations: parMoves,
     pieceCount: pieces.length,
     width,
     depth,
