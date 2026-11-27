@@ -1,6 +1,6 @@
-import { Dices, HeartPulse } from 'lucide-react';
+import { Dices, HeartPulse, Zap } from 'lucide-react';
 import { relicImageUrl } from '../artUrls';
-import { HEAL_COST, REROLL_COST } from '../game/config';
+import { ENERGY_UPGRADE_AMOUNT, ENERGY_UPGRADE_COST, HEAL_COST, REROLL_COST } from '../game/config';
 import { RARITY_CLASS, RARITY_LABEL, RELIC_BY_ID } from '../game/relics';
 import type { RelicId } from '../game/types';
 
@@ -16,6 +16,7 @@ interface RelicPickerProps {
   onChoose: (id: RelicId) => void;
   onReroll: () => void;
   onHeal: () => void;
+  onEnergyUpgrade: () => void;
 }
 
 export function RelicPicker({
@@ -29,9 +30,11 @@ export function RelicPicker({
   onChoose,
   onReroll,
   onHeal,
+  onEnergyUpgrade,
 }: RelicPickerProps) {
   const canReroll = coins >= REROLL_COST;
   const canHeal = !ironsnake && coins >= HEAL_COST && hp < maxHp;
+  const canUpgradeEnergy = coins >= ENERGY_UPGRADE_COST;
 
   return (
     <div
@@ -104,8 +107,17 @@ export function RelicPicker({
               治療 1 HP（{HEAL_COST} 金幣）
             </button>
           )}
+          <button
+            type="button"
+            onClick={onEnergyUpgrade}
+            disabled={!canUpgradeEnergy}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-cyan-700/70 bg-cyan-950/60 px-4 py-2 text-sm font-semibold hover:bg-cyan-900/60 disabled:opacity-40 disabled:hover:bg-cyan-950/60"
+          >
+            <Zap className="w-4 h-4 text-cyan-300" />
+            動能上限 +{ENERGY_UPGRADE_AMOUNT}（{ENERGY_UPGRADE_COST} 金幣）
+          </button>
           {ironsnake && (
-            <span className="text-xs text-rose-300/80">Ironsnake・HP 固定 1，無法治療</span>
+            <span className="text-xs text-rose-300/80">Ironsnake・HP 固定 1</span>
           )}
         </div>
       </div>

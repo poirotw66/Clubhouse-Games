@@ -33,6 +33,9 @@ export const BOSS_FLOORS = [5, 10, 15];
 
 export const REROLL_COST = 4;
 export const HEAL_COST = 8;
+export const ENERGY_UPGRADE_COST = 6;
+export const ENERGY_UPGRADE_AMOUNT = 20;
+export const BOSS_BREAK_DURATION_MS = 3500;
 
 export const SPIKE_CYCLE = 3;
 export const SPIKE_ARMED = 1;

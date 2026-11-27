@@ -60,10 +60,16 @@ export interface TSpinPuzzle {
   };
   /** Max locks for 3★ / 2★ (1★ = any clear). */
   starLocks: [number, number];
+  /** Target slot ghost overlay for visual guidance in drill mode. */
+  targetGhost?: {
+    row: number;
+    col: number;
+    rotation: 0 | 1 | 2 | 3;
+  };
 }
 
 /**
- * Compact T-Spin setups. Boards are bottom-aligned; only the listed bottom rows
+ * Structured T-Spin drill setups. Boards are bottom-aligned; only the listed bottom rows
  * are filled — the rest of the well stays empty.
  */
 export const TSPIN_PUZZLES: TSpinPuzzle[] = [
@@ -81,11 +87,12 @@ export const TSPIN_PUZZLES: TSpinPuzzle[] = [
     queue: ['T', 'L', 'J', 'I'],
     require: { tSpin: 'full', minLines: 2 },
     starLocks: [1, 3],
+    targetGhost: { row: 16, col: 3, rotation: 2 },
   },
   {
     id: 'ts-single-1',
     name: 'T-Spin Single',
-    blurb: '側邊 T 槽，消一行即可',
+    blurb: '側邊 T 槽：旋轉消一行',
     rows: [
       'GGGGGGG.GG',
       'GGGGGG...G',
@@ -95,11 +102,12 @@ export const TSPIN_PUZZLES: TSpinPuzzle[] = [
     queue: ['T', 'O', 'S', 'Z'],
     require: { tSpin: 'full-or-mini', minLines: 1 },
     starLocks: [1, 4],
+    targetGhost: { row: 16, col: 6, rotation: 2 },
   },
   {
     id: 'ts-mini-1',
     name: 'T-Spin Mini',
-    blurb: '淺槽 Mini：旋轉消一行',
+    blurb: '淺槽 Mini：角落轉向旋轉消行',
     rows: [
       'GGG.G.GGGG',
       'GG.....GGG',
@@ -108,6 +116,86 @@ export const TSPIN_PUZZLES: TSpinPuzzle[] = [
     queue: ['T', 'I', 'J', 'L'],
     require: { tSpin: 'full-or-mini', minLines: 1 },
     starLocks: [1, 3],
+    targetGhost: { row: 17, col: 2, rotation: 2 },
+  },
+  {
+    id: 'ts-triple-1',
+    name: 'T-Spin Triple',
+    blurb: '經典 TST 井：垂直三層懸空倒扣',
+    rows: [
+      'GGGG..GGGG',
+      'GGGG.GGGGG',
+      'GGGG...GGG',
+      'GGGG.GGGGG',
+      'GGGG.GGGGG',
+      'GGGGGGGGGG',
+    ],
+    queue: ['T', 'I', 'J', 'L'],
+    require: { tSpin: 'full', minLines: 3 },
+    starLocks: [1, 3],
+    targetGhost: { row: 15, col: 4, rotation: 1 },
+  },
+  {
+    id: 'ts-neo-1',
+    name: 'Neo T-Spin',
+    blurb: '懸崖踢牆：利用 SRS 踢牆旋轉滑入',
+    rows: [
+      'GG.GGGGGGG',
+      'G...GGGGGG',
+      'GG.GGGGGGG',
+      'GGGGGGGGGG',
+    ],
+    queue: ['T', 'S', 'Z', 'I'],
+    require: { tSpin: 'full', minLines: 2 },
+    starLocks: [1, 3],
+    targetGhost: { row: 16, col: 1, rotation: 2 },
+  },
+  {
+    id: 'ts-iso-1',
+    name: 'Iso T-Spin',
+    blurb: '浮島懸掛：空洞下方的雙消結構',
+    rows: [
+      'GGGG...GGG',
+      'GGGG.GGGGG',
+      'GGGG...GGG',
+      'GGGGGGGGGG',
+    ],
+    queue: ['T', 'L', 'J', 'O'],
+    require: { tSpin: 'full', minLines: 2 },
+    starLocks: [1, 3],
+    targetGhost: { row: 16, col: 4, rotation: 2 },
+  },
+  {
+    id: 'ts-fin-1',
+    name: 'Fin T-Spin',
+    blurb: '側翼凸緣：引導 T 塊卡入凹槽',
+    rows: [
+      'GGGGG.GGGG',
+      'GGGG...GGG',
+      'GGGGG.GGGG',
+      'GGGGGGGGGG',
+    ],
+    queue: ['T', 'I', 'O', 'J'],
+    require: { tSpin: 'full', minLines: 2 },
+    starLocks: [1, 3],
+    targetGhost: { row: 16, col: 4, rotation: 2 },
+  },
+  {
+    id: 'ts-triple-deep',
+    name: 'Deep TST',
+    blurb: '深井 TST：三行連鎖強攻重砲',
+    rows: [
+      'GGG..GGGGG',
+      'GGG.GGGGGG',
+      'GGG...GGGG',
+      'GGG.GGGGGG',
+      'GGG.GGGGGG',
+      'GGGGGGGGGG',
+    ],
+    queue: ['T', 'I', 'S', 'Z'],
+    require: { tSpin: 'full', minLines: 3 },
+    starLocks: [1, 3],
+    targetGhost: { row: 15, col: 3, rotation: 1 },
   },
 ];
 

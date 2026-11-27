@@ -41,6 +41,7 @@ import {
   todaySeedKey,
 } from './game/daily';
 import {
+  buyEnergyUpgrade,
   buyHeal,
   chooseRelic,
   continueEndless,
@@ -161,6 +162,7 @@ export default function App() {
   const pausedRef = useRef(false);
   const signatureRef = useRef('');
   const swipeRef = useRef<{ x: number; y: number; time: number } | null>(null);
+  const lastTapRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const challengeSettledRef = useRef(false);
   const runSettledRef = useRef(false);
   const comboRef = useRef<{ count: number; lastEatAt: number }>({ count: 0, lastEatAt: 0 });
@@ -559,7 +561,19 @@ export default function App() {
     const dy = event.clientY - start.y;
 
     if (Math.abs(dx) < 20 && Math.abs(dy) < 20) {
-      dash(state);
+      // Guard canvas pointer clicks against accidental Dash misinputs: require deliberate double-tap
+      const now = performance.now();
+      const lastTap = lastTapRef.current;
+      if (
+        lastTap &&
+        now - lastTap.time < 320 &&
+        Math.hypot(event.clientX - lastTap.x, event.clientY - lastTap.y) < 30
+      ) {
+        lastTapRef.current = null;
+        dash(state);
+      } else {
+        lastTapRef.current = { x: event.clientX, y: event.clientY, time: now };
+      }
       return;
     }
     if (Math.abs(dx) > Math.abs(dy)) queueDir(state, dx > 0 ? 'right' : 'left');
@@ -835,7 +849,7 @@ export default function App() {
 
           <p className="mt-3 text-center text-xs text-slate-500">
             方向鍵／WASD 轉向 · Space 衝刺 · E 猛毒脈衝 · P 暫停 ·{' '}
-            <span className="md:hidden">畫面滑動轉向、輕點衝刺</span>
+            <span className="md:hidden">畫面滑動轉向、快速連點兩下衝刺</span>
             <span className="hidden md:inline">
               {activeChallenge
                 ? `目標：${activeChallenge.goalLabel}`
@@ -930,6 +944,7 @@ export default function App() {
           onChoose={handleChoose}
           onReroll={withState(rerollRelics)}
           onHeal={withState(buyHeal)}
+          onEnergyUpgrade={withState(buyEnergyUpgrade)}
         />
       )}
 

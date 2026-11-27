@@ -38,13 +38,14 @@ import {
   isPracticeMode,
   isVersusMode,
   movePiece,
+  shiftPieceUpOnGarbage,
   spawnPiece,
   tryRotateWithKick,
 } from './utils/tetrisLogic';
 import {
   DIFFICULTY_PRESETS,
   PLAYER_GARBAGE_DROP_CAP,
-  findBestPlacement,
+  evaluateBestMove,
   thinkDelayMs,
 } from './utils/cpuAi';
 import {
@@ -248,6 +249,7 @@ function starsLabel(n: number): string {
 
 export default function App() {
   const narrow = useNarrow();
+  const [screen, setScreen] = useState<'menu' | 'play'>('play');
   const [mode, setMode] = useState<Mode>('marathon');
   const [difficulty, setDifficulty] = useState<Difficulty>(readVersusStats().lastDifficulty);
   const [player, setPlayer] = useState<FieldState>(createInitialField);
@@ -660,6 +662,15 @@ export default function App() {
         return { ...field, gameOver: true, active: null };
       }
       if (field.active && collides(nextBoard, field.active)) {
+        const shifted = shiftPieceUpOnGarbage(nextBoard, field.active, drop);
+        if (shifted) {
+          return {
+            ...field,
+            board: nextBoard,
+            active: shifted,
+            incomingGarbage: field.incomingGarbage - drop,
+          };
+        }
         return {
           ...field,
           board: nextBoard,
@@ -856,6 +867,12 @@ export default function App() {
       const key = event.key;
 
       if (isGameOverRef.current && isRapidRetryKey(event)) {
+        event.preventDefault();
+        triggerRapidRetryRef.current();
+        return;
+      }
+
+      if (!isGameOverRef.current && (mode === 'sprint' || mode === 'dailySprint') && (key === 'r' || key === 'R')) {
         event.preventDefault();
         triggerRapidRetryRef.current();
         return;
@@ -1100,10 +1117,13 @@ export default function App() {
         if (!prev.active || prev.gameOver || prev.clearing) return prev;
 
         if (!cpuPlanRef.current) {
-          const plan = findBestPlacement(
+          const evaluation = evaluateBestMove(
             prev.board,
             prev.active.type,
+            prev.hold,
             prev.queue[0] ?? null,
+            prev.queue[1] ?? null,
+            prev.canHold && prev.holdEnabled,
             preset,
             {
               backToBackReady: prev.backToBackReady,
@@ -1111,6 +1131,28 @@ export default function App() {
               level: prev.level,
             },
           );
+          if (evaluation.useHold && evaluation.plan) {
+            const holdPieceType = prev.active.type;
+            const nextActiveType = prev.hold ?? prev.queue[0] ?? null;
+            if (nextActiveType) {
+              const newQueue = prev.hold ? prev.queue : prev.queue.slice(1);
+              const spawned = spawnPiece(nextActiveType);
+              cpuPlanRef.current = {
+                rotation: evaluation.plan.rotation,
+                col: evaluation.plan.col,
+                readyAt: now + thinkDelayMs(preset),
+                hardDrop: false,
+              };
+              return {
+                ...prev,
+                active: spawned,
+                hold: holdPieceType,
+                canHold: false,
+                queue: newQueue,
+              };
+            }
+          }
+          const plan = evaluation.plan;
           if (!plan) {
             // No legal placement — top out.
             return { ...prev, gameOver: true, active: null };
@@ -1350,6 +1392,155 @@ export default function App() {
     held.current.down = false;
   };
 
+  if (screen === 'menu') {
+    return (
+      <div
+        className="min-h-screen text-slate-50 flex flex-col items-center p-4 min-w-0 bg-cover bg-center"
+        style={{
+          backgroundColor: '#020617',
+          backgroundImage: [
+            'linear-gradient(rgba(2,6,23,0.85), rgba(2,6,23,0.95))',
+            `url(${import.meta.env.BASE_URL}menu-bg.jpg)`,
+          ].join(', '),
+        }}
+      >
+        <BackToMenu />
+        <div className="w-full max-w-4xl flex flex-col items-center my-auto py-8">
+          <div className="text-center mb-8">
+            <h1 className="text-4xl sm:text-5xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-sky-300 to-indigo-400 mb-2">
+              俄羅斯方塊
+            </h1>
+            <p className="text-slate-400 text-sm sm:text-base font-medium">
+              經典競技落下型方塊 · 多元對戰模式與技巧特訓
+            </p>
+          </div>
+
+          <div className="w-full mb-6">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 px-1">
+              標準模式
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+              {MODE_ORDER.map((id) => {
+                const info = MODES[id];
+                const isSelected = mode === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => {
+                      setMode(id);
+                      startRun(id, difficulty);
+                      setScreen('play');
+                    }}
+                    className={`flex flex-col text-left p-4 rounded-xl border transition-all ${
+                      isSelected
+                        ? 'bg-sky-950/70 border-sky-400 ring-2 ring-sky-400/40 shadow-[0_0_15px_rgba(56,189,248,0.3)]'
+                        : 'bg-slate-900/80 border-slate-700/80 hover:bg-slate-800/80 hover:border-slate-600'
+                    }`}
+                  >
+                    <span className="text-base font-bold text-slate-100 mb-1">{info.label}</span>
+                    <span className="text-xs text-slate-400 line-clamp-2">{info.blurb}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="w-full mb-6">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-emerald-400 mb-3 px-1">
+              每日挑戰
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {DAILY_ORDER.map((id) => {
+                const info = MODES[id];
+                const isSelected = mode === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => {
+                      setMode(id);
+                      startRun(id, difficulty);
+                      setScreen('play');
+                    }}
+                    className={`flex flex-col text-left p-4 rounded-xl border transition-all ${
+                      isSelected
+                        ? 'bg-emerald-950/70 border-emerald-400 ring-2 ring-emerald-400/40 shadow-[0_0_15px_rgba(16,185,129,0.3)]'
+                        : 'bg-slate-900/80 border-slate-700/80 hover:bg-slate-800/80 hover:border-slate-600'
+                    }`}
+                  >
+                    <span className="text-base font-bold text-emerald-200 mb-1">{info.label}</span>
+                    <span className="text-xs text-slate-400">{info.blurb}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="w-full mb-8">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-purple-400 mb-3 px-1">
+              技巧特訓
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {PRACTICE_ORDER.map((id) => {
+                const info = MODES[id];
+                const isSelected = mode === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => {
+                      setMode(id);
+                      startRun(id, difficulty);
+                      setScreen('play');
+                    }}
+                    className={`flex flex-col text-left p-4 rounded-xl border transition-all ${
+                      isSelected
+                        ? 'bg-purple-950/70 border-purple-400 ring-2 ring-purple-400/40 shadow-[0_0_15px_rgba(168,85,247,0.3)]'
+                        : 'bg-slate-900/80 border-slate-700/80 hover:bg-slate-800/80 hover:border-slate-600'
+                    }`}
+                  >
+                    <span className="text-base font-bold text-purple-200 mb-1">{info.label}</span>
+                    <span className="text-xs text-slate-400">{info.blurb}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-center gap-4">
+            <div className="flex items-center gap-2 bg-slate-900/80 border border-slate-700 px-3 py-1.5 rounded-full text-xs text-slate-300">
+              <span>難度設定：</span>
+              {(['easy', 'normal', 'hard'] as Difficulty[]).map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => setDifficulty(d)}
+                  className={`px-2.5 py-1 rounded-full font-semibold transition-colors ${
+                    difficulty === d ? 'bg-sky-500 text-white' : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  {d === 'easy' ? '簡單' : d === 'normal' ? '普通' : '困難'}
+                </button>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                startRun(mode, difficulty);
+                setScreen('play');
+              }}
+              className="px-8 py-3 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white font-bold text-base shadow-[0_0_20px_rgba(14,165,233,0.4)] transition-all hover:scale-105 active:scale-95"
+            >
+              進入遊戲（{MODES[mode].label}）
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className="min-h-screen text-slate-50 flex flex-col items-center p-4 min-w-0 bg-cover bg-center"
@@ -1361,7 +1552,13 @@ export default function App() {
         ].join(', '),
       }}
     >
-      <BackToMenu onBackToTitle={() => startRun('marathon', difficulty)} titleLabel="回到主選單" />
+      <BackToMenu
+        onBackToTitle={() => {
+          setPlayer((p) => ({ ...p, paused: true }));
+          setScreen('menu');
+        }}
+        titleLabel="回到主選單"
+      />
       <header className="w-full max-w-6xl flex flex-col gap-2 mb-4">
         <div className="flex flex-wrap justify-between items-center gap-2">
           <div className="flex items-center gap-3 flex-wrap">
@@ -1716,6 +1913,7 @@ export default function App() {
                       dangerZone={playerTelemetry.dangerZone}
                       showDangerLine={true}
                       isGoldenClear={isPlayerGoldenClear}
+                      targetGhost={mode === 'tspin' ? activePuzzle.targetGhost : null}
                     />
                   </div>
 
@@ -1925,7 +2123,7 @@ export default function App() {
                 }
               : isVersus && versusMeta.bo3 && seriesComplete(versusMeta)
                 ? () => startRun('versus', difficulty)
-                : () => startRun('marathon', difficulty)
+                : () => setScreen('menu')
           }
           secondaryLabel={
             isDaily

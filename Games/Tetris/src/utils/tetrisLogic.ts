@@ -742,6 +742,43 @@ export function applyGarbage(board: Cell[][], lines: number, holeCol: number): C
   return next;
 }
 
+/**
+ * When garbage lines push the stack upward, the active piece may be encroached
+ * from below. If headroom exists, shift the active piece cleanly upward to
+ * preserve player agency instead of triggering an unfair instant collision KO.
+ * Returns the shifted piece, or null if even with headroom shifts the piece still
+ * collides (genuine top-out).
+ */
+export function shiftPieceUpOnGarbage(
+  board: Cell[][],
+  active: ActivePiece,
+  lines: number,
+): ActivePiece | null {
+  if (!collides(board, active)) {
+    return active;
+  }
+  // Try shifting directly by the number of garbage lines that rose.
+  const naturalShift: ActivePiece = {
+    ...active,
+    position: { ...active.position, row: active.position.row - lines },
+  };
+  if (!collides(board, naturalShift)) {
+    return naturalShift;
+  }
+  // Search upward for the lowest non-colliding row with headroom.
+  // Board top buffer allows row < 0 as valid vanished headroom.
+  for (let shift = 1; shift <= lines + 4; shift++) {
+    const candidate: ActivePiece = {
+      ...active,
+      position: { ...active.position, row: active.position.row - shift },
+    };
+    if (!collides(board, candidate)) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
 /* ---------------- Game modes ---------------- */
 
 export type Mode =

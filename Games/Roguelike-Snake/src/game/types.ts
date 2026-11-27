@@ -40,6 +40,8 @@ export interface Boss {
   hp: number;
   maxHp: number;
   hitFlashUntil: number;
+  /** Timestamp until which boss defense shield is broken and vulnerable to Dash strikes. */
+  breakUntil?: number;
 }
 
 export type EffectKind = 'ring' | 'burst' | 'slash';
@@ -63,6 +65,8 @@ export type GameEventType =
   | 'pulse'
   | 'bossHit'
   | 'bossDown'
+  | 'bossDeflect'
+  | 'bossVulnerable'
   | 'exit'
   | 'floor'
   | 'die'

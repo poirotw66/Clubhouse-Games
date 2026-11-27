@@ -569,19 +569,62 @@ function boardMatchesColors(bottles: BottleData[], requiredColors: Set<Color>): 
  * always automatically satisfied by "every bottle mono" alone (colours
  * can't transmute), but once mixing is possible it's load-bearing.
  */
-function findSolutionGreedy(
+export function resolveOrdersAndUnlocks(
+  state: BottleData[],
+  curOrders?: Order[]
+): { nextState: BottleData[]; nextOrders?: Order[] } {
+  if (!curOrders || curOrders.length === 0) {
+    return { nextState: state, nextOrders: curOrders };
+  }
+  let b = state;
+  let o = curOrders;
+  while (true) {
+    let matchOrderIndex = -1;
+    let matchBottleId: string | null = null;
+    for (let i = 0; i < o.length; i++) {
+      const order = o[i];
+      if (order.isCompleted || order.isLocked) continue;
+      const match = b.find(
+        (x) => x.isCompleted && x.layers.length > 0 && x.layers[0].color === order.color
+      );
+      if (match) {
+        matchOrderIndex = i;
+        matchBottleId = match.id;
+        break;
+      }
+    }
+    if (matchOrderIndex === -1) break;
+    o = o.map((ord, i) => (i === matchOrderIndex ? { ...ord, isCompleted: true } : ord));
+    b = unlockNextBlockedBottle(b.filter((x) => x.id !== matchBottleId));
+    const nextLockedIndex = o.findIndex((ord) => ord.isLocked);
+    if (nextLockedIndex !== -1) {
+      o = o.map((ord, i) => (i === nextLockedIndex ? { ...ord, isLocked: false } : ord));
+    }
+  }
+  return { nextState: b, nextOrders: o };
+}
+
+export function findSolutionGreedy(
   bottles: BottleData[],
   requiredColors: Set<Color>,
   maxNodes: number = SOLVE_MAX_NODES,
-  maxMs: number = SOLVE_MAX_MS
+  maxMs: number = SOLVE_MAX_MS,
+  orders?: Order[]
 ): SolutionMove[] | null {
   const start = Date.now();
   const visited = new Set<string>();
   const path: SolutionMove[] = [];
   let nodes = 0;
 
-  const stateKey = (state: BottleData[]) =>
-    state.map(b => b.layers.map(l => l.color).join(',')).sort().join('|');
+  const stateKey = (state: BottleData[], ords?: Order[]) => {
+    const bk = state
+      .map(b => `${b.id}:${b.isBlocked ? 'L' : ''}:${b.layers.map(l => l.color).join(',')}`)
+      .sort()
+      .join('|');
+    if (!ords) return bk;
+    const ok = ords.map(o => `${o.color}:${o.isCompleted ? 1 : 0}:${o.isLocked ? 1 : 0}`).join('|');
+    return `${bk}#${ok}`;
+  };
 
   // Total units of `color` anywhere on the board right now (mixed or native).
   function colorTotal(state: BottleData[], color: Color): number {
@@ -590,7 +633,8 @@ function findSolutionGreedy(
     return total;
   }
 
-  function scoreMove(state: BottleData[], source: BottleData, target: BottleData): number {
+  function scoreMove(state: BottleData[], source: BottleData, target: BottleData, ords?: Order[]): number {
+    if (source.isBlocked || target.isBlocked) return -1;
     const topColor = source.layers[source.layers.length - 1].color;
 
     // Mixing pour: net growth on target is always exactly +1 (1 unit in,
@@ -605,6 +649,10 @@ function findSolutionGreedy(
         // never contribute to a win: every required colour needs exactly
         // one bottle's worth, no more, and mixing never destroys liquid.
         if (!requiredColors.has(mixedColor) || colorTotal(state, mixedColor) >= target.capacity) return -1;
+        if (ords) {
+          const isNeeded = ords.some(o => !o.isCompleted && !o.isLocked && o.color === mixedColor);
+          if (isNeeded) return 3;
+        }
       }
       if (target.layers.length + 1 === target.capacity) return 2; // finishes the target bottle
       return 1; // produces 2 units of a colour that's otherwise unobtainable
@@ -612,40 +660,51 @@ function findSolutionGreedy(
 
     let run = 0;
     for (let i = source.layers.length - 1; i >= 0 && source.layers[i].color === topColor; i--) run++;
+    if (ords) {
+      const isNeeded = ords.some(o => !o.isCompleted && !o.isLocked && o.color === topColor);
+      if (isNeeded && target.layers.length + run === target.capacity) return 3;
+    }
     if (target.layers.length + run === target.capacity) return 2; // finishes the target bottle
     if (target.layers.length > 0) return 1; // merges into an existing run
     return 0; // pours into an empty bottle — least urgent
   }
 
-  function dfs(state: BottleData[]): boolean {
+  function dfs(state: BottleData[], curOrders?: Order[]): boolean {
     if (nodes++ > maxNodes || Date.now() - start > maxMs) return false;
-    if (boardMatchesColors(state, requiredColors)) return true;
-    const key = stateKey(state);
+    if (curOrders ? curOrders.every(o => o.isCompleted) : boardMatchesColors(state, requiredColors)) return true;
+    const key = stateKey(state, curOrders);
     if (visited.has(key)) return false;
     visited.add(key);
 
     const moves: { source: BottleData; target: BottleData; score: number }[] = [];
     for (const source of state) {
-      if (source.isCompleted || source.layers.length === 0) continue;
+      if (source.isCompleted || source.isBlocked || source.layers.length === 0) continue;
       for (const target of state) {
-        if (source.id === target.id) continue;
-        if (canPour(source, target)) moves.push({ source, target, score: scoreMove(state, source, target) });
+        if (source.id === target.id || target.isBlocked) continue;
+        if (canPour(source, target)) moves.push({ source, target, score: scoreMove(state, source, target, curOrders) });
       }
     }
     moves.sort((a, b) => b.score - a.score);
 
     for (const move of moves) {
       const { newSource, newTarget } = pourLiquid(move.source, move.target);
-      const next = state.map(b => (b.id === newSource.id ? newSource : b.id === newTarget.id ? newTarget : b));
+      let nextState = state.map(b => (b.id === newSource.id ? newSource : b.id === newTarget.id ? newTarget : b));
+      let nextOrders = curOrders;
+      if (curOrders) {
+        const resolved = resolveOrdersAndUnlocks(nextState, nextOrders);
+        nextState = resolved.nextState;
+        nextOrders = resolved.nextOrders;
+      }
       path.push({ sourceId: move.source.id, targetId: move.target.id });
-      if (dfs(next)) return true;
+      if (dfs(nextState, nextOrders)) return true;
       path.pop();
       if (nodes > maxNodes || Date.now() - start > maxMs) return false;
     }
     return false;
   }
 
-  return dfs(cloneBottles(bottles)) ? path.slice() : null;
+  const initialResolved = resolveOrdersAndUnlocks(cloneBottles(bottles), orders);
+  return dfs(initialResolved.nextState, initialResolved.nextOrders) ? path.slice() : null;
 }
 
 /**
@@ -780,16 +839,15 @@ export const generateLevel = (level: number): { bottles: BottleData[], orders: O
     hiddenProbability = Math.min(0.8, 0.2 + (level - 2) * 0.05);
   }
 
-  // Mixing unlocks at MIXING_MIN_LEVEL. When it's on *and* capacity is even,
+  // Mixing unlocks at MIXING_MIN_LEVEL. When it's on,
   // withhold ONE mix-producible secondary colour's units from the direct
-  // pour pool entirely, replacing them with capacity/2 units of each of its
-  // two primary components. That colour then literally does not exist on
-  // the board at deal time — the only way to get a full bottle of it is to
-  // mix. Odd capacities skip the withhold (volume math would not land on
-  // exactly one bottle) but still set mixingEnabled so optional mixes work.
+  // pour pool entirely, replacing them with component units. That colour then
+  // literally does not exist on the board at deal time — the only way to get a full
+  // bottle of it is to mix. Odd capacities allocate Math.floor(capacity/2) pairs plus
+  // remainder directly, preserving mix requirements without deadlocking board volume.
   const mixingEnabled = level >= MIXING_MIN_LEVEL;
   let mixOnlyColor: Color | null = null;
-  if (mixingEnabled && capacity % 2 === 0) {
+  if (mixingEnabled) {
     const candidates = activeColors.filter(c => {
       const components = MIX_COMPONENTS.get(c);
       return components !== undefined && components.every(p => activeColors.includes(p));
@@ -803,9 +861,14 @@ export const generateLevel = (level: number): { bottles: BottleData[], orders: O
   for (const color of activeColors) {
     if (color === mixOnlyColor) {
       const [a, b] = MIX_COMPONENTS.get(color)!;
-      for (let i = 0; i < capacity / 2; i++) {
+      const pairCount = Math.floor(capacity / 2);
+      for (let i = 0; i < pairCount; i++) {
         colorPool.push(a);
         colorPool.push(b);
+      }
+      const remainder = capacity % 2;
+      for (let i = 0; i < remainder; i++) {
+        colorPool.push(color);
       }
     } else {
       for (let i = 0; i < capacity; i++) colorPool.push(color);
@@ -850,17 +913,23 @@ export type HintMove = { sourceId: string; targetId: string };
  * of a greedy solution, then any scored legal pour.
  */
 export function findHintMove(bottles: BottleData[], orders: Order[]): HintMove | null {
-  const outstanding = new Set(orders.filter((o) => !o.isCompleted).map((o) => o.color));
+  // Respect locked orders: active unlocked orders take precedence
+  const activeOrders = orders.filter((o) => !o.isCompleted && !o.isLocked);
+  const outstanding = new Set(
+    activeOrders.length > 0
+      ? activeOrders.map((o) => o.color)
+      : orders.filter((o) => !o.isCompleted).map((o) => o.color),
+  );
   const requiredColors = new Set(
-    (outstanding.size > 0 ? [...outstanding] : orders.map((o) => o.color)),
+    outstanding.size > 0 ? [...outstanding] : orders.map((o) => o.color),
   );
 
-  // Prefer an immediate mixing pour that grows a still-needed colour.
+  // Prefer an immediate mixing pour that grows a still-needed colour and avoids blocked tubes.
   const mixHints: { sourceId: string; targetId: string; score: number }[] = [];
   for (const source of bottles) {
-    if (source.isCompleted || source.layers.length === 0) continue;
+    if (source.isCompleted || source.isBlocked || source.layers.length === 0) continue;
     for (const target of bottles) {
-      if (source.id === target.id) continue;
+      if (source.id === target.id || target.isBlocked) continue;
       if (!canPour(source, target) || !isMixingPour(source, target)) continue;
       const sourceTop = source.layers[source.layers.length - 1].color;
       const targetTop = target.layers[target.layers.length - 1].color;
@@ -877,17 +946,17 @@ export function findHintMove(bottles: BottleData[], orders: Order[]): HintMove |
     return { sourceId: mixHints[0].sourceId, targetId: mixHints[0].targetId };
   }
 
-  const path = findSolutionGreedy(bottles, requiredColors);
+  const path = findSolutionGreedy(bottles, requiredColors, SOLVE_MAX_NODES, SOLVE_MAX_MS, orders);
   if (path && path.length > 0) {
     return { sourceId: path[0].sourceId, targetId: path[0].targetId };
   }
 
-  // Fallback: any legal pour, preferring merges that finish a bottle.
+  // Fallback: any legal pour, disallowing blocked tubes and preferring merges that finish a bottle.
   let best: { sourceId: string; targetId: string; score: number } | null = null;
   for (const source of bottles) {
-    if (source.isCompleted || source.layers.length === 0) continue;
+    if (source.isCompleted || source.isBlocked || source.layers.length === 0) continue;
     for (const target of bottles) {
-      if (source.id === target.id) continue;
+      if (source.id === target.id || target.isBlocked) continue;
       if (!canPour(source, target)) continue;
       const score = scoreMove(bottles, source, target, requiredColors);
       if (!best || score > best.score) {

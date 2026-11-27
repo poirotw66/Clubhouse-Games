@@ -31,6 +31,8 @@ interface BottleProps {
   liquidSkin?: LiquidSkinId;
   /** Numeric keyboard shortcut index (1-based, e.g. 1..9). */
   tubeNumber?: number;
+  /** Visible keyboard badge string, e.g. "1".."9", "0", "-", "=" */
+  keyBadge?: string;
   onClick: () => void;
 }
 
@@ -80,6 +82,7 @@ export const Bottle: React.FC<BottleProps> = ({
   bottleSkin = 'classic',
   liquidSkin = 'plain',
   tubeNumber,
+  keyBadge,
   onClick,
 }) => {
   const layerHeight = 100 / bottle.capacity;
@@ -154,8 +157,12 @@ export const Bottle: React.FC<BottleProps> = ({
               ⭐ 滿瓶交單！
             </div>
           ) : preview.isMix ? (
-            <div className="px-2 py-0.5 rounded-full bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500 text-white font-bold text-[10px] shadow-lg border border-white/30">
-              ✨ 混色：{preview.mixFormula}
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900/95 text-white font-bold text-[11px] shadow-xl border border-amber-400/80 ring-2 ring-amber-400/30">
+              <span
+                className="w-3 h-3 rounded-full border border-white/90 shadow-sm inline-block shrink-0"
+                style={{ backgroundColor: preview.resultingColor }}
+              />
+              <span>混色預覽：{preview.mixFormula}</span>
             </div>
           ) : (
             <div className="px-2 py-0.5 rounded-full bg-emerald-500 text-white font-bold text-[10px] shadow-md border border-white/30">
@@ -313,7 +320,7 @@ export const Bottle: React.FC<BottleProps> = ({
       <div className="absolute bottom-2 left-4 right-4 h-4 bg-gradient-to-t from-white/20 to-transparent rounded-full pointer-events-none z-20 blur-md" />
 
       {/* Numeric Shortcut Key Badge */}
-      {tubeNumber != null && (
+      {(keyBadge != null || tubeNumber != null) && (
         <div className="absolute -bottom-5 z-20 flex items-center justify-center pointer-events-none">
           <span
             className={`
@@ -331,7 +338,7 @@ export const Bottle: React.FC<BottleProps> = ({
               }
             `}
           >
-            {tubeNumber}
+            {keyBadge ?? tubeNumber}
           </span>
         </div>
       )}

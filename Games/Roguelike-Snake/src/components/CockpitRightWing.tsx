@@ -37,7 +37,7 @@ export function CockpitRightWing({
   // Dynamic context-aware tips
   let codexTip = '每吃滿本層果實配額即可開啟出口傳送門，前往下層探索。';
   if (isBossActive) {
-    codexTip = '🎯 鎖定首領核心！首領僅受衝刺 (Space) 或猛毒脈衝 (E) 傷害，把握核心瞬移停頓輸出！';
+    codexTip = '🎯 鎖定首領核心！首領受護盾保護，先施放猛毒脈衝 (E) 擊碎投射物並破防，在虛弱窗口內以衝刺 (Space) 撞擊核心！';
   } else if (exitOpen) {
     codexTip = '🌀 出口星門已開啟！迅速前往傳送門，挑選本層遺物強化蛇身構築！';
   } else if (hp === 1) {
@@ -170,7 +170,7 @@ export function CockpitRightWing({
             </div>
           )}
           <p className="text-[10px] text-slate-400 leading-relaxed">
-            弱點：僅受衝刺輾撞與猛毒脈衝傷害。週期性召喚追獵者與尖刺地陷。
+            弱點：護盾需先以猛毒脈衝瓦解，破防後方可透過衝刺造成核心傷害。週期性釋放毒彈與尖刺地陷。
           </p>
         </div>
 

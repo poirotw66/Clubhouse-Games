@@ -67,6 +67,7 @@ export interface GameState {
   level: number; // In quick play, this represents difficulty tier
   difficultyLabel?: string; // e.g. "Easy", "Hard"
   coins: number;
+  undoCount?: number;
   bottles: BottleData[];
   orders: Order[]; // Replaces completedBottles. Tracks customer requests.
   selectedBottleId: string | null;

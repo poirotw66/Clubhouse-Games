@@ -39,8 +39,8 @@ const ControlButton: React.FC<{
     
     {/* Price Tag - Unified Style */}
     <div className="bg-white/10 backdrop-blur-sm px-1.5 py-0.5 rounded-lg flex items-center gap-1 border border-white/20 group-active:scale-95 transition-transform">
-      <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
-      <span className="text-[10px] font-bold text-white tabular-nums">{cost}</span>
+      <div className={`w-2 h-2 ${cost === 0 ? 'bg-emerald-400' : 'bg-yellow-400'} rounded-full`}></div>
+      <span className="text-[10px] font-bold text-white tabular-nums">{cost === 0 ? '免費' : cost}</span>
     </div>
   </div>
 );
