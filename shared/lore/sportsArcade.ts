@@ -1,4 +1,4 @@
-import type { GameLoreDossier } from '../originLoreData.ts';
+import type { GameLoreDossier } from '../originLoreTypes.ts';
 
 export const BASEBALL_LIFE_LORE: GameLoreDossier = {
   gameId: 'baseball-life',

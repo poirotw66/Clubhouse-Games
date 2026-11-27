@@ -1,4 +1,4 @@
-import type { GameLoreDossier } from '../originLoreData.ts';
+import type { GameLoreDossier } from '../originLoreTypes.ts';
 
 export const CLOCKWORK_KEEP_LORE: GameLoreDossier = {
   gameId: 'clockwork-keep',

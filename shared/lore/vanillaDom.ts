@@ -1,4 +1,4 @@
-import type { GameLoreDossier } from '../originLoreData.ts';
+import type { GameLoreDossier } from '../originLoreTypes.ts';
 
 export const BLOCK_THE_SMASH_LORE: GameLoreDossier = {
   gameId: 'block-the-smash',

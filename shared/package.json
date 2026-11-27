@@ -11,7 +11,13 @@
     "./resultOverlayFx": "./resultOverlayFx.ts",
     "./ScoreFlash": "./ScoreFlash.tsx",
     "./OriginLoreModal": "./OriginLoreModal.tsx",
+    "./originLoreDom": "./originLoreDom.ts",
     "./originLoreData": "./originLoreData.ts",
+    "./originLoreTypes": "./originLoreTypes.ts",
+    "./lore/cardsBoard": "./lore/cardsBoard.ts",
+    "./lore/puzzleStrategy": "./lore/puzzleStrategy.ts",
+    "./lore/sportsArcade": "./lore/sportsArcade.ts",
+    "./lore/vanillaDom": "./lore/vanillaDom.ts",
     "./TouchButton": "./TouchButton.tsx",
     "./synthAudio": "./synthAudio.ts",
     "./juice": "./juice.ts",
@@ -28,6 +34,7 @@
   "files": [
     "*.tsx",
     "*.ts",
+    "lore/*.ts",
     "*.mjs",
     "*.css",
     "tsconfig.paths.json"
@@ -46,8 +53,8 @@
   },
   "scripts": {
     "lint": "tsc --noEmit -p tsconfig.json",
-    "test": "node --experimental-strip-types --test MatchSession.test.ts opponentLadder.test.ts juice.test.ts resultOverlayFx.test.ts originLoreData.test.ts",
-    "check": "node --experimental-strip-types --test MatchSession.test.ts opponentLadder.test.ts juice.test.ts resultOverlayFx.test.ts originLoreData.test.ts"
+    "test": "node --experimental-strip-types --test MatchSession.test.ts opponentLadder.test.ts juice.test.ts resultOverlayFx.test.ts originLoreData.test.ts lore/*.test.ts",
+    "check": "node --experimental-strip-types --test MatchSession.test.ts opponentLadder.test.ts juice.test.ts resultOverlayFx.test.ts originLoreData.test.ts lore/*.test.ts"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",

@@ -1,4 +1,4 @@
-import type { GameLoreDossier } from '../originLoreData.ts';
+import type { GameLoreDossier } from '../originLoreTypes.ts';
 
 export const BIG_TWO_LORE: GameLoreDossier = {
   gameId: 'big-two',
