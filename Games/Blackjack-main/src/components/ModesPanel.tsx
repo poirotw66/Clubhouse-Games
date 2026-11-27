@@ -32,6 +32,7 @@ interface ModesPanelProps {
   /** Abort active special mode without saving a full completion. */
   onReturnCareer: () => void;
   activeMode: 'career' | 'daily' | 'tournament';
+  onOpenLore?: () => void;
 }
 
 async function copyText(text: string): Promise<boolean> {
@@ -71,6 +72,7 @@ export const ModesPanel: React.FC<ModesPanelProps> = ({
   onStartTournament,
   onReturnCareer,
   activeMode,
+  onOpenLore,
 }) => {
   const [copied, setCopied] = React.useState<string | null>(null);
   if (!open) return null;
@@ -109,16 +111,28 @@ export const ModesPanel: React.FC<ModesPanelProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-3">
       <div className="w-full max-w-md max-h-[85vh] overflow-y-auto rounded-2xl bg-emerald-950 border border-white/15 shadow-2xl p-4 text-white">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-3 gap-2">
           <h2 className="text-lg font-black tracking-wider">模式</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="min-h-[44px] min-w-[44px] rounded-lg bg-white/10 hover:bg-white/20 font-bold touch-manipulation"
-            aria-label="關閉"
-          >
-            ✕
-          </button>
+          <div className="flex items-center gap-2">
+            {onOpenLore && (
+              <button
+                type="button"
+                onClick={onOpenLore}
+                className="min-h-[44px] px-3 rounded-lg border border-emerald-400/40 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-200 text-xs font-bold touch-manipulation"
+                aria-label="由來與圖鑑"
+              >
+                📜 由來與圖鑑
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="min-h-[44px] min-w-[44px] rounded-lg bg-white/10 hover:bg-white/20 font-bold touch-manipulation"
+              aria-label="關閉"
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
         {activeMode !== 'career' && (

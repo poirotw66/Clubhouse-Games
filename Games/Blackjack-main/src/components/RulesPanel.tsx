@@ -7,6 +7,7 @@ interface RulesPanelProps {
   disabled: boolean;
   onChange: (next: BlackjackSettings) => void;
   onClose: () => void;
+  onOpenLore?: () => void;
 }
 
 function patchRules(
@@ -21,6 +22,7 @@ export const RulesPanel: React.FC<RulesPanelProps> = ({
   disabled,
   onChange,
   onClose,
+  onOpenLore,
 }) => {
   const r = settings.rules;
 
@@ -88,7 +90,7 @@ export const RulesPanel: React.FC<RulesPanelProps> = ({
           </label>
 
           <label className="block text-xs font-bold text-white/60 tracking-wider">
-            最多分牌手数
+            最多分牌手數
             <select
               className="mt-1 w-full min-h-[44px] rounded-lg bg-black/40 border border-white/15 px-3 text-sm"
               value={r.maxSplitHands}
@@ -239,13 +241,24 @@ export const RulesPanel: React.FC<RulesPanelProps> = ({
           <p className="mt-3 text-xs text-amber-300/90">請在下注階段變更規則（會重建牌靴）。</p>
         )}
 
-        <button
-          type="button"
-          onClick={onClose}
-          className="mt-4 w-full min-h-[44px] rounded-xl bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black tracking-widest touch-manipulation"
-        >
-          完成
-        </button>
+        <div className="mt-4 flex flex-col gap-2">
+          {onOpenLore && (
+            <button
+              type="button"
+              onClick={onOpenLore}
+              className="w-full min-h-[44px] rounded-xl border border-emerald-400/40 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-200 font-bold text-sm tracking-wide touch-manipulation"
+            >
+              📜 文化由來與決策圖鑑
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full min-h-[44px] rounded-xl bg-emerald-500 hover:bg-emerald-400 text-emerald-950 font-black tracking-widest touch-manipulation"
+          >
+            完成
+          </button>
+        </div>
       </div>
     </div>
   );

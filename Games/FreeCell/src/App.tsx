@@ -170,6 +170,7 @@ export default function App() {
   const [hasLost, setHasLost] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
   const [isRulesOpen, setIsRulesOpen] = useState(false);
+  const [rulesInitialTab, setRulesInitialTab] = useState<'origin' | 'rules'>('origin');
   const [isFirstRunGuideOpen, setIsFirstRunGuideOpen] = useState(false);
   const [isStatsOpen, setIsStatsOpen] = useState(false);
   const [isKeyboardHelpOpen, setIsKeyboardHelpOpen] = useState(false);
@@ -1378,7 +1379,23 @@ export default function App() {
             </button>
             <button
               type="button"
-              onClick={() => setIsRulesOpen(true)}
+              onClick={() => {
+                setRulesInitialTab('origin');
+                setIsRulesOpen(true);
+              }}
+              className="min-h-[44px] min-w-[44px] px-3.5 py-2 bg-amber-500/90 border border-amber-400 rounded-full text-sm font-bold text-stone-950 hover:bg-amber-400 shadow-sm flex items-center justify-center gap-1.5 touch-manipulation"
+              aria-label="由來與圖鑑"
+              title="文化由來與圖鑑"
+            >
+              <span>📜</span>
+              <span>圖鑑</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setRulesInitialTab('rules');
+                setIsRulesOpen(true);
+              }}
               className="min-h-[44px] min-w-[44px] px-4 py-2 bg-white border border-stone-200 rounded-full text-sm font-medium text-stone-600 hover:bg-stone-50 shadow-sm flex items-center justify-center gap-2 touch-manipulation"
               aria-label="規則"
             >
@@ -1761,7 +1778,11 @@ export default function App() {
       />
       <WinCascade active={hasWon} foundations={gameState.foundations} />
 
-      <RulesModal isOpen={isRulesOpen} onClose={() => setIsRulesOpen(false)} />
+      <RulesModal
+        isOpen={isRulesOpen}
+        onClose={() => setIsRulesOpen(false)}
+        initialTab={rulesInitialTab}
+      />
       <FirstRunGuide
         isOpen={isFirstRunGuideOpen}
         onClose={() => setIsFirstRunGuideOpen(false)}

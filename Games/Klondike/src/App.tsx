@@ -133,6 +133,7 @@ export default function App() {
   const [selectedSource, setSelectedSource] = useState<DragSource | null>(null);
   const [hint, setHint] = useState<HintMove | null>(null);
   const [isRulesOpen, setIsRulesOpen] = useState(false);
+  const [rulesInitialTab, setRulesInitialTab] = useState<'origin' | 'rules'>('origin');
   const [isStatsOpen, setIsStatsOpen] = useState(false);
   const [seedDraft, setSeedDraft] = useState(() => String(dealForSettings(loadSettings()).seed));
   const [flash, setFlash] = useState<{ text: string; tone: 'good' | 'bad' | 'neutral'; key: number } | null>(
@@ -1333,7 +1334,23 @@ export default function App() {
             </button>
             <button
               type="button"
-              onClick={() => setIsRulesOpen(true)}
+              onClick={() => {
+                setRulesInitialTab('origin');
+                setIsRulesOpen(true);
+              }}
+              className="flex items-center gap-1 min-h-[44px] px-3 py-2 bg-emerald-500/25 border border-emerald-400/45 hover:bg-emerald-500/35 text-emerald-100 rounded-lg text-sm font-bold touch-manipulation"
+              aria-label="由來與圖鑑"
+              title="文化由來與決策圖鑑"
+            >
+              <span>📜</span>
+              <span>圖鑑</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setRulesInitialTab('rules');
+                setIsRulesOpen(true);
+              }}
               className="flex items-center gap-1 min-h-[44px] px-3 py-2 bg-black/20 rounded-lg touch-manipulation"
               aria-label="規則"
             >
@@ -1747,7 +1764,11 @@ export default function App() {
         />
       )}
 
-      <RulesModal isOpen={isRulesOpen} onClose={() => setIsRulesOpen(false)} />
+      <RulesModal
+        isOpen={isRulesOpen}
+        onClose={() => setIsRulesOpen(false)}
+        initialTab={rulesInitialTab}
+      />
       <StatsPanel
         open={isStatsOpen}
         onClose={() => setIsStatsOpen(false)}

@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
+import { OriginLoreModal } from '@clubhouse/shared/OriginLoreModal';
+import { BIG_TWO_LORE } from '@clubhouse/shared/lore/cardsBoard';
 import { haptic, particles, shake } from '@clubhouse/shared/juice';
 import { ScoreFlash } from '@clubhouse/shared/ScoreFlash';
 import {
@@ -140,6 +142,7 @@ export default function App(): React.ReactElement {
   const [callout, setCallout] = useState<{ text: string; key: number } | null>(null);
   const [showFirstRun, setShowFirstRun] = useState(() => !hasSeenFirstRunGuide());
   const [showRulesModal, setShowRulesModal] = useState(false);
+  const [showLore, setShowLore] = useState(false);
   const [resumeAvailable, setResumeAvailable] = useState(false);
   const [ladder, setLadder] = useState<LadderProgress>(EMPTY_LADDER);
   const [dailyProgress, setDailyProgress] = useState(EMPTY_DAILY);
@@ -575,7 +578,7 @@ export default function App(): React.ReactElement {
   }, [state?.hands]);
 
   useEffect(() => {
-    if (screen !== 'game' || !state || state.phase !== 'playing' || state.turn !== HUMAN || showRulesModal) {
+    if (screen !== 'game' || !state || state.phase !== 'playing' || state.turn !== HUMAN || showRulesModal || showLore) {
       return;
     }
 
@@ -643,7 +646,7 @@ export default function App(): React.ReactElement {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [screen, state, playable, canUndo, cursorIndex, showRulesModal, toggle, submit, doPass, showHint, handleUndo]);
+  }, [screen, state, playable, canUndo, cursorIndex, showRulesModal, showLore, toggle, submit, doPass, showHint, handleUndo]);
 
   if (screen === 'setup') {
     return (
@@ -667,7 +670,11 @@ export default function App(): React.ReactElement {
           onStartDaily={startDaily}
           onStartLadder={startLadder}
           onResume={resumeMatch}
+          onOpenLore={() => setShowLore(true)}
         />
+        {showLore && (
+          <OriginLoreModal dossier={BIG_TWO_LORE} onClose={() => setShowLore(false)} />
+        )}
       </>
     );
   }
@@ -711,14 +718,26 @@ export default function App(): React.ReactElement {
                 {match.config.rules.straights === 'topCard' ? '順子：23456 最大' : '順子：10JQKA 最大'}
               </span>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowRulesModal(true)}
-              className="min-h-[44px] px-3 rounded-xl border border-indigo-400/35 bg-slate-900/75 hover:bg-slate-800 text-xs font-bold text-indigo-100 touch-manipulation shrink-0"
-              aria-label="牌型規則"
-            >
-              牌型規則
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowLore(true)}
+                className="min-h-[44px] px-3 rounded-xl border border-indigo-400/45 bg-indigo-950/70 hover:bg-indigo-900/75 text-xs font-bold text-indigo-100 touch-manipulation inline-flex items-center gap-1"
+                aria-label="由來與圖鑑"
+                title="文化由來與決策圖鑑"
+              >
+                <span>📜</span>
+                <span>圖鑑</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowRulesModal(true)}
+                className="min-h-[44px] px-3 rounded-xl border border-indigo-400/35 bg-slate-900/75 hover:bg-slate-800 text-xs font-bold text-indigo-100 touch-manipulation shrink-0"
+                aria-label="牌型規則"
+              >
+                牌型規則
+              </button>
+            </div>
           </header>
 
           <MatchScoreboard match={match} progress={matchProgressLabel(match)} />
@@ -914,6 +933,10 @@ export default function App(): React.ReactElement {
           straightsRule={match.config.rules.straights}
           onClose={() => setShowRulesModal(false)}
         />
+      )}
+
+      {showLore && (
+        <OriginLoreModal dossier={BIG_TWO_LORE} onClose={() => setShowLore(false)} />
       )}
 
       {showReview && review && (
@@ -1332,6 +1355,7 @@ function Setup({
   onStartDaily,
   onStartLadder,
   onResume,
+  onOpenLore,
 }: {
   config: MatchConfig;
   setConfig: React.Dispatch<React.SetStateAction<MatchConfig>>;
@@ -1350,6 +1374,7 @@ function Setup({
   onStartDaily: () => void;
   onStartLadder: (index: number) => void;
   onResume: () => void;
+  onOpenLore: () => void;
 }): React.ReactElement {
   const setDifficulty = (id: DifficultyId) =>
     setConfig((prev) => ({ ...prev, difficulty: id }));
@@ -1383,6 +1408,17 @@ function Setup({
           <p className="text-indigo-200/60 text-sm mt-1">
             單局・系列賽・每日牌桌 · 四人各 {HAND_SIZE} 張 · 2 最大
           </p>
+          <div className="mt-3 flex justify-center">
+            <button
+              type="button"
+              onClick={onOpenLore}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-indigo-400/50 bg-indigo-950/70 hover:bg-indigo-900/80 text-indigo-100 text-xs font-bold transition-all shadow-md touch-manipulation min-h-[44px]"
+              aria-label="文化源流與規則圖鑑"
+            >
+              <span>📜</span>
+              <span>由來與圖鑑</span>
+            </button>
+          </div>
         </header>
 
         <div className="flex gap-2" role="tablist" aria-label="選單">

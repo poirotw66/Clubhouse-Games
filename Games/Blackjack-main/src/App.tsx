@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { OriginLoreModal } from '@clubhouse/shared/OriginLoreModal';
+import { BLACKJACK_LORE } from '@clubhouse/shared/lore/cardsBoard';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { haptic, particles, shake } from '@clubhouse/shared/juice';
 import { playLose, playWin } from '@clubhouse/shared/synthAudio';
@@ -125,6 +127,7 @@ import {
   Trophy,
   Keyboard,
   Flame,
+  BookOpen,
 } from 'lucide-react';
 
 type TableMode = 'career' | 'daily' | 'tournament';
@@ -189,6 +192,7 @@ export default function App() {
   const [betHistory, setBetHistory] = useState<BetSnapshot[]>([]);
   const [hintLabel, setHintLabel] = useState<string | null>(null);
   const [showRules, setShowRules] = useState(false);
+  const [showLore, setShowLore] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [showModes, setShowModes] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -1417,7 +1421,7 @@ export default function App() {
     canUndoBet,
     canHint: !!canHint,
     gameState,
-    hasOpenModal: showRules || showStats || showModes || showShortcuts || !!sessionResult,
+    hasOpenModal: showRules || showLore || showStats || showModes || showShortcuts || !!sessionResult,
   });
 
   return (
@@ -1548,6 +1552,16 @@ export default function App() {
             >
               <BarChart3 className="w-4 h-4" />
               <span className="text-[8px] font-bold tracking-wider">戰績</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowLore(true)}
+              className="min-h-[44px] min-w-[44px] px-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-400/35 touch-manipulation flex flex-col items-center justify-center gap-0.5"
+              title="文化由來與決策圖鑑"
+              aria-label="由來與圖鑑"
+            >
+              <BookOpen className="w-4 h-4 text-emerald-300" />
+              <span className="text-[8px] font-bold tracking-wider">圖鑑</span>
             </button>
             <button
               type="button"
@@ -2126,7 +2140,15 @@ export default function App() {
           disabled={gameState !== 'betting' || tableMode !== 'career'}
           onChange={applySettings}
           onClose={() => setShowRules(false)}
+          onOpenLore={() => {
+            setShowRules(false);
+            setShowLore(true);
+          }}
         />
+      )}
+
+      {showLore && (
+        <OriginLoreModal dossier={BLACKJACK_LORE} onClose={() => setShowLore(false)} />
       )}
 
       <ModesPanel
@@ -2141,6 +2163,10 @@ export default function App() {
         onStartTournament={startTournament}
         onReturnCareer={returnToCareer}
         activeMode={tableMode}
+        onOpenLore={() => {
+          setShowModes(false);
+          setShowLore(true);
+        }}
       />
 
       {showStats && (

@@ -2,6 +2,8 @@ import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
+import { OriginLoreModal } from '@clubhouse/shared/OriginLoreModal';
+import { CONNECT_FOUR_LORE } from '@clubhouse/shared/lore/cardsBoard';
 import { haptic, particles, shake } from '@clubhouse/shared/juice';
 import {
   playWin,
@@ -192,6 +194,7 @@ export default function App() {
   const [hoverCol, setHoverCol] = useState<number | null>(null);
   const [dropFx, setDropFx] = useState<DropFx | null>(null);
   const [showRules, setShowRules] = useState(false);
+  const [rulesInitialTab, setRulesInitialTab] = useState<'origin' | 'rules'>('origin');
   const [stats, setStats] = useState<ConnectFourStats>(initialStats);
   const [puzzleProgress, setPuzzleProgress] = useState<PuzzleProgress>(
     loadPuzzleProgress,
@@ -768,6 +771,10 @@ export default function App() {
       const target = e.target as HTMLElement | null;
       if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
       if ((e.key === 'Enter' || e.key === ' ') && target?.closest('button, a, [role="button"]')) return;
+      if (showRules) {
+        if (e.key === 'Escape') setShowRules(false);
+        return;
+      }
 
       const num = parseInt(e.key, 10);
       if (!Number.isNaN(num) && num >= 1 && num <= rules.cols) {
@@ -853,6 +860,7 @@ export default function App() {
     resetBoard,
     cycleTheme,
     toggleMute,
+    showRules,
   ]);
 
   const statusMessage =
@@ -906,7 +914,7 @@ export default function App() {
       (puzzleStatus === 'won' || puzzleStatus === 'failed'));
 
   useEffect(() => {
-    if (!showOverlay) return;
+    if (!showOverlay || showRules) return;
     const handleOverlayKey = (e: KeyboardEvent) => {
       if (
         e.target instanceof HTMLInputElement ||
@@ -937,7 +945,7 @@ export default function App() {
     };
     window.addEventListener('keydown', handleOverlayKey);
     return () => window.removeEventListener('keydown', handleOverlayKey);
-  }, [showOverlay, screen, activePuzzle, puzzleStatus, series.seriesOver, openPuzzle, startNewSeries, resetBoard]);
+  }, [showOverlay, showRules, screen, activePuzzle, puzzleStatus, series.seriesOver, openPuzzle, startNewSeries, resetBoard]);
 
   const resultVariant =
     screen === 'puzzles'
@@ -1055,9 +1063,12 @@ export default function App() {
           </button>
           <button
             type="button"
-            onClick={() => setShowRules(true)}
+            onClick={() => {
+              setRulesInitialTab('rules');
+              setShowRules(true);
+            }}
             className="min-h-[44px] min-w-[44px] p-2 rounded-lg hover:bg-white/10 transition-colors touch-manipulation inline-flex items-center justify-center"
-            title="規則"
+            title="由來與規則圖鑑"
             aria-label="規則"
           >
             <BookOpen className="w-5 h-5" />
@@ -1146,6 +1157,19 @@ export default function App() {
           <span>
             謎題 {countSolvedPuzzles(puzzleProgress)}/{PUZZLES.length}
           </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setRulesInitialTab('origin');
+            setShowRules(true);
+          }}
+          className="flex items-center gap-1 px-3 py-1.5 min-h-[44px] rounded-full border border-cyan-400/45 bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-200 font-bold touch-manipulation transition-colors"
+          aria-label="由來與圖鑑"
+          title="文化由來與決策圖鑑"
+        >
+          <span>📜</span>
+          <span>由來與圖鑑</span>
         </button>
       </div>
 
@@ -2260,51 +2284,48 @@ export default function App() {
       )}
 
       {showRules && (
-        <div
-          className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-10"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="connect4-rules-title"
-        >
-          <div className="bg-slate-800 rounded-xl max-w-md max-h-[85vh] overflow-y-auto p-6 text-left">
-            <h2 id="connect4-rules-title" className="text-lg font-bold mb-3">
-              規則說明
-            </h2>
-            <ul className="text-sm text-slate-200 space-y-2 list-disc pl-4">
-              <li>
-                經典：輪流選欄投下己色棋子，先連成 {rules.connectN}{' '}
-                枚（橫／豎／斜）者勝。
-              </li>
-              <li>
-                棋盤可選 7×6、8×7、9×7；五子勝改為先連五，預設 9×7。
-              </li>
-              <li>
-                PopOut：回合可改為取出底格己子，該欄上方棋子下墜；重力後連線亦算勝；同一局面重複三次判和局。
-              </li>
-              <li>
-                系列賽：先取得 N 場單局勝利者勝出（和局不計分）。
-              </li>
-              <li>
-                電腦對手有三種個性（衝刺手／鐵壁／佈局師），風格與難度深度分開。
-              </li>
-              <li>謎題模式：在限定步數內取勝，進度存於本機。</li>
-              <li>
-                可悔棋、提示；對戰電腦的連勝與戰績依「變體 × 棋盤 ×
-                難度」分開記錄。
-              </li>
-            </ul>
-            <div className="mt-4">
-              <JuiceSettingsPanel />
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowRules(false)}
-              className="mt-4 w-full py-2 rounded-lg bg-blue-600 hover:bg-blue-500 font-medium touch-manipulation"
-            >
-              關閉
-            </button>
-          </div>
-        </div>
+        <OriginLoreModal
+          dossier={CONNECT_FOUR_LORE}
+          onClose={() => setShowRules(false)}
+          initialTab={rulesInitialTab}
+          extraTab={{
+            id: 'settings',
+            label: '規則速查與手感設定',
+            content: (
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-slate-800 bg-slate-900/75 p-4 sm:p-5">
+                  <h3 className="text-base font-bold text-cyan-300 mb-2">目前對局規則摘要</h3>
+                  <ul className="text-xs sm:text-sm text-slate-300 space-y-2 list-disc pl-4">
+                    <li>
+                      經典：輪流選欄投下己色棋子，先連成 {rules.connectN}{' '}
+                      枚（橫／豎／斜）者勝。
+                    </li>
+                    <li>
+                      棋盤可選 7×6、8×7、9×7；五子勝改為先連五，預設 9×7。
+                    </li>
+                    <li>
+                      PopOut：回合可改為取出底格己子，該欄上方棋子下墜；重力後連線亦算勝；同一局面重複三次判和局。
+                    </li>
+                    <li>
+                      系列賽：先取得 N 場單局勝利者勝出（和局不計分）。
+                    </li>
+                    <li>
+                      電腦對手有三種個性（衝刺手／鐵壁／佈局師），風格與難度深度分開。
+                    </li>
+                    <li>謎題模式：在限定步數內取勝，進度存於本機。</li>
+                    <li>
+                      可悔棋、提示；對戰電腦的連勝與戰績依「變體 × 棋盤 × 難度」分開記錄。
+                    </li>
+                  </ul>
+                </div>
+                <div className="rounded-2xl border border-slate-800 bg-slate-900/75 p-4 sm:p-5">
+                  <h3 className="text-base font-bold text-cyan-300 mb-2">手感反饋與特效設定</h3>
+                  <JuiceSettingsPanel className="text-slate-200" />
+                </div>
+              </div>
+            ),
+          }}
+        />
       )}
     </div>
   );
