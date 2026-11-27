@@ -1,5 +1,7 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
 import {BackToMenu} from '@clubhouse/shared/BackToMenu';
+import {OriginLoreModal} from '@clubhouse/shared/OriginLoreModal';
+import {BRICK_KART_LORE} from '@clubhouse/shared/lore/sportsArcade';
 import {Hud, type HudSnapshot} from './components/Hud';
 import {MainMenu} from './components/MainMenu';
 import {ResultScreen} from './components/ResultScreen';
@@ -162,6 +164,7 @@ export default function App() {
   const [cupOverlay, setCupOverlay] = useState<CupOverlay | null>(null);
   const [activeKeys, setActiveKeys] = useState<Set<string>>(new Set());
   const [showMobileDossier, setShowMobileDossier] = useState(false);
+  const [showLore, setShowLore] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const minimapRef = useRef<HTMLCanvasElement>(null);
@@ -176,6 +179,8 @@ export default function App() {
   });
   const itemQueuedRef = useRef(false);
   const pausedRef = useRef(false);
+  const showLoreRef = useRef(false);
+  showLoreRef.current = showLore;
   const lapFlashRef = useRef(0);
   const lapNoteRef = useRef('');
   const ghostRecorderRef = useRef(new GhostRecorder());
@@ -188,7 +193,7 @@ export default function App() {
   const difficultyRef = useRef(difficulty);
   const tiresRef = useRef<TireTelemetry>(INITIAL_TIRES);
 
-  pausedRef.current = paused || result !== null || cupOverlay !== null;
+  pausedRef.current = paused || showLore || result !== null || cupOverlay !== null;
   cupSessionRef.current = cupSession;
   progressRef.current = progress;
   raceOptionsRef.current = raceOptions;
@@ -212,6 +217,7 @@ export default function App() {
   useEffect(() => {
     if (screen !== 'race') return;
     const down = (e: KeyboardEvent) => {
+      if (showLoreRef.current) return;
       const k = e.key.toLowerCase();
       if (
         ['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' ', 'shift'].includes(k) ||
@@ -681,6 +687,9 @@ export default function App() {
     return (
       <>
         <BackToMenu />
+        {showLore && (
+          <OriginLoreModal dossier={BRICK_KART_LORE} onClose={() => setShowLore(false)} />
+        )}
         <MainMenu
           charId={charId}
           trackId={trackId}
@@ -695,6 +704,7 @@ export default function App() {
           onDifficulty={setDifficulty}
           onOptions={(patch) => setRaceOptions((o) => ({...o, ...patch}))}
           onStart={beginFromMenu}
+          onOpenLore={() => setShowLore(true)}
         />
       </>
     );
@@ -703,6 +713,9 @@ export default function App() {
   return (
     <div className="flex h-full w-full flex-col items-center justify-center overflow-hidden bg-slate-950 p-1 lg:p-3 select-none">
       <BackToMenu onBackToTitle={backToMenu} />
+      {showLore && (
+        <OriginLoreModal dossier={BRICK_KART_LORE} onClose={() => setShowLore(false)} />
+      )}
       <div className="flex h-full w-full max-w-[1720px] items-center justify-center gap-3">
         {/* Left Cockpit Wing: Telemetry */}
         <aside className="hidden lg:flex w-64 xl:w-72 2xl:w-80 h-[min(88vh,720px)] shrink-0">
@@ -751,6 +764,7 @@ export default function App() {
                   muted={muted}
                   onPause={() => setPaused((p) => !p)}
                   onMute={toggleMute}
+                  onOpenLore={() => setShowLore(true)}
                 />
                 <TouchControls onHold={handleHold} showItem={hud.itemsEnabled} />
               </>
@@ -774,6 +788,13 @@ export default function App() {
                       className="w-full min-h-[44px] rounded-xl bg-amber-400 py-3 font-black text-slate-950 touch-manipulation"
                     >
                       繼續比賽
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowLore(true)}
+                      className="w-full min-h-[44px] rounded-xl border border-amber-400/40 bg-amber-950/50 py-3 font-bold text-amber-200 touch-manipulation"
+                    >
+                      📜 文化源流與圖鑑
                     </button>
                     <button
                       type="button"

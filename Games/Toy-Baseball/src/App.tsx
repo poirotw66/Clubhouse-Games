@@ -6,9 +6,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
+import { OriginLoreModal } from '@clubhouse/shared/OriginLoreModal';
 import { fxMultiplier, haptic, particles, shake } from '@clubhouse/shared/juice';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
 import { ScoreFlash, type ScoreFlashTone } from '@clubhouse/shared/ScoreFlash';
+import { TOY_BASEBALL_LORE } from '@clubhouse/shared/lore/sportsArcade';
 import {
   playCapture,
   playError,
@@ -1687,6 +1689,9 @@ export default function App() {
   );
   const [bestsMap, setBestsMap] = useState<BestsMap>(() => loadBestsMap());
   const [showFirstRun, setShowFirstRun] = useState(() => !hasSeenFirstRunGuide());
+  const [showLore, setShowLore] = useState(false);
+  const showLoreRef = useRef(false);
+  showLoreRef.current = showLore;
   const [menuView, setMenuView] = useState<MenuView>('home');
   const [season, setSeason] = useState<SeasonState | null>(() => loadSeason());
   const bests: BaseballBests = bestsMap[gameState.difficulty] ?? bestsMap.normal;
@@ -1824,7 +1829,9 @@ export default function App() {
     const loop = (time: number) => {
       const dt = Math.min(0.05, (time - lastTime) / 1000);
       lastTime = time;
-      engine.update(dt);
+      if (!showLoreRef.current) {
+        engine.update(dt);
+      }
       engine.draw(ctx);
       animationFrameId = requestAnimationFrame(loop);
     };
@@ -1832,6 +1839,7 @@ export default function App() {
     animationFrameId = requestAnimationFrame(loop);
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (showLoreRef.current) return;
       const target = e.target as HTMLElement | null;
       if (target?.closest('button') && (e.code === 'Space' || e.code === 'Enter')) return;
       if (e.metaKey || e.ctrlKey || e.altKey || target?.isContentEditable ||
@@ -2053,6 +2061,9 @@ export default function App() {
     <div className="min-h-screen flex flex-col items-center justify-center p-2 sm:p-4 pb-[max(1rem,env(safe-area-inset-bottom))] bg-zinc-950 overflow-x-hidden w-full">
       <BackToMenu onBackToTitle={gameState.mode === 'playing' ? handleReset : undefined} />
       {showFirstRun && <FirstRunGuide onClose={() => setShowFirstRun(false)} />}
+      {showLore && (
+        <OriginLoreModal dossier={TOY_BASEBALL_LORE} onClose={() => setShowLore(false)} />
+      )}
       <div className="w-full max-w-[1440px] flex flex-col items-center gap-3">
         {/* Cockpit Status Header */}
         <div className="flex items-center justify-between w-full max-w-[800px] lg:max-w-none px-2 text-zinc-400">
@@ -2062,9 +2073,21 @@ export default function App() {
               TABLETOP BALLPARK COCKPIT · 復古球場雙翼座艙
             </span>
           </div>
-          <span className="text-[11px] font-mono text-zinc-500 hidden sm:inline">
-            STATCAST &amp; DUGOUT HUD READY
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-mono text-zinc-500 hidden sm:inline">
+              STATCAST &amp; DUGOUT HUD READY
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowLore(true)}
+              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-rose-400/40 bg-rose-950/60 px-3 py-1.5 text-xs font-bold text-rose-200 transition hover:bg-rose-900/60 touch-manipulation"
+              aria-label="文化源流與玩法圖鑑"
+              title="文化源流與玩法圖鑑"
+            >
+              <span>📜</span>
+              <span>圖鑑</span>
+            </button>
+          </div>
         </div>
 
         {/* Dual-Wing Cockpit Layout */}
@@ -2407,9 +2430,17 @@ export default function App() {
                       <button
                         type="button"
                         onClick={() => setShowFirstRun(true)}
-                        className="px-4 py-3 rounded-2xl text-sm font-bold tracking-wider border border-white/15 text-zinc-300 hover:border-amber-400/50 hover:text-amber-200 transition-all min-h-[44px]"
+                        className="px-4 py-3 rounded-2xl text-sm font-bold tracking-wider border border-white/15 text-zinc-300 hover:border-amber-400/50 hover:text-amber-200 transition-all min-h-[44px] touch-manipulation"
                       >
                         操作教學
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowLore(true)}
+                        className="px-4 py-3 rounded-2xl text-sm font-bold tracking-wider border border-rose-400/40 bg-rose-950/60 text-rose-200 hover:border-rose-400/70 hover:bg-rose-900/60 transition-all min-h-[44px] touch-manipulation"
+                        aria-label="文化源流與玩法圖鑑"
+                      >
+                        📜 文化源流與圖鑑
                       </button>
                     </div>
 

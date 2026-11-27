@@ -85,12 +85,14 @@ export function Hud({
   muted,
   onPause,
   onMute,
+  onOpenLore,
 }: {
   snap: HudSnapshot;
   minimapRef: React.RefObject<HTMLCanvasElement | null>;
   muted: boolean;
   onPause: () => void;
   onMute: () => void;
+  onOpenLore?: () => void;
 }) {
   const speedPct = Math.max(0, Math.min(100, (snap.speed / 500) * 100));
   const lapFlashRef = useRef<HTMLDivElement>(null);
@@ -146,6 +148,17 @@ export function Hud({
         >
           {muted ? '✕' : '♪'}
         </button>
+        {onOpenLore && (
+          <button
+            type="button"
+            onClick={onOpenLore}
+            aria-label="文化源流與玩法圖鑑"
+            title="文化源流與玩法圖鑑"
+            className="h-11 w-11 min-h-[44px] min-w-[44px] rounded-lg border border-amber-400/40 bg-slate-950/75 text-sm font-bold text-amber-200 backdrop-blur-sm touch-manipulation"
+          >
+            📜
+          </button>
+        )}
       </div>
 
       {/* Item slot */}

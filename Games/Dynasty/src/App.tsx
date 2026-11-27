@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { OriginLoreModal } from '@clubhouse/shared/OriginLoreModal';
+import { DYNASTY_LORE } from '@clubhouse/shared/lore/sportsArcade';
 import { playGoal, playLose, playWin } from '@clubhouse/shared/synthAudio';
 import {
   applyChallengeResult,
@@ -68,6 +70,7 @@ export default function App(): React.ReactElement {
   );
   const [challengeResult, setChallengeResult] = useState<boolean | null>(null);
   const [showFirstRun, setShowFirstRun] = useState(() => !hasSeenFirstRunGuide());
+  const [showLore, setShowLore] = useState(false);
   const summarySfxKey = useRef<string | null>(null);
 
   const activeChallenge: CareerChallenge | null = useMemo(
@@ -258,6 +261,9 @@ export default function App(): React.ReactElement {
     <>
       <BackToMenu onBackToTitle={screen !== 'title' ? backToTitle : undefined} />
       {showFirstRun && <FirstRunGuide onClose={() => setShowFirstRun(false)} />}
+      {showLore && (
+        <OriginLoreModal dossier={DYNASTY_LORE} onClose={() => setShowLore(false)} />
+      )}
       {screen === 'title' && (
         <TitleScreen
           initialSeed={seedCode}
@@ -266,6 +272,7 @@ export default function App(): React.ReactElement {
           challengeProgress={challengeProgress}
           records={records}
           onShowHowTo={() => setShowFirstRun(true)}
+          onOpenLore={() => setShowLore(true)}
           onStart={beginFreePlay}
           onStartChallenge={beginChallenge}
           onContinue={() => {
@@ -288,6 +295,8 @@ export default function App(): React.ReactElement {
           onAcknowledge={handleAcknowledge}
           onUndo={handleUndo}
           canUndo={history.length > 0}
+          onOpenLore={() => setShowLore(true)}
+          isLoreOpen={showLore}
           onQuit={() => {
             saveActiveChallengeId(null);
             setActiveChallengeId(null);

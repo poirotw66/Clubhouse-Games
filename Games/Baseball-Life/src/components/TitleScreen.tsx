@@ -31,6 +31,7 @@ interface Props {
   pendingLegacy: PendingLegacy | null;
   challengeProgress: ChallengeProgress;
   onShowHowTo: () => void;
+  onOpenLore?: () => void;
   onStart: (seedCode: string) => void;
   onStartChallenge: (challengeId: string) => void;
   onContinue: () => void;
@@ -46,6 +47,7 @@ export function TitleScreen({
   pendingLegacy,
   challengeProgress,
   onShowHowTo,
+  onOpenLore,
   onStart,
   onStartChallenge,
   onContinue,
@@ -163,9 +165,16 @@ export function TitleScreen({
         </section>
 
         <nav className="bl-career-extras" aria-label="更多玩法與教學">
-          <button type="button" onClick={() => setShowChallenges(true)}><span className="bl-extra-icon" aria-hidden="true">↗</span><span><strong>生涯挑戰</strong><small>{packSubtitle}</small></span><span aria-hidden="true">→</span></button>
-          <button type="button" onClick={onShowHowTo}><span className="bl-extra-icon" aria-hidden="true">?</span><span><strong>第一次當球員？</strong><small>三步上手・操作教學</small></span><span aria-hidden="true">→</span></button>
-          {showRecordsCta && <button type="button" onClick={() => setShowRecords(true)}><span className="bl-extra-icon" aria-hidden="true">★</span><span><strong>紀錄牆</strong><small>位置最佳 {bestFilled}/5・里程碑 {milestoneTotal}</small></span><span aria-hidden="true">→</span></button>}
+          <button type="button" onClick={() => setShowChallenges(true)} className="min-h-[44px] touch-manipulation"><span className="bl-extra-icon" aria-hidden="true">↗</span><span><strong>生涯挑戰</strong><small>{packSubtitle}</small></span><span aria-hidden="true">→</span></button>
+          <button type="button" onClick={onShowHowTo} className="min-h-[44px] touch-manipulation"><span className="bl-extra-icon" aria-hidden="true">?</span><span><strong>第一次當球員？</strong><small>三步上手・操作教學</small></span><span aria-hidden="true">→</span></button>
+          {onOpenLore && (
+            <button type="button" onClick={onOpenLore} className="min-h-[44px] touch-manipulation" aria-label="文化源流與玩法圖鑑">
+              <span className="bl-extra-icon" aria-hidden="true">📜</span>
+              <span><strong>文化源流與圖鑑</strong><small>甲子園・骰率・櫻井心法</small></span>
+              <span aria-hidden="true">→</span>
+            </button>
+          )}
+          {showRecordsCta && <button type="button" onClick={() => setShowRecords(true)} className="min-h-[44px] touch-manipulation"><span className="bl-extra-icon" aria-hidden="true">★</span><span><strong>紀錄牆</strong><small>位置最佳 {bestFilled}/5・里程碑 {milestoneTotal}</small></span><span aria-hidden="true">→</span></button>}
         </nav>
         <div className="bl-home-collection">
       <section className="bl-card p-4">

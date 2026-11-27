@@ -22,6 +22,7 @@ interface Props {
   challengeProgress: ChallengeProgress;
   records: PersonalRecords;
   onShowHowTo: () => void;
+  onOpenLore?: () => void;
   onStart: (seedCode: string, gmName: string, teamId: string) => void;
   onStartChallenge: (challengeId: string, gmName: string) => void;
   onContinue: () => void;
@@ -34,6 +35,7 @@ export function TitleScreen({
   challengeProgress,
   records,
   onShowHowTo,
+  onOpenLore,
   onStart,
   onStartChallenge,
   onContinue,
@@ -195,6 +197,14 @@ export function TitleScreen({
           onClick={onShowHowTo}
           className="w-full rounded-xl border border-slate-600 bg-slate-800/80 px-4 text-base font-bold text-slate-200"
         />
+        {onOpenLore && (
+          <TouchButton
+            label="📜 文化源流與玩法圖鑑"
+            ariaLabel="開啟文化源流與玩法圖鑑"
+            onClick={onOpenLore}
+            className="w-full min-h-[44px] rounded-xl border border-emerald-500/40 bg-emerald-950/60 px-4 text-base font-bold text-emerald-200 touch-manipulation"
+          />
+        )}
         {hasSave && (
           <TouchButton
             label="繼續上次的任期"

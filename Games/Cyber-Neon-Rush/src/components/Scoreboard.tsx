@@ -5,8 +5,9 @@ import { CockpitHud } from './CockpitHud';
 interface ScoreboardProps {
   hud: HudSnapshot;
   visible: boolean;
+  onOpenLore?: () => void;
 }
 
-export function Scoreboard({ hud, visible }: ScoreboardProps): ReactElement | null {
-  return <CockpitHud hud={hud} visible={visible} />;
+export function Scoreboard({ hud, visible, onOpenLore }: ScoreboardProps): ReactElement | null {
+  return <CockpitHud hud={hud} visible={visible} onOpenLore={onOpenLore} />;
 }

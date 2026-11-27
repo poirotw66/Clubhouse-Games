@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
+import { OriginLoreModal } from '@clubhouse/shared/OriginLoreModal';
+import { BASEBALL_LIFE_LORE } from '@clubhouse/shared/lore/sportsArcade';
 import { playCapture, playGoal, playLose, playScore, playWin } from '@clubhouse/shared/synthAudio';
 import {
   applyChallengeResult,
@@ -85,6 +87,7 @@ export default function App(): React.ReactElement {
   const [justUnlocked, setJustUnlocked] = useState<Achievement[]>([]);
   // The career invitation teaches progressively; full instructions stay opt-in.
   const [showFirstRun, setShowFirstRun] = useState(false);
+  const [showLore, setShowLore] = useState(false);
   const summarySfxKey = useRef<string | null>(null);
 
   const activeChallenge: CareerChallenge | null = activeChallengeId
@@ -312,6 +315,9 @@ export default function App(): React.ReactElement {
     <>
       <BackToMenu onBackToTitle={screen !== 'title' ? () => setScreen('title') : undefined} />
       {showFirstRun && <FirstRunGuide onClose={() => setShowFirstRun(false)} />}
+      {showLore && (
+        <OriginLoreModal dossier={BASEBALL_LIFE_LORE} onClose={() => setShowLore(false)} />
+      )}
       {screen === 'title' && (
         <TitleScreen
           initialSeed={seedCode}
@@ -323,6 +329,7 @@ export default function App(): React.ReactElement {
           pendingLegacy={pendingLegacy}
           challengeProgress={challengeProgress}
           onShowHowTo={() => setShowFirstRun(true)}
+          onOpenLore={() => setShowLore(true)}
           onStart={beginFreePlay}
           onStartChallenge={beginChallenge}
           onContinue={() => {
@@ -363,6 +370,8 @@ export default function App(): React.ReactElement {
           onAcknowledge={handleAcknowledge}
           onUndo={handleUndo}
           canUndo={history.length > 0}
+          onOpenLore={() => setShowLore(true)}
+          isLoreOpen={showLore}
           onQuit={backToTitle}
         />
       )}

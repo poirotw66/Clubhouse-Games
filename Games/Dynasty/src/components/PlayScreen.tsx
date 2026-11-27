@@ -63,6 +63,8 @@ interface Props {
   onAcknowledge: () => void;
   onUndo: () => void;
   canUndo: boolean;
+  onOpenLore?: () => void;
+  isLoreOpen?: boolean;
   onQuit: () => void;
 }
 
@@ -90,6 +92,8 @@ export function PlayScreen({
   onAcknowledge,
   onUndo,
   canUndo,
+  onOpenLore,
+  isLoreOpen = false,
   onQuit,
 }: Props): React.ReactElement {
   const [showRoster, setShowRoster] = useState(false);
@@ -113,7 +117,7 @@ export function PlayScreen({
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey || event.repeat) return;
-      if (showWarRoomModal) return;
+      if (showWarRoomModal || isLoreOpen) return;
       const target = event.target as HTMLElement | null;
       if (target?.isContentEditable || (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
 
@@ -152,7 +156,7 @@ export function PlayScreen({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [ended, pickable, onChoose, onAcknowledge, onUndo, canUndo, showWarRoomModal]);
+  }, [ended, pickable, onChoose, onAcknowledge, onUndo, canUndo, showWarRoomModal, isLoreOpen]);
 
   return (
     <div className={`mx-auto w-full px-3 sm:px-4 pb-16 pt-12 transition-all ${viewMode === 'dual' ? 'max-w-[100rem]' : 'max-w-5xl'}`}>
@@ -189,6 +193,18 @@ export function PlayScreen({
           )}
         </div>
         <div className="flex items-center gap-2">
+          {onOpenLore && (
+            <button
+              type="button"
+              onClick={onOpenLore}
+              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-950/60 px-3 py-2 text-xs font-bold text-emerald-200 transition-colors hover:bg-emerald-900/60 touch-manipulation"
+              aria-label="文化源流與玩法圖鑑"
+              title="文化源流與玩法圖鑑"
+            >
+              <span>📜</span>
+              <span>圖鑑</span>
+            </button>
+          )}
           <TouchButton
             label="放棄任期"
             ariaLabel="放棄目前進度並回到標題"

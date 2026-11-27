@@ -6,6 +6,7 @@ import { SpeedWarpCanvas } from './SpeedWarpCanvas';
 interface CockpitHudProps {
   hud: HudSnapshot;
   visible: boolean;
+  onOpenLore?: () => void;
 }
 
 function formatMult(m: number): string {
@@ -21,7 +22,7 @@ function getGearLabel(kmh: number, fever: boolean, boosting: boolean): string {
   return 'GEAR 1';
 }
 
-export function CockpitHud({ hud, visible }: CockpitHudProps): ReactElement | null {
+export function CockpitHud({ hud, visible, onOpenLore }: CockpitHudProps): ReactElement | null {
   if (!visible) return null;
 
   const kmh = Math.round(hud.speed * 3.6);
@@ -101,18 +102,32 @@ export function CockpitHud({ hud, visible }: CockpitHudProps): ReactElement | nu
           </div>
         </div>
 
-        {/* Tactical active powerup modules */}
-        {(powers.shield || powers.magnet > 0 || powers.multiplier > 0 || powers.slowmo > 0) && (
-          <div className="power-chips" aria-label="作用中道具">
-            {powers.shield && <span className="power-chip chip-shield">護盾 🛡️</span>}
-            {powers.magnet > 0 && (
-              <span className="power-chip chip-magnet">磁鐵 🧲 {powers.magnet.toFixed(1)}s</span>
-            )}
-            {powers.multiplier > 0 && (
-              <span className="power-chip chip-mult">雙倍 ⚡ {powers.multiplier.toFixed(1)}s</span>
-            )}
-            {powers.slowmo > 0 && (
-              <span className="power-chip chip-slow">慢動作 ⏳ {powers.slowmo.toFixed(1)}s</span>
+        {/* Tactical active powerup modules + Lore button */}
+        {(onOpenLore || powers.shield || powers.magnet > 0 || powers.multiplier > 0 || powers.slowmo > 0) && (
+          <div className="mx-auto mt-1.5 flex max-w-[980px] flex-wrap items-center justify-between gap-2">
+            <div className="power-chips" style={{ margin: 0 }} aria-label="作用中道具">
+              {powers.shield && <span className="power-chip chip-shield">護盾 🛡️</span>}
+              {powers.magnet > 0 && (
+                <span className="power-chip chip-magnet">磁鐵 🧲 {powers.magnet.toFixed(1)}s</span>
+              )}
+              {powers.multiplier > 0 && (
+                <span className="power-chip chip-mult">雙倍 ⚡ {powers.multiplier.toFixed(1)}s</span>
+              )}
+              {powers.slowmo > 0 && (
+                <span className="power-chip chip-slow">慢動作 ⏳ {powers.slowmo.toFixed(1)}s</span>
+              )}
+            </div>
+            {onOpenLore && (
+              <button
+                type="button"
+                onClick={onOpenLore}
+                className="pointer-events-auto inline-flex min-h-[44px] items-center gap-1.5 rounded-lg border border-cyan-400/50 bg-slate-950/85 px-3 py-1.5 text-xs font-bold text-cyan-200 shadow-lg backdrop-blur-sm transition hover:bg-cyan-950/80 touch-manipulation"
+                aria-label="文化源流與玩法圖鑑"
+                title="文化源流與玩法圖鑑"
+              >
+                <span>📜</span>
+                <span>圖鑑</span>
+              </button>
             )}
           </div>
         )}

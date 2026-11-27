@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackToMenu } from '@clubhouse/shared/BackToMenu';
 import { JuiceSettingsPanel } from '@clubhouse/shared/JuiceSettings';
+import { OriginLoreModal } from '@clubhouse/shared/OriginLoreModal';
 import { ResultOverlay } from '@clubhouse/shared/ResultOverlay';
+import { DANMAKU_ABYSS_LORE } from '@clubhouse/shared/lore/sportsArcade';
 import { haptic } from '@clubhouse/shared/juice';
 import {
   playCapture,
@@ -120,6 +122,7 @@ export default function App(): React.ReactElement {
   const [showCrafts, setShowCrafts] = useState(false);
   const [showCaptures, setShowCaptures] = useState(false);
   const [showFirstRun, setShowFirstRun] = useState(() => !hasSeenFirstRunGuide());
+  const [showLore, setShowLore] = useState(false);
   const [reduceMotion, setReduceMotion] = useState(() => prefersReducedMotion());
   const [dailyBest, setDailyBest] = useState<DailyBestRecord>(() => loadDailyBest());
   const [shareCopied, setShareCopied] = useState(false);
@@ -377,6 +380,7 @@ export default function App(): React.ReactElement {
           }
         }
       }
+      if (showLore) return;
       if (e.code === 'KeyP' || e.code === 'Escape') {
         e.preventDefault();
         if (!e.repeat) setPaused((p) => !p);
@@ -407,7 +411,7 @@ export default function App(): React.ReactElement {
       window.removeEventListener('keydown', down);
       window.removeEventListener('keyup', up);
     };
-  }, [screen, paused]);
+  }, [screen, paused, showLore]);
 
   // ── Fixed-timestep loop ────────────────────────────────────────────────────
 
@@ -426,7 +430,7 @@ export default function App(): React.ReactElement {
       // Presentation timers always tick so shake decays during pause / hit-stop.
       if (!reduceMotion) tickJuice(juiceRef.current, dtReal);
 
-      if (paused || s.phase !== 'playing') return;
+      if (paused || showLore || s.phase !== 'playing') return;
 
       // Hit-stop freezes the simulation briefly without freezing the canvas.
       if (!reduceMotion && juiceRef.current.hitStop > 0) return;
@@ -457,7 +461,7 @@ export default function App(): React.ReactElement {
     };
     rafRef.current = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [screen, paused, readInput, reduceMotion]);
+  }, [screen, paused, showLore, readInput, reduceMotion]);
 
   // Record free-play / daily / mode-pack progress once a run ends.
   useEffect(() => {
@@ -683,6 +687,9 @@ export default function App(): React.ReactElement {
       <div className="da-title-shell">
         <BackToMenu />
         {showFirstRun && <FirstRunGuide onClose={() => setShowFirstRun(false)} />}
+        {showLore && (
+          <OriginLoreModal dossier={DANMAKU_ABYSS_LORE} onClose={() => setShowLore(false)} />
+        )}
         <div className="da-title-stage">
           <div className="da-title-field">
             <div className="da-title-copy">
@@ -775,10 +782,19 @@ export default function App(): React.ReactElement {
               <button
                 type="button"
                 onClick={() => setShowFirstRun(true)}
-                className="da-btn da-btn--ghost"
+                className="da-btn da-btn--ghost min-h-[44px] touch-manipulation"
                 style={{ width: 'auto', flex: '1 1 8rem' }}
               >
                 操作教學
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowLore(true)}
+                className="da-btn da-btn--ghost min-h-[44px] touch-manipulation border-purple-400/40 text-purple-200"
+                style={{ width: 'auto', flex: '1 1 100%' }}
+                aria-label="文化源流與玩法圖鑑"
+              >
+                📜 文化源流與玩法圖鑑
               </button>
             </div>
           </div>
@@ -981,6 +997,9 @@ export default function App(): React.ReactElement {
   return (
     <div className="da-play">
       <BackToMenu onBackToTitle={() => setScreen('menu')} />
+      {showLore && (
+        <OriginLoreModal dossier={DANMAKU_ABYSS_LORE} onClose={() => setShowLore(false)} />
+      )}
 
       {/* HUD: score + vitals lead; mode/craft/stage stay secondary so the field stays readable. */}
       <div className="da-hud">
@@ -1027,6 +1046,15 @@ export default function App(): React.ReactElement {
             <span className="da-hud-score__label">分數</span>
             {(s?.score ?? 0).toLocaleString('zh-Hant')}
           </span>
+          <button
+            type="button"
+            onClick={() => setShowLore(true)}
+            className="da-hud-chip min-h-[44px] touch-manipulation border border-purple-400/40 bg-purple-950/60 text-purple-200 hover:bg-purple-900/60 font-bold cursor-pointer"
+            aria-label="文化源流與玩法圖鑑"
+            title="文化源流與玩法圖鑑"
+          >
+            📜 圖鑑
+          </button>
         </div>
       </div>
 
