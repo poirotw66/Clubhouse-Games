@@ -428,7 +428,7 @@
         {
           "name": "3D 航行",
           "en": "3D Sailing",
-          "desc": "Windward：三航線計時、PB 與幽靈船；本機 Three.js，支援觸控。",
+          "desc": "Windward：八航線計時、PB 與每日幽靈賽；本機 Three.js，支援觸控。",
           "players": "1 人",
           "specPath": "07-astra/3d-sailing.md",
           "gameFolder": "Astra-3d-sailing",
@@ -446,7 +446,7 @@
         {
           "name": "3D 填空",
           "en": "3D Fill the Void",
-          "desc": "3D 空間填補／建造類互動小品（執行期依賴 Three.js CDN）。",
+          "desc": "3D 空間填補／拼板解謎：20 關三包、星等標準桿與每日關；本機 Three.js。",
           "players": "1 人",
           "specPath": "07-astra/3d-fill-the-void.md",
           "gameFolder": "Astra-3d-fill-the-void",
@@ -455,7 +455,7 @@
         {
           "name": "邊疆",
           "en": "Borderland",
-          "desc": "邊疆主題 3D 射擊小品（執行期依賴 Three.js CDN）。",
+          "desc": "邊疆主題 3D 生存射擊：波次防衛與武器升級；本機 Three.js。",
           "players": "1 人",
           "specPath": "07-astra/borderland.md",
           "gameFolder": "Astra-borderland",

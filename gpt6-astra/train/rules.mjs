@@ -9,6 +9,9 @@ export const LEGACY_BEST_KEY = "unstoppable-best";
 /** Wagon upgrade cap (levels 0 → MAX_LEVEL). */
 export const MAX_LEVEL = 5;
 
+/** Solo boiler/fireman assist is opt-in so players manage water tension manually by default. */
+export const DEFAULT_AUTO_FIREMAN = false;
+
 /** @typedef {"easy"|"normal"|"hard"} DifficultyId */
 
 /**

@@ -287,7 +287,7 @@ h3 { font-size:13px; letter-spacing:1px; margin:0 0 12px; }
     <h3>合作隊員</h3>
     <div id="players"></div>
     <label class="muted" style="display:flex;gap:8px;align-items:center;margin:8px 0">
-      <input type="checkbox" id="autoFireman" checked>
+      <input type="checkbox" id="autoFireman">
       單人自動司爐（補水 AI）
     </label>
     <div class="muted" id="controlsHelp">
@@ -316,6 +316,7 @@ h3 { font-size:13px; letter-spacing:1px; margin:0 0 12px; }
 
 <script type="module">
 import {
+  DEFAULT_AUTO_FIREMAN,
   DIFFICULTIES,
   DIFFICULTY_ORDER,
   LEGACY_BEST_KEY,
@@ -358,7 +359,8 @@ const colors = { wood:"#b98449", ore:"#bac5cc", rail:"#efcf75", water:"#79d9ee" 
 let W=900, H=650, scale=1, tileW=54, tileH=28;
 let state="menu", game=null, last=0, noticeTime=0;
 let selectedMode="normal", selectedPlayers=1, useDaily=false;
-let autoFiremanOn = true;
+let autoFiremanOn = DEFAULT_AUTO_FIREMAN;
+$("autoFireman").checked = autoFiremanOn;
 let stats = loadStats();
 let lastRailAlert = 0;
 

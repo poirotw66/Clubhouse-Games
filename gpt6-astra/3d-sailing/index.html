@@ -168,6 +168,7 @@
     }
 
     .meter {
+      position: relative;
       height: 5px;
       border-radius: 10px;
       background: #163d4814;
@@ -178,12 +179,68 @@
     .meter > div {
       height: 100%;
       border-radius: inherit;
-      width: 65%;
+      width: 55%;
       transition: width .1s linear;
     }
 
     #power-bar { background: var(--orange); }
     #wind-bar { background: #4aadb1; }
+
+    #trim-target {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      margin-left: -1.5px;
+      border-radius: 2px;
+      background: var(--ink);
+      opacity: .75;
+      pointer-events: none;
+      transition: left .1s linear;
+    }
+
+    .assist-toggle {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin-top: 11px;
+      padding-top: 10px;
+      border-top: 1px solid #163d4818;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      pointer-events: auto;
+    }
+
+    .assist-toggle input {
+      margin: 0;
+      accent-color: var(--teal);
+      cursor: pointer;
+    }
+
+    .lobby-assist {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin: 0 0 14px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: #f5efe1;
+      border: 1px solid #163d4818;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ink);
+      cursor: pointer;
+      text-align: left;
+    }
+
+    .lobby-assist input {
+      margin: 0;
+      accent-color: var(--teal);
+      cursor: pointer;
+      flex-shrink: 0;
+    }
 
     .wind-readout {
       display: flex;
@@ -625,22 +682,26 @@
         <div class="eyebrow">Speed over water</div>
         <div class="speed-row"><span id="speed">0.0</span><span class="unit">knots</span></div>
 
-        <div class="meter-label"><span>SAIL POWER</span><span id="power">65%</span></div>
-        <div class="meter"><div id="power-bar"></div></div>
+        <div class="meter-label"><span>SAIL TRIM</span><span id="power">55%</span></div>
+        <div class="meter"><div id="power-bar"></div><span id="trim-target" title="Optimal sail trim"></span></div>
 
         <div class="meter-label"><span>WIND EFFICIENCY</span><span id="efficiency">0%</span></div>
         <div class="meter"><div id="wind-bar"></div></div>
 
         <div class="wind-readout">
           <span id="wind-arrow">↑</span>
-          <span id="wind-label">breeze · auto-trim on</span>
+          <span id="wind-label">微風 · 手動調帆</span>
         </div>
+        <label class="assist-toggle">
+          <input type="checkbox" id="auto-trim" />
+          <span>自動調帆輔助</span>
+        </label>
       </div>
 
       <div class="help">
-        <kbd>W</kbd> <kbd>S</kbd> sail power &nbsp;
-        <kbd>A</kbd> <kbd>D</kbd> steer<br />
-        <kbd>SPACE</kbd> brake &nbsp; <kbd>R</kbd> restart &nbsp; <kbd>Esc</kbd> menu
+        <kbd>W</kbd> <kbd>S</kbd> 調帆（放／收）&nbsp;
+        <kbd>A</kbd> <kbd>D</kbd> 轉向<br />
+        <kbd>SPACE</kbd> 煞車 &nbsp; <kbd>R</kbd> 重開 &nbsp; <kbd>Esc</kbd> 選單
       </div>
     </section>
 
@@ -655,8 +716,8 @@
     <div id="touch-controls" aria-label="Sailing controls">
       <button class="touch-key" data-key="KeyA" aria-label="Steer left">←</button>
       <button class="touch-key" data-key="KeyD" aria-label="Steer right">→</button>
-      <button class="touch-key" data-key="KeyS" aria-label="Reduce sail power">−</button>
-      <button class="touch-key" data-key="KeyW" aria-label="Increase sail power">+</button>
+      <button class="touch-key" data-key="KeyS" aria-label="Sheet in sail">−</button>
+      <button class="touch-key" data-key="KeyW" aria-label="Ease out sail">+</button>
       <button class="touch-key wide" data-key="Space" aria-label="Brake">Brake</button>
       <button class="touch-key wide" data-action="restart" aria-label="Restart">R</button>
     </div>
@@ -687,8 +748,12 @@
         <textarea id="share-text" readonly rows="4" aria-label="每日分享文字"></textarea>
       </div>
       <div class="course-list" id="course-list" role="listbox" aria-label="航線"></div>
+      <label class="lobby-assist">
+        <input type="checkbox" id="auto-trim-lobby" />
+        <span>自動調帆輔助（Auto-trim，新手／無障礙選用；預設手動調帆）</span>
+      </label>
       <button class="primary" id="start">Set sail &nbsp; ↗</button>
-      <div class="footnote">W/S 動力 · A/D 轉向 · Space 煞車 · R 重開 · Esc 選單</div>
+      <div class="footnote">W/S 調帆 · A/D 轉向 · Space 煞車 · R 重開 · Esc 選單</div>
     </div>
   </section>
 
@@ -696,9 +761,12 @@
     import * as THREE from '../vendor/three/build/three.module.min.js';
     import {
       COURSES,
+      DEFAULT_AUTO_TRIM,
+      INITIAL_SAIL_TRIM,
       ISLANDS,
       bestFor,
       collisionPenalty,
+      computeWindEfficiency,
       createGhostPlayback,
       createGhostRecorder,
       crossedGate,
@@ -1178,7 +1246,8 @@
     let isDailyRace = false;
     let dailyDateKey = taipeiDateKey();
     let state='intro';
-    let heading=0,speed=0,power=.65,efficiency=0;
+    let heading=0,speed=0,sailTrim=INITIAL_SAIL_TRIM,optimalTrim=INITIAL_SAIL_TRIM,efficiency=0,lastAlignment=0;
+    let autoTrim=DEFAULT_AUTO_TRIM;
     let timeLeft=180,nextGate=0,collisionCooldown=0;
     let elapsed=0,penalties=0,toastTimeout;
     let windHeading=0;
@@ -1281,7 +1350,24 @@
           selectedCourse = course;
           raceBaseCourseId = course.id;
           sfxSelect();
-          renderCourseList();
+          function syncAutoTrimUI(){
+      const hudBox = $('auto-trim');
+      const lobbyBox = $('auto-trim-lobby');
+      if (hudBox) hudBox.checked = autoTrim;
+      if (lobbyBox) lobbyBox.checked = autoTrim;
+      $('wind-label').textContent = `${selectedCourse.name} · ${autoTrim ? '自動調帆' : '手動調帆'}`;
+    }
+
+    function setAutoTrim(enabled){
+      autoTrim = !!enabled;
+      syncAutoTrimUI();
+    }
+
+    $('auto-trim').addEventListener('change', (e) => setAutoTrim(e.target.checked));
+    $('auto-trim-lobby').addEventListener('change', (e) => setAutoTrim(e.target.checked));
+    syncAutoTrimUI();
+
+    renderCourseList();
         });
         list.appendChild(btn);
       }
@@ -1308,7 +1394,24 @@
       $('card-title').innerHTML = 'Find your<br />fair wind.';
       $('card-copy').textContent =
         '八條航線、星級解鎖、個人最佳與幽靈船。每日以台北時間種子挑戰自己的幽靈。';
-      renderCourseList();
+      function syncAutoTrimUI(){
+      const hudBox = $('auto-trim');
+      const lobbyBox = $('auto-trim-lobby');
+      if (hudBox) hudBox.checked = autoTrim;
+      if (lobbyBox) lobbyBox.checked = autoTrim;
+      $('wind-label').textContent = `${selectedCourse.name} · ${autoTrim ? '自動調帆' : '手動調帆'}`;
+    }
+
+    function setAutoTrim(enabled){
+      autoTrim = !!enabled;
+      syncAutoTrimUI();
+    }
+
+    $('auto-trim').addEventListener('change', (e) => setAutoTrim(e.target.checked));
+    $('auto-trim-lobby').addEventListener('change', (e) => setAutoTrim(e.target.checked));
+    syncAutoTrimUI();
+
+    renderCourseList();
     }
 
     function beginRace(course, { daily = false, dateKey = null } = {}){
@@ -1324,7 +1427,9 @@
       position.set(selectedCourse.start.x, 0, selectedCourse.start.z);
       heading = selectedCourse.start.heading;
       speed = 0;
-      power = .65;
+      sailTrim = INITIAL_SAIL_TRIM;
+      optimalTrim = INITIAL_SAIL_TRIM;
+      lastAlignment = 0;
       timeLeft = selectedCourse.timeLimit;
       elapsed = 0;
       nextGate = 0;
@@ -1351,7 +1456,7 @@
       $('timer').classList.remove('urgent');
       $('course-label').textContent = selectedCourse.name;
       $('gate-total').textContent = ` / ${String(selectedCourse.gates.length).padStart(2, '0')}`;
-      $('wind-label').textContent = `${selectedCourse.name} · auto-trim on`;
+      syncAutoTrimUI();
       camera.position.set(
         position.x - Math.sin(heading) * 22,
         13,
@@ -1516,6 +1621,23 @@
       }
     });
 
+    function syncAutoTrimUI(){
+      const hudBox = $('auto-trim');
+      const lobbyBox = $('auto-trim-lobby');
+      if (hudBox) hudBox.checked = autoTrim;
+      if (lobbyBox) lobbyBox.checked = autoTrim;
+      $('wind-label').textContent = `${selectedCourse.name} · ${autoTrim ? '自動調帆' : '手動調帆'}`;
+    }
+
+    function setAutoTrim(enabled){
+      autoTrim = !!enabled;
+      syncAutoTrimUI();
+    }
+
+    $('auto-trim').addEventListener('change', (e) => setAutoTrim(e.target.checked));
+    $('auto-trim-lobby').addEventListener('change', (e) => setAutoTrim(e.target.checked));
+    syncAutoTrimUI();
+
     renderCourseList();
     rebuildGates(selectedCourse.gates);
     updateGateAppearance();
@@ -1623,18 +1745,26 @@
       timeLeft-=dt;
       collisionCooldown=Math.max(0,collisionCooldown-dt);
 
-      const up=keys.KeyW||keys.ArrowUp;
-      const down=keys.KeyS||keys.ArrowDown;
-      power=THREE.MathUtils.clamp(power+((up?1:0)-(down?1:0))*dt*.42,0,1);
-
       const steer=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0);
       heading+=steer*dt*(.35+Math.min(speed/10,1)*.83);
 
       const fx=Math.sin(heading),fz=-Math.cos(heading);
       const alignment=fx*windDir.x+fz*windDir.y;
+      lastAlignment=alignment;
 
-      efficiency=THREE.MathUtils.clamp(.69+.28*alignment-.2*alignment*alignment,.22,1);
-      const targetSpeed=power*(7+12*efficiency)*windGust*(keys.Space?.10:1);
+      const up=keys.KeyW||keys.ArrowUp;
+      const down=keys.KeyS||keys.ArrowDown;
+      if (autoTrim) {
+        const autoIdeal = computeWindEfficiency(alignment, sailTrim).optimalTrim;
+        sailTrim += (autoIdeal - sailTrim) * (1 - Math.exp(-dt * 4.5));
+      } else {
+        sailTrim = THREE.MathUtils.clamp(sailTrim + ((up ? 1 : 0) - (down ? 1 : 0)) * dt * .55, 0, 1);
+      }
+
+      const windEval = computeWindEfficiency(alignment, sailTrim);
+      optimalTrim = windEval.optimalTrim;
+      efficiency = windEval.efficiency;
+      const targetSpeed = (3.2 + 16.2 * efficiency) * windGust * (keys.Space ? .10 : 1);
       speed+=(targetSpeed-speed)*(1-Math.exp(-dt*(keys.Space?2.4:.42)));
       speed*=Math.exp(-Math.abs(steer)*dt*.065);
 
@@ -1720,9 +1850,10 @@
         boat.rotation.x=Math.sin(t*1.8)*.025;
       }
 
-      const relativeWind=Math.sin(windHeading-heading);
-      const sailTarget=THREE.MathUtils.clamp(relativeWind*.9,-1.0,1.0);
-      sailPivot.rotation.y=THREE.MathUtils.lerp(sailPivot.rotation.y,sailTarget,1-Math.exp(-dt*2));
+      const windSide=Math.sin(windHeading-heading)>=0?1:-1;
+      const luff=!reducedMotion && lastAlignment<-.72?Math.sin(t*14)*.09:0;
+      const sailTarget=windSide*(.12+sailTrim*1.13)+luff;
+      sailPivot.rotation.y=THREE.MathUtils.lerp(sailPivot.rotation.y,sailTarget,1-Math.exp(-dt*5));
 
       gates.forEach((g,i)=>{
         g.buoys.forEach((b,j)=>{
@@ -1761,8 +1892,9 @@
 
     function updateHUD(){
       $('speed').textContent=(speed*1.94384).toFixed(1);
-      $('power').textContent=`${Math.round(power*100)}%`;
-      $('power-bar').style.width=`${power*100}%`;
+      $('power').textContent=`${Math.round(sailTrim*100)}%`;
+      $('power-bar').style.width=`${sailTrim*100}%`;
+      $('trim-target').style.left=`${optimalTrim*100}%`;
       $('efficiency').textContent=`${Math.round(efficiency*100)}%`;
       $('wind-bar').style.width=`${efficiency*100}%`;
       $('checkpoint').textContent=String(nextGate).padStart(2,'0');
@@ -1852,6 +1984,10 @@
     if (new URLSearchParams(location.search).has('test')) {
       window.__windward = {
         get state() { return state; },
+        get autoTrim() { return autoTrim; },
+        get sailTrim() { return sailTrim; },
+        get optimalTrim() { return optimalTrim; },
+        get efficiency() { return efficiency; },
         get progress() { return progress; },
         get dailyProgress() { return dailyProgress; },
         get isDailyRace() { return isDailyRace; },
@@ -1859,6 +1995,7 @@
         getCourseId: () => raceBaseCourseId,
         getSelectedName: () => selectedCourse.name,
         listCourseIds: () => COURSES.map((c) => c.id),
+        setAutoTrim,
         openLobby,
         startGame,
         startDaily,

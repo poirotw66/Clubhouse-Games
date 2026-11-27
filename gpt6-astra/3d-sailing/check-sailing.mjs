@@ -8,10 +8,13 @@ import assert from 'node:assert/strict';
 import {
   COURSES,
   COURSE_ORDER,
+  DEFAULT_AUTO_TRIM,
+  INITIAL_SAIL_TRIM,
   STORAGE_GHOSTS,
   STORAGE_PROGRESS,
   bestFor,
   collisionPenalty,
+  computeWindEfficiency,
   createGhostPlayback,
   createGhostRecorder,
   crossedGate,
@@ -23,6 +26,7 @@ import {
   listCourses,
   loadGhost,
   loadProgress,
+  optimalSailTrim,
   rateStars,
   recordDnf,
   recordFinish,
@@ -305,6 +309,28 @@ assert.ok(reloaded.bests.archipelago.stars >= 1);
   const roundTrip = loadDailyProgress();
   assert.equal(roundTrip.streak, 1);
   assert.equal(roundTrip.byDate['2026-10-25'].bestTime, 90);
+}
+
+// ——— Manual sail trim & wind physics ———
+{
+  assert.equal(DEFAULT_AUTO_TRIM, false, 'manual sail trim must be active by default');
+  assert.ok(INITIAL_SAIL_TRIM > 0 && INITIAL_SAIL_TRIM < 1);
+
+  const tightClose = optimalSailTrim(-0.6);
+  const beam = optimalSailTrim(0);
+  const running = optimalSailTrim(1);
+  assert.ok(tightClose < beam && beam < running, 'ideal sail ease increases from close-hauled to running');
+
+  const broadOpt = computeWindEfficiency(0.5, optimalSailTrim(0.5));
+  const broadMistrimmed = computeWindEfficiency(0.5, 0.1);
+  assert.ok(
+    broadOpt.efficiency > broadMistrimmed.efficiency + 0.25,
+    'mistrimmed sail must lose significant wind efficiency',
+  );
+
+  const inIrons = computeWindEfficiency(-1, optimalSailTrim(-1));
+  assert.equal(inIrons.inIrons, true);
+  assert.ok(inIrons.efficiency < 0.25, 'pointing directly into wind stalls');
 }
 
 console.log('check-sailing: ok');

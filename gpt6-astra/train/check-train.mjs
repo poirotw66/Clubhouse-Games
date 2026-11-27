@@ -6,6 +6,7 @@
 import assert from "node:assert/strict";
 import {
   DAILY_MODIFIERS,
+  DEFAULT_AUTO_FIREMAN,
   DIFFICULTIES,
   DIFFICULTY_ORDER,
   MAX_LEVEL,
@@ -246,6 +247,7 @@ assert.equal(nextDay.isDailyBest, true);
 assert.equal(nextDay.stats.bestDaily.date, "2026-10-03");
 
 assert.deepEqual(emptyStats().bestByMode, { easy: 0, normal: 0, hard: 0 });
+assert.equal(DEFAULT_AUTO_FIREMAN, false, "auto-fireman must be opt-in by default");
 assert.ok(typeof dayA === "string" && typeof dayB === "string");
 
 console.log("check-train: ok");
