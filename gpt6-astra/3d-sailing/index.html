@@ -1350,24 +1350,8 @@
           selectedCourse = course;
           raceBaseCourseId = course.id;
           sfxSelect();
-          function syncAutoTrimUI(){
-      const hudBox = $('auto-trim');
-      const lobbyBox = $('auto-trim-lobby');
-      if (hudBox) hudBox.checked = autoTrim;
-      if (lobbyBox) lobbyBox.checked = autoTrim;
-      $('wind-label').textContent = `${selectedCourse.name} · ${autoTrim ? '自動調帆' : '手動調帆'}`;
-    }
-
-    function setAutoTrim(enabled){
-      autoTrim = !!enabled;
-      syncAutoTrimUI();
-    }
-
-    $('auto-trim').addEventListener('change', (e) => setAutoTrim(e.target.checked));
-    $('auto-trim-lobby').addEventListener('change', (e) => setAutoTrim(e.target.checked));
-    syncAutoTrimUI();
-
-    renderCourseList();
+          syncAutoTrimUI();
+          renderCourseList();
         });
         list.appendChild(btn);
       }
@@ -1394,24 +1378,8 @@
       $('card-title').innerHTML = 'Find your<br />fair wind.';
       $('card-copy').textContent =
         '八條航線、星級解鎖、個人最佳與幽靈船。每日以台北時間種子挑戰自己的幽靈。';
-      function syncAutoTrimUI(){
-      const hudBox = $('auto-trim');
-      const lobbyBox = $('auto-trim-lobby');
-      if (hudBox) hudBox.checked = autoTrim;
-      if (lobbyBox) lobbyBox.checked = autoTrim;
-      $('wind-label').textContent = `${selectedCourse.name} · ${autoTrim ? '自動調帆' : '手動調帆'}`;
-    }
-
-    function setAutoTrim(enabled){
-      autoTrim = !!enabled;
       syncAutoTrimUI();
-    }
-
-    $('auto-trim').addEventListener('change', (e) => setAutoTrim(e.target.checked));
-    $('auto-trim-lobby').addEventListener('change', (e) => setAutoTrim(e.target.checked));
-    syncAutoTrimUI();
-
-    renderCourseList();
+      renderCourseList();
     }
 
     function beginRace(course, { daily = false, dateKey = null } = {}){
